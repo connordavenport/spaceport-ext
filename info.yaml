@@ -1,0 +1,13 @@
+name: SpaceSpace
+developer: Connor Davenport & Vincent Chan
+developerURL: https://connordavenport.com https://matterofsorts.com
+launchAtStartUp: false
+mainScript: ''
+version: '0.0.1'
+addToMenu: 
+- path: controller.py
+  preferredName: SpaceSpace
+  shortKey: ''
+html: false
+requiresVersionMajor: '4'
+requiresVersionMinor: '2'
