@@ -18,10 +18,6 @@ from vanilla.vanillaBase import osVersionCurrent, osVersion12_0
 # ---------
 # Interface
 # ---------
-
-BOTTOM_BAR = 28
-BUTTON_HEIGHT = 25
-
 AXES = [
         "Weight",
         "Width",
@@ -41,7 +37,8 @@ INTERPOLATE = "squareshape.split.2x2.dotted"
 VIEW_OPTIONS = "eye"
 SHOW_METRICS = "character.magnify"
 
-def symbolImage(symbolName, color, flipped=False, pointSize=18.0, weight="light", scale="medium"):
+
+def symbolImage(symbolName:str, color:tuple|AppKit.NSColor, flipped:bool=False, pointSize:float=18.0, weight:str="light", scale:str="medium") -> AppKit.NSImage:
     '''
     taken from designspace editors
     '''
@@ -62,7 +59,7 @@ def symbolImage(symbolName, color, flipped=False, pointSize=18.0, weight="light"
                 "medium": AppKit.NSImageSymbolScaleMedium,
                 "large": AppKit.NSImageSymbolScaleLarge,
             }
-            scale = scales.get(scale, AppKit.NSImageSymbolScaleMedium)
+            scale = scales.get(scale.lower(), AppKit.NSImageSymbolScaleMedium)
 
             weights = {
                 "ultraLight": AppKit.NSFontWeightUltraLight,
@@ -75,7 +72,7 @@ def symbolImage(symbolName, color, flipped=False, pointSize=18.0, weight="light"
                 "heavy":      AppKit.NSFontWeightHeavy,
                 "black":      AppKit.NSFontWeightBlack,
             }
-            weight = weights.get(weight, AppKit.NSFontWeightRegular)
+            weight = weights.get(weight.lower(), AppKit.NSFontWeightRegular)
 
             # baseConfig = AppKit.NSImageSymbolConfiguration.configurationWithHierarchicalColor_(color)
             newConfig = AppKit.NSImageSymbolConfiguration.configurationWithPointSize_weight_scale_(
@@ -179,7 +176,19 @@ class Spaceport(Subscriber, ezui.WindowController):
 
         self.collectionView = self.w.getItem("collectionView")
         self.container = self.collectionView.getMerzContainer()
+        self.marqueeLayer = self.container.appendRectangleSublayer()
+        self.marquee = None
         self.collectionView.setBackgroundColor(AppKit.NSColor.whiteColor())
+
+
+        self.marqueeLayer = self.container.appendRectangleSublayer(
+            position=(100,100),
+            size=(1000,1000),
+            fillColor=(0,1,0,.1),
+            strokeColor=(0,1,0,1),
+            strokeWidth=1
+        )
+
 
         # self.marqueeLayer = self.container.appendRectangleSublayer()
 
@@ -419,7 +428,7 @@ class Spaceport(Subscriber, ezui.WindowController):
             glyphPointsLayer.setVisible(self.showPoints)
 
 
-    def parseItemName(self, name):
+    def parseItemName(self, name:str) -> str:
         if name:
             if "@" not in name:
                 return None
@@ -431,7 +440,7 @@ class Spaceport(Subscriber, ezui.WindowController):
             return None
 
 
-    def populateItems(self):
+    def populateItems(self, reload=False):
         font = self.font
         glyphs = self.glyphs
         items = []
@@ -473,24 +482,15 @@ class Spaceport(Subscriber, ezui.WindowController):
                 visible=True,
             )
 
-            selectionLayer = merz.Base(
+            glyphContainer.appendBaseSublayer(
                 name="selectionIndicator",
-                size=(glyph.width, 1000),
+                position=(0,self.font.info.descender),
+                size=(glyph.width, abs(self.font.info.descender) + self.font.info.ascender),
                 cornerRadius=10,
                 backgroundColor=(0,1,0,.2),
-                visible=False
+                visible=True
             )
-            item.appendLayer("selectionIndicator", selectionLayer)
-
-            glyphContainer.appendRectangleSublayer(
-                name="glyphSelectionInd",
-                size=(glyph.width, abs(self.font.info.descender) + self.font.info.ascender),
-                cornerRadius=4,
-                fillColor=(0,1,0,.12),
-                strokeColor=(0,1,0,1),
-                strokeWidth=1,
-                visible=False,
-            )
+            # item.appendLayer("selectionIndicator", selectionLayer)
 
             with item.propertyGroup():
                 item.setWidth(glyph.width)
@@ -540,6 +540,14 @@ class Spaceport(Subscriber, ezui.WindowController):
                         )
                     glyphMetricsLayer.setVisible(self.showMetrics)
 
+
+                selectionIndicatorLayer = glyphContainer.getSublayer("selectionIndicator")
+                with selectionIndicatorLayer.propertyGroup():
+                    if item in self.selectedItems:
+                        selectionIndicatorLayer.setVisible(True)
+                    else:
+                        selectionIndicatorLayer.setVisible(False)
+                
                 glyphFillLayer = glyphContainer.getSublayer("glyphFill")
                 with glyphFillLayer.propertyGroup():
                     glyphFillLayer.setPath(glyph.getRepresentation("merz.CGPath"))
@@ -613,82 +621,7 @@ class Spaceport(Subscriber, ezui.WindowController):
         # unregisterCurrentGlyphSubscriber(self)
 
 
-    def update(self, items=None):
-        if not items:
-            items = {}
-            contents = self.get()
-            if contents:
-                for index, item in enumerate(contents):
-                    items[index] = item
-        collectionViewItems = []
-        for index, collectionViewItem in enumerate(self.get(unwrap=False)):
-            if index in items:
-                item = items[index]
-                itemRef = weakref.ref(item)
-                data = item.visualPreviewData
-                collectionViewItem = self._groupToCollectionViewItemCache[itemRef]
-                self._populateCollectionViewItem(collectionViewItem, data)
-                item.needsDataReload = False
-            collectionViewItems.append(collectionViewItem)
-
-
-    # def getSelectedIndexes(self):
-    #     return list(self._selectedIndexes)
-
-    # def _setSelection(self, indexes, scroll=False):
-    #     self.setSelectedIndexes(indexes, scroll=scroll)
-    #     if self._selectionCallback is not None:
-    #         self._selectionCallback(self)
-
-    # def getSelectedItems(self):
-    #     indexes = self.getSelectedIndexes()
-    #     items = self.get()
-    #     if not items:
-    #         return []
-    #     selected = []
-    #     for i in indexes:
-    #         if i < len(items):
-    #             selected.append(items[i])
-    #     return selected
-
-    # def set(self, items):
-    #     # item protocol
-    #     # - must be hashable
-    #     # - must have a unitsPerEm attribute
-    #     # - must have a visualPreviewData attribute
-    #     if items is None:
-    #         items = []
-    #     self._unwrappedItems = [weakref.ref(item) for item in items]
-    #     if items:
-    #         self._unitsPerEm = items[0].unitsPerEm
-    #     collectionViewItems = []
-    #     visibleItems = set()
-    #     if items is not None:
-    #         for item in items:
-    #             itemRef = weakref.ref(item)
-    #             data = item.visualPreviewData
-    #             if itemRef not in self._groupToCollectionViewItemCache:
-    #                 self._groupToCollectionViewItemCache[itemRef] = self._makeCollectionViewItem(data)
-    #             collectionViewItem = self._groupToCollectionViewItemCache[itemRef]
-    #             if collectionViewItem.needsDataReload:
-    #                 self._populateCollectionViewItem(collectionViewItem, data)
-    #             collectionViewItems.append(collectionViewItem)
-    #             collectionViewItem.setVisible(True)
-    #             visibleItems.add(itemRef)
-    #     for itemRef, collectionViewItem in self._groupToCollectionViewItemCache.items():
-    #         if itemRef not in visibleItems:
-    #             collectionViewItem.setVisible(False)
-    #     super().set(collectionViewItems)
-
-
-    # def get(self, unwrap=True):
-    #     if unwrap:
-    #         items = [item() for item in self._unwrappedItems]
-    #         return items
-    #     return super().get()
-
-
-    def _getItemAtEvent(self, position):
+    def _getItemAtEvent(self, position:tuple=(0,0)) -> merz.collectionView.MerzCollectionViewItem:
         x,y = position
         hits = self.container.findSublayersContainingPoint(
             (x, y),
@@ -700,7 +633,7 @@ class Spaceport(Subscriber, ezui.WindowController):
         hit = hits[0]
         return hit
 
-    def _convertLocation(self, event):
+    def _convertLocation(self, event:dict) -> tuple:
         location = event["location"]
         self.container = self.container
         location = self.collectionView.getMerzView().convertWindowCoordinateToViewCoordinate(
@@ -713,12 +646,12 @@ class Spaceport(Subscriber, ezui.WindowController):
         return (x,y)
 
 
-    def getFontFromPath(self, path):
+    def getFontFromPath(self, path:str) -> RFont:
         for f in AllFonts():
             if path == f.path:
                 return f
 
-    def getGlyphFromItem(self, item):
+    def getGlyphFromItem(self, item:merz.collectionView.MerzCollectionViewItem):
         parsed = self.parseItemName(item.getName())
         if parsed:
             glyphName, fontPath = parsed
@@ -729,7 +662,7 @@ class Spaceport(Subscriber, ezui.WindowController):
     def mouseDown(self,view,event):
         event = merz.unpackEvent(event)
         self.start = (x,y) = self._convertLocation(event)
-        # self.marqueeLayer.clearSublayers()
+        self.marqueeLayer.clearSublayers()
         hit = self._getItemAtEvent((x,y))
         selection = []
 
@@ -737,36 +670,48 @@ class Spaceport(Subscriber, ezui.WindowController):
 
         for temp_item in self.collectionView.get():
             if temp_item not in self.selectedItems:
-                temp_item.getLayer("selectionIndicator").setVisible(False)
+                self.set_item_selection_status(temp_item,False)
 
         if hit:
             clickCount = event["clickCount"]
             parsed = self.parseItemName(hit.getName())
             if parsed:
-                selectionLayer = hit.getLayer("selectionIndicator")
-                selectionLayer.setVisible(True)
+                self.set_item_selection_status(hit,True)
                 selectedGlyph = self.getGlyphFromItem(hit)
 
             if selectedGlyph:
                 if AppKit.NSEvent.modifierFlags() & AppKit.NSShiftKeyMask:
+                    # print("shift down, append")
                     self.selectedItems.append(hit)
                 else:
+                    # print("no mod, use only this")
                     self.selectedItems = [hit]
+                    for temp_item in self.collectionView.get():
+                        if temp_item not in self.selectedItems:
+                            self.set_item_selection_status(temp_item,False)
+
                 if clickCount == 2:
                     OpenGlyphWindow(ff[gn])
             else:
+                # print("clearing selection")
                 self.selectedItems = []
         else:
+            # print("clearing selection")
             self.selectedItems = []
+
+        if not self.selectedItems:
+            for temp_item in self.collectionView.get():
+                self.set_item_selection_status(temp_item,False)
 
 
     def mouseDragged(self,view,event):
         self.hoverItem = None
         self.wasDragging = True
-        # self.marqueeLayer.clearSublayers()
+        # self.container.clearSublayers()
 
         event = merz.unpackEvent(event)
         x, y = self._convertLocation(event)
+
         ox,oy = self.start
         shift = True if AppKit.NSEvent.modifierFlags() & AppKit.NSShiftKeyMask else False
         
@@ -788,17 +733,12 @@ class Spaceport(Subscriber, ezui.WindowController):
         else:
             return
 
-        # marquee = self.marqueeLayer.appendRectangleSublayer(
-        #     position=p,
-        #     size=s,
-        #     fillColor=(0,1,0,.2),
-        #     strokeColor=(0,1,0,1),
-        #     strokeWidth=1
-        # )
+        # self.marqueeLayer.setPosition(p)
+        # self.marqueeLayer.setSize(s)
 
-        pos = marquee.getPosition()
-        sz = marquee.getSize()
-        x,y,w,h = pos[0],pos[1],sz[0],sz[1]
+        # pos = marquee.getPosition()
+        # sz = marquee.getSize()
+        # x,y,w,h = pos[0],pos[1],sz[0],sz[1]
 
 
     def keyDown(self, view, event):
@@ -814,8 +754,7 @@ class Spaceport(Subscriber, ezui.WindowController):
         if char in directions:
             for item in self.selectedItems:
 
-                selectionLayer = item.getLayer("selectionIndicator")
-                selectionLayer.setVisible(True)
+                self.set_item_selection_status(item,True)
 
                 glyph = self.getGlyphFromItem(item)
                                             
@@ -827,7 +766,6 @@ class Spaceport(Subscriber, ezui.WindowController):
                             spacing_unit = 10
                         else:
                             spacing_unit = 1
-                        
                         if glyph.bounds:
                             if "option" in mods and char == "right":
                                 glyph.leftMargin += spacing_unit
@@ -851,17 +789,20 @@ class Spaceport(Subscriber, ezui.WindowController):
                             elif char == "left":
                                 glyph.width -= spacing_unit
 
+        # for item in self.selectedItems:
+        #     self.set_item_selection_status(item,True)
 
 
-
+    def set_item_selection_status(self, collection_item:merz.collectionView.MerzCollectionViewItem, bool=True):
+        collection_item.getLayer("glyphContainer").getSublayer("selectionIndicator").setVisible(bool)
 
     def mouseMoved(self, view, event):
         pass
         # print("debug::mouseMoved")
 
     def mouseUp(self, view, event):
-        pass
-        # self.marqueeLayer.clearSublayers()
+        # pass
+        self.marqueeLayer.clearSublayers()
         # print("debug::mouseUp")
 
     def subscribeToGlyphs(self):
@@ -871,10 +812,10 @@ class Spaceport(Subscriber, ezui.WindowController):
         self.clearObservedAdjunctObjects()
 
     def adjunctGlyphDidChangeMetrics(self, info):
-        self.populateItems()
+        self.populateItems(reload=True)
 
     def adjunctGlyphDidChangeOutline(self, info):
-        self.populateItems()
+        self.populateItems(reload=True)
 
 
 registerCurrentGlyphSubscriber(Spaceport)
