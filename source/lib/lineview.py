@@ -96,6 +96,10 @@ class Spaceport(Subscriber, ezui.WindowController):
 
     def build(self):
 
+        # self._unwrappedItems = []
+
+        self.selectedItems = []
+
         self.foreground = (0,0,0,1)
         self.background = (1,1,1,1)
 
@@ -111,12 +115,6 @@ class Spaceport(Subscriber, ezui.WindowController):
                     text="Edit Text",
                     template=True,
                 ),
-                # dict(
-                #     identifier="show_metrics",
-                #     image=symbolImage(symbolName=SHOW_METRICS, color=(1,1,1,1), weight="regular"),
-                #     text="Show Metrics",
-                #     template=True,
-                # ),
                 dict(
                     identifier="add_font",
                     image=symbolImage(symbolName=ADD_FONT, color=(1,1,1,1), weight="regular"),
@@ -154,13 +152,6 @@ class Spaceport(Subscriber, ezui.WindowController):
                     text="View Options",
                     template=True,
                 ),
-
-                # dict(
-                #     identifier="invert_colors",
-                #     image=symbolImage(symbolName="swirl.circle.righthalf.filled.inverse", color=(1,1,1,1), weight="regular"),
-                #     text="invert colors",
-                #     template=True,
-                # ),
             ]
         )
 
@@ -185,7 +176,12 @@ class Spaceport(Subscriber, ezui.WindowController):
             size=(1000, 500),
             minSize=(400, 200),
         )
-        self.w.getItem("collectionView").setBackgroundColor(AppKit.NSColor.whiteColor())
+
+        self.collectionView = self.w.getItem("collectionView")
+        self.container = self.collectionView.getMerzContainer()
+        self.collectionView.setBackgroundColor(AppKit.NSColor.whiteColor())
+
+        # self.marqueeLayer = self.container.appendRectangleSublayer()
 
         # for item in self.w.getItemValues():
         #     if "Field" in item:
@@ -268,7 +264,7 @@ class Spaceport(Subscriber, ezui.WindowController):
             parentAlignment="bottom",
             controller=self
         )
-        self.te.setItemValue("textField", "Spaceport 123")
+        self.te.setItemValue("textField", "SPACEPORT")
         #contentViewController
         
 
@@ -331,7 +327,6 @@ class Spaceport(Subscriber, ezui.WindowController):
         self.controlsStackCallback(None)
 
     def controlsStackCallback(self, sender):
-        collectionView = self.w.getItem("collectionView")
         values = self.te.getItemValues()
         al_vals = self.v.getItemValues()
 
@@ -347,7 +342,7 @@ class Spaceport(Subscriber, ezui.WindowController):
             inset = minInset
         elif inset > maxInset:
             inset = maxInset
-        collectionView.setLayoutProperties(
+        self.collectionView.setLayoutProperties(
             scale=scale,
             lineHeight=lineHeight,
             alignment=alignment,
@@ -359,7 +354,7 @@ class Spaceport(Subscriber, ezui.WindowController):
         foreground_color = [(0,0,0,1), (1,1,1,1)][self.invert]
         background_color = [AppKit.NSColor.whiteColor(), AppKit.NSColor.blackColor()][self.invert]
 
-        self.w.getItem("collectionView").setBackgroundColor(background_color)
+        self.collectionView.setBackgroundColor(background_color)
         items = self.w.getItemValue("collectionView")
         for item in items:
             glyphContainer = item.getLayer("glyphContainer")
@@ -424,13 +419,29 @@ class Spaceport(Subscriber, ezui.WindowController):
             glyphPointsLayer.setVisible(self.showPoints)
 
 
+    def parseItemName(self, name):
+        if name:
+            if "@" not in name:
+                return None
+            glyphName,fontPath = name.split("@")
+            glyphName.strip(" ")
+            fontPath.strip(" ")
+            return (glyphName, fontPath)
+        else:
+            return None
+
+
     def populateItems(self):
-        collectionView = self.w.getItem("collectionView")
         font = self.font
         glyphs = self.glyphs
         items = []
         for glyph in self.glyphs:
-            item = collectionView.makeItem()
+            item = self.collectionView.makeItem(
+                name=f"{glyph.name}@{font.path}",
+                acceptsHit=True,
+                )
+            # item.setWidth(glyph.width)
+            # item.setHeight(1000)
             item.getCALayer().setGeometryFlipped_(True) # XXX Ugh. Yell at Tal about this.
             glyphContainer = merz.Base()
             item.appendLayer("glyphContainer", glyphContainer)
@@ -440,17 +451,15 @@ class Spaceport(Subscriber, ezui.WindowController):
             glyphContainer.appendBaseSublayer(
                 name="glyphMetrics",
                 visible=True,
-                acceptsHit=False,
             )
             filled = glyphContainer.appendPathSublayer(
                 name="glyphFill",
                 fillColor=self.foreground,
                 visible=True,
-                acceptsHit=True,
                 # identifier=f"{glyph.name}@{font.path}"
             )
-            filled.setInfoValue("glyph", glyph.name)
-            filled.setInfoValue("font", font.path)
+            # filled.setInfoValue("glyph", glyph.name)
+            # filled.setInfoValue("font", font.path)
 
             glyphContainer.appendPathSublayer(
                 name="glyphStroke",
@@ -458,13 +467,31 @@ class Spaceport(Subscriber, ezui.WindowController):
                 strokeColor=self.foreground,
                 strokeWidth=1,
                 visible=True,
-                acceptsHit=False,
             )
             glyphContainer.appendBaseSublayer(
                 name="glyphPoints",
                 visible=True,
-                acceptsHit=False,
             )
+
+            selectionLayer = merz.Base(
+                name="selectionIndicator",
+                size=(glyph.width, 1000),
+                cornerRadius=10,
+                backgroundColor=(0,1,0,.2),
+                visible=False
+            )
+            item.appendLayer("selectionIndicator", selectionLayer)
+
+            glyphContainer.appendRectangleSublayer(
+                name="glyphSelectionInd",
+                size=(glyph.width, abs(self.font.info.descender) + self.font.info.ascender),
+                cornerRadius=4,
+                fillColor=(0,1,0,.12),
+                strokeColor=(0,1,0,1),
+                strokeWidth=1,
+                visible=False,
+            )
+
             with item.propertyGroup():
                 item.setWidth(glyph.width)
                 item.setHeight(font.info.unitsPerEm)
@@ -528,30 +555,10 @@ class Spaceport(Subscriber, ezui.WindowController):
                     for contour in glyph.contours:
                         for point in contour.points:
                             if point.type == "offcurve":
-                                imageSettings = dict(
-                                    name="oval",
-                                    size=(onCurve/2,onCurve/2),
-                                    fillColor=(0, 0, 0, 1),
-                                )
-                            elif point.type == "curve":
-                                imageSettings = dict(
-                                    name="oval",
-                                    size=(onCurve,onCurve),
-                                    fillColor=(0, 0, 0, 1)
-                                )
-                            elif point.type == "qcurve":
-                                imageSettings = dict(
-                                    name="star",
-                                    size=(onCurve,onCurve),
-                                    fillColor=(0, 0, 0, 1),
-                                    pointCount=8,
-                                    inner=0.2,
-                                    # outer=1.0
-                                )
+                                pass
                             else:
-                                # line, move
                                 imageSettings = dict(
-                                    name="rectangle",
+                                    name="oval",
                                     size=(onCurve,onCurve),
                                     fillColor=(0, 0, 0, 1)
                                 )
@@ -560,11 +567,11 @@ class Spaceport(Subscriber, ezui.WindowController):
                             glyphPointsLayer.appendSymbolSublayer(
                                 position=(x, y),
                                 imageSettings=imageSettings,
-                                acceptsHits=False,
+                                # acceptsHits=False,
                             )
                     glyphPointsLayer.setVisible(self.showPoints)
             items.append(item)
-        collectionView.set(items)
+        self.collectionView.set(items)
 
 
     def acceptsFirstResponder(self, sender):
@@ -576,8 +583,6 @@ class Spaceport(Subscriber, ezui.WindowController):
         return True
 
     def magnifyWithEvent(self, sender, event):
-
-        collectionView = self.w.getItem("collectionView")
         values = self.te.getItemValues()
         pointSize = values["pointSizeField"]
         lineHeight = values["lineHeightField"]
@@ -595,7 +600,7 @@ class Spaceport(Subscriber, ezui.WindowController):
         lineHeight = self.font.info.unitsPerEm * lineHeight * scale
 
         self.te.setItemValue("pointSizeField", pointSize)
-        collectionView.setLayoutProperties(
+        self.collectionView.setLayoutProperties(
             scale=scale,
             lineHeight=lineHeight
         )
@@ -604,47 +609,259 @@ class Spaceport(Subscriber, ezui.WindowController):
 
 
     def destroy(self):
-        # unregisterCurrentGlyphSubscriber(self)
         pass
-        # print("debug::destroy")
+        # unregisterCurrentGlyphSubscriber(self)
 
 
-    def mouseDown(self, view, event):
-        container = self.w.getItem("collectionView").getMerzContainer()
-        event = merz.unpackEvent(event)
+    def update(self, items=None):
+        if not items:
+            items = {}
+            contents = self.get()
+            if contents:
+                for index, item in enumerate(contents):
+                    items[index] = item
+        collectionViewItems = []
+        for index, collectionViewItem in enumerate(self.get(unwrap=False)):
+            if index in items:
+                item = items[index]
+                itemRef = weakref.ref(item)
+                data = item.visualPreviewData
+                collectionViewItem = self._groupToCollectionViewItemCache[itemRef]
+                self._populateCollectionViewItem(collectionViewItem, data)
+                item.needsDataReload = False
+            collectionViewItems.append(collectionViewItem)
+
+
+    # def getSelectedIndexes(self):
+    #     return list(self._selectedIndexes)
+
+    # def _setSelection(self, indexes, scroll=False):
+    #     self.setSelectedIndexes(indexes, scroll=scroll)
+    #     if self._selectionCallback is not None:
+    #         self._selectionCallback(self)
+
+    # def getSelectedItems(self):
+    #     indexes = self.getSelectedIndexes()
+    #     items = self.get()
+    #     if not items:
+    #         return []
+    #     selected = []
+    #     for i in indexes:
+    #         if i < len(items):
+    #             selected.append(items[i])
+    #     return selected
+
+    # def set(self, items):
+    #     # item protocol
+    #     # - must be hashable
+    #     # - must have a unitsPerEm attribute
+    #     # - must have a visualPreviewData attribute
+    #     if items is None:
+    #         items = []
+    #     self._unwrappedItems = [weakref.ref(item) for item in items]
+    #     if items:
+    #         self._unitsPerEm = items[0].unitsPerEm
+    #     collectionViewItems = []
+    #     visibleItems = set()
+    #     if items is not None:
+    #         for item in items:
+    #             itemRef = weakref.ref(item)
+    #             data = item.visualPreviewData
+    #             if itemRef not in self._groupToCollectionViewItemCache:
+    #                 self._groupToCollectionViewItemCache[itemRef] = self._makeCollectionViewItem(data)
+    #             collectionViewItem = self._groupToCollectionViewItemCache[itemRef]
+    #             if collectionViewItem.needsDataReload:
+    #                 self._populateCollectionViewItem(collectionViewItem, data)
+    #             collectionViewItems.append(collectionViewItem)
+    #             collectionViewItem.setVisible(True)
+    #             visibleItems.add(itemRef)
+    #     for itemRef, collectionViewItem in self._groupToCollectionViewItemCache.items():
+    #         if itemRef not in visibleItems:
+    #             collectionViewItem.setVisible(False)
+    #     super().set(collectionViewItems)
+
+
+    # def get(self, unwrap=True):
+    #     if unwrap:
+    #         items = [item() for item in self._unwrappedItems]
+    #         return items
+    #     return super().get()
+
+
+    def _getItemAtEvent(self, position):
+        x,y = position
+        hits = self.container.findSublayersContainingPoint(
+            (x, y),
+            onlyAcceptsHit=True,
+            recurse=False
+        )
+        if not hits:
+            return None
+        hit = hits[0]
+        return hit
+
+    def _convertLocation(self, event):
         location = event["location"]
-        location = self.w.getItem("collectionView").convertWindowCoordinateToViewCoordinate(
+        self.container = self.container
+        location = self.collectionView.getMerzView().convertWindowCoordinateToViewCoordinate(
             point=location
         )
-        point = container.convertViewCoordinateToLayerCoordinate(
+        x, y = self.container.convertViewCoordinateToLayerCoordinate(
             location,
-            container
+            self.container
         )
+        return (x,y)
+
+
+    def getFontFromPath(self, path):
+        for f in AllFonts():
+            if path == f.path:
+                return f
+
+    def getGlyphFromItem(self, item):
+        parsed = self.parseItemName(item.getName())
+        if parsed:
+            glyphName, fontPath = parsed
+            font = self.getFontFromPath(fontPath)
+            return font[glyphName]
+
+
+    def mouseDown(self,view,event):
+        event = merz.unpackEvent(event)
+        self.start = (x,y) = self._convertLocation(event)
+        # self.marqueeLayer.clearSublayers()
+        hit = self._getItemAtEvent((x,y))
+        selection = []
+
+        selectedGlyph = None
+
+        for temp_item in self.collectionView.get():
+            if temp_item not in self.selectedItems:
+                temp_item.getLayer("selectionIndicator").setVisible(False)
+
+        if hit:
+            clickCount = event["clickCount"]
+            parsed = self.parseItemName(hit.getName())
+            if parsed:
+                selectionLayer = hit.getLayer("selectionIndicator")
+                selectionLayer.setVisible(True)
+                selectedGlyph = self.getGlyphFromItem(hit)
+
+            if selectedGlyph:
+                if AppKit.NSEvent.modifierFlags() & AppKit.NSShiftKeyMask:
+                    self.selectedItems.append(hit)
+                else:
+                    self.selectedItems = [hit]
+                if clickCount == 2:
+                    OpenGlyphWindow(ff[gn])
+            else:
+                self.selectedItems = []
+        else:
+            self.selectedItems = []
+
+
+    def mouseDragged(self,view,event):
+        self.hoverItem = None
+        self.wasDragging = True
+        # self.marqueeLayer.clearSublayers()
+
+        event = merz.unpackEvent(event)
+        x, y = self._convertLocation(event)
+        ox,oy = self.start
+        shift = True if AppKit.NSEvent.modifierFlags() & AppKit.NSShiftKeyMask else False
         
-        hits = container.findSublayersContainingPoint(
-            point,
-            onlyAcceptsHit=True,
-            recurse=True
-        )
-        
-        if hits:
-            for hit in hits:
-                glyph = hit.getInfoValue("glyph", None)
-                if glyph:
-                    hit.setStrokeWidth(2)
-                    hit.setStrokeColor((1,0,0,1))
+        if x > ox and y < oy:
+            p = (ox,y)
+            s = (ox-x,oy-y)
             
-        
+        elif x > ox and y > oy:
+            p = (ox,oy)
+            s = (x-ox, y-oy)
+            
+        elif x < ox and y > oy:
+            p = (x,oy)
+            s = (ox-x, oy-y)
+            
+        elif x < ox and y < oy:
+            p = (x,y)
+            s = (x-ox, y-oy)
+        else:
+            return
+
+        # marquee = self.marqueeLayer.appendRectangleSublayer(
+        #     position=p,
+        #     size=s,
+        #     fillColor=(0,1,0,.2),
+        #     strokeColor=(0,1,0,1),
+        #     strokeWidth=1
+        # )
+
+        pos = marquee.getPosition()
+        sz = marquee.getSize()
+        x,y,w,h = pos[0],pos[1],sz[0],sz[1]
+
+
+    def keyDown(self, view, event):
+
+        directions = "left right up down".split(" ")
+
+        event = merz.unpackEvent(event)
+
+        mods = event["modifiers"]
+        char = event["character"]
+        repeat = event["isKeyRepeat"]
+
+        if char in directions:
+            for item in self.selectedItems:
+
+                selectionLayer = item.getLayer("selectionIndicator")
+                selectionLayer.setVisible(True)
+
+                glyph = self.getGlyphFromItem(item)
+                                            
+                if char in directions:
+                    with glyph.undo(f"Change spacing of {glyph.name}"):
+                        if "shift" in mods and "command" in mods:
+                            spacing_unit = 100
+                        elif "shift" in mods:
+                            spacing_unit = 10
+                        else:
+                            spacing_unit = 1
+                        
+                        if glyph.bounds:
+                            if "option" in mods and char == "right":
+                                glyph.leftMargin += spacing_unit
+                            elif "option" in mods and char == "left":
+                                glyph.leftMargin -= spacing_unit
+                            elif char == "right":
+                                glyph.rightMargin += spacing_unit
+                            elif char == "left":
+                                glyph.rightMargin -= spacing_unit
+                            elif char == "up":
+                                glyph.rightMargin += spacing_unit
+                                glyph.leftMargin  += spacing_unit
+                            elif char == "down":
+                                glyph.rightMargin -= spacing_unit
+                                glyph.leftMargin  -= spacing_unit
+                            else:
+                                pass
+                        else:
+                            if char == "right":
+                                glyph.width += spacing_unit
+                            elif char == "left":
+                                glyph.width -= spacing_unit
+
+
+
+
+
     def mouseMoved(self, view, event):
         pass
         # print("debug::mouseMoved")
 
-    def mouseDragged(self, view, event):
-        pass
-        # print("debug::mouseDragged")
-
     def mouseUp(self, view, event):
         pass
+        # self.marqueeLayer.clearSublayers()
         # print("debug::mouseUp")
 
     def subscribeToGlyphs(self):
