@@ -37,6 +37,10 @@ INTERPOLATE = "squareshape.split.2x2.dotted"
 VIEW_OPTIONS = "eye"
 SHOW_METRICS = "character.magnify"
 
+KERN_HEIGHT = 100
+
+POS_KERN_COLOR = (0,0,1)
+NEG_KERN_COLOR = (1,0,0)
 
 def symbolImage(symbolName:str, color:tuple|AppKit.NSColor, flipped:bool=False, pointSize:float=18.0, weight:str="light", scale:str="medium") -> AppKit.NSImage:
     '''
@@ -201,6 +205,8 @@ class Spaceport(Subscriber, ezui.WindowController):
         #             pass
 
         content = """
+        Show Kerning:                                                 
+        [X]                                                           @showKerningButton
         Show Metrics:
         ( Off | On )                                                  @showMetricsButton
         Invert Colors:
@@ -212,6 +218,9 @@ class Spaceport(Subscriber, ezui.WindowController):
         """
 
         descriptionData = dict(
+            showKerningButton=dict(
+                # selected=1,
+            ),
             showMetricsButton=dict(
                 selected=1
             ),
@@ -224,7 +233,6 @@ class Spaceport(Subscriber, ezui.WindowController):
         )
 
         self.glyphMap = {}
-
         self.v = ezui.EZPopover(
             # size=(100,100),
             content=content,
@@ -284,6 +292,7 @@ class Spaceport(Subscriber, ezui.WindowController):
         self.controlsStackCallback(None)
         self.displaySettingsButtonCallback(None)
         self.showMetricsButtonCallback(None)
+        self.showKerningButtonCallback(None)
         self.textFieldCallback(None)
 
     def started(self):
@@ -334,6 +343,7 @@ class Spaceport(Subscriber, ezui.WindowController):
 
     def alignmentSegmentButtonCallback(self, sender):
         self.controlsStackCallback(None)
+
 
     def controlsStackCallback(self, sender):
         values = self.te.getItemValues()
@@ -402,6 +412,11 @@ class Spaceport(Subscriber, ezui.WindowController):
         self.showMetrics = self.v.getItemValue("showMetricsButton")
         self.displaySettingsButtonCallback(None)
 
+    def showKerningButtonCallback(self, sender):
+        self.showKerning = self.v.getItemValue("showKerningButton")
+        self.displaySettingsButtonCallback(None)
+
+
     def displaySettingsButtonCallback(self, sender):
         values = self.v.getItemValue("displaySettingsButton")
         self.showFill = 0 in values
@@ -414,6 +429,9 @@ class Spaceport(Subscriber, ezui.WindowController):
 
             glyphMetricsLayer = glyphContainer.getSublayer("glyphMetrics")
             glyphMetricsLayer.setVisible(self.showMetrics)
+
+            kernIndicatorLayer = glyphContainer.getSublayer("kernIndicator")
+            kernIndicatorLayer.setVisible(self.showKerning)
 
             glyphFillLayer = glyphContainer.getSublayer("glyphFill")
             glyphFillLayer.setVisible(self.showFill)
@@ -444,7 +462,7 @@ class Spaceport(Subscriber, ezui.WindowController):
         font = self.font
         glyphs = self.glyphs
         items = []
-        for glyph in self.glyphs:
+        for index, glyph in enumerate(self.glyphs):
             item = self.collectionView.makeItem(
                 name=f"{glyph.name}@{font.path}",
                 acceptsHit=True,
@@ -461,9 +479,15 @@ class Spaceport(Subscriber, ezui.WindowController):
                 name="glyphMetrics",
                 visible=True,
             )
+
+            if self.showStroke:
+                foreground = (*self.foreground[:3], .2)
+            else:
+                foreground = self.foreground
+
             filled = glyphContainer.appendPathSublayer(
                 name="glyphFill",
-                fillColor=self.foreground,
+                fillColor=foreground,
                 visible=True,
                 # identifier=f"{glyph.name}@{font.path}"
             )
@@ -490,11 +514,22 @@ class Spaceport(Subscriber, ezui.WindowController):
                 backgroundColor=(0,1,0,.2),
                 visible=True
             )
+
+            glyphContainer.appendBaseSublayer(
+                name="kernIndicator",
+                position=(0, 0),
+                size=(0, 0),
+                cornerRadius=3,
+                backgroundColor=(1,0,0,.3),
+                visible=True
+            )
             # item.appendLayer("selectionIndicator", selectionLayer)
 
             with item.propertyGroup():
                 item.setWidth(glyph.width)
                 item.setHeight(font.info.unitsPerEm)
+
+
                 glyphContainer = item.getLayer("glyphContainer")
                 glyphContainer.addTranslationTransformation(
                     value=(0, -font.info.descender),
@@ -541,6 +576,42 @@ class Spaceport(Subscriber, ezui.WindowController):
                     glyphMetricsLayer.setVisible(self.showMetrics)
 
 
+                kernIndicatorLayer = glyphContainer.getSublayer("kernIndicator")
+                with kernIndicatorLayer.propertyGroup():
+
+                    kern = 0
+                    try:
+                        next_glyph = self.glyphs[index+1]
+                        kern = font.kerning.find((glyph.name, next_glyph.name))
+                    except IndexError:
+                        kern = 0
+
+                    if kern:
+                        item.setXAdvance(kern)
+                        kernIndicatorLayer.setVisible(True)
+
+                        kern_color = POS_KERN_COLOR if kern > 0 else NEG_KERN_COLOR
+
+                        kernIndicatorLayer.appendTextLineSublayer(
+                            text=str(kern),
+                            pointSize=7,
+                            position=((abs(kern)/2), 0),
+                            fillColor=(*kern_color,1),
+                            horizontalAlignment="center",
+                            # padding=(0,0),
+                            )
+
+                        x = (glyph.width+kern) if kern < 0 else glyph.width
+                        kernIndicatorLayer.setBackgroundColor((*kern_color, .2))
+                        kernIndicatorLayer.setSize((abs(kern), abs(font.info.descender) + font.info.ascender))
+                        kernIndicatorLayer.setPosition((x, font.info.descender))
+
+                        kernIndicatorLayer.setVisible(self.showKerning)
+                    else:
+                        kernIndicatorLayer.setVisible(False)
+
+
+
                 selectionIndicatorLayer = glyphContainer.getSublayer("selectionIndicator")
                 with selectionIndicatorLayer.propertyGroup():
                     if item in self.selectedItems:
@@ -562,21 +633,19 @@ class Spaceport(Subscriber, ezui.WindowController):
                 with glyphPointsLayer.propertyGroup():
                     for contour in glyph.contours:
                         for point in contour.points:
-                            if point.type == "offcurve":
-                                pass
-                            else:
+                            if point.type != "offcurve":
                                 imageSettings = dict(
                                     name="oval",
                                     size=(onCurve,onCurve),
                                     fillColor=(0, 0, 0, 1)
                                 )
-                            x = point.x
-                            y = point.y
-                            glyphPointsLayer.appendSymbolSublayer(
-                                position=(x, y),
-                                imageSettings=imageSettings,
-                                # acceptsHits=False,
-                            )
+                                x = point.x
+                                y = point.y
+                                glyphPointsLayer.appendSymbolSublayer(
+                                    position=(x, y),
+                                    imageSettings=imageSettings,
+                                    # acceptsHits=False,
+                                )
                     glyphPointsLayer.setVisible(self.showPoints)
             items.append(item)
         self.collectionView.set(items)
@@ -691,7 +760,7 @@ class Spaceport(Subscriber, ezui.WindowController):
                             self.set_item_selection_status(temp_item,False)
 
                 if clickCount == 2:
-                    OpenGlyphWindow(ff[gn])
+                    OpenGlyphWindow(selectedGlyph)
             else:
                 # print("clearing selection")
                 self.selectedItems = []
