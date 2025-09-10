@@ -7,13 +7,14 @@ from mojo.canvas import CanvasGroup
 from mojo import drawingTools as ctx
 from mojo import events
 from mojo.UI import *
+from mojo.extensions import getExtensionDefault, setExtensionDefault
 from fontParts.world import CurrentGlyph, CurrentLayer, CurrentFont
 from mojo.roboFont import OpenWindow
 import ezui
 import merz
 from mojo.subscriber import Subscriber, registerCurrentGlyphSubscriber, unregisterCurrentGlyphSubscriber
 from vanilla.vanillaBase import osVersionCurrent, osVersion12_0
-
+from glyphNameFormatter.reader import n2u
 
 # ---------
 # Interface
@@ -24,6 +25,8 @@ AXES = [
         "Slant"
        ]
 
+
+EXTENSION_KEY = "com.connordavenport.spaceport"
 
 CURRENTGLYPH_CHAR = "/?"
 NEWLINE_CHAR = "\\n"
@@ -187,7 +190,6 @@ class Spaceport(Subscriber, ezui.WindowController):
         self.marquee = None
         self.collectionView.setBackgroundColor(AppKit.NSColor.whiteColor())
 
-
         self.marqueeLayer = self.container.appendRectangleSublayer(
             position=(100,100),
             size=(1000,1000),
@@ -288,7 +290,7 @@ class Spaceport(Subscriber, ezui.WindowController):
             parentAlignment="bottom",
             controller=self
         )
-        self.te.setItemValue("textField", "SPACEPORT")
+        # self.te.setItemValue("textField", "SPACEPORT")
         #contentViewController
         
         self.v.getItem("invertColorsButton").set(0)
@@ -330,12 +332,25 @@ class Spaceport(Subscriber, ezui.WindowController):
             controller=self
         )
 
+        # main_prefs = getExtensionDefault(EXTENSION_KEY + ".main_prefs", fallback=self.w.getItemValues())
+        # try: self.w.setItemValues(main_prefs)
+        # except (AttributeError, KeyError): pass
+
+        view_prefs = getExtensionDefault(EXTENSION_KEY + ".view_prefs", fallback=self.v.getItemValues())
+        try: self.v.setItemValues(view_prefs)
+        except (AttributeError, KeyError): pass
+
+        input_prefs = getExtensionDefault(EXTENSION_KEY + ".input_prefs", fallback=self.te.getItemValues())
+
+        try: self.te.setItemValues(input_prefs)
+        except (AttributeError, KeyError): pass
+
         self.controlsStackCallback(None)
         self.displaySettingsButtonCallback(None)
         self.showMetricsButtonCallback(None)
         #self.showKerningButtonCallback(None)
         self.textFieldCallback(None)
-
+        
 
     def started(self):
         self.w.open()
@@ -648,6 +663,7 @@ class Spaceport(Subscriber, ezui.WindowController):
                         kernIndicatorLayer.setVisible(self.showKerning)
                     else:
                         kernIndicatorLayer.setVisible(False)
+
                 selectionIndicatorLayer = glyphContainer.getSublayer("selectionIndicator")
                 with selectionIndicatorLayer.propertyGroup():
                     if item in self.selectedItems:
@@ -717,14 +733,17 @@ class Spaceport(Subscriber, ezui.WindowController):
             scale=scale,
             lineHeight=lineHeight
         )
-
         # self.populateItems()
 
 
     def destroy(self):
-        pass
-        # unregisterCurrentGlyphSubscriber(self)
+        setExtensionDefault(EXTENSION_KEY + ".main_prefs", self.w.getItemValues())
+        setExtensionDefault(EXTENSION_KEY + ".view_prefs", self.v.getItemValues())
+        input_dict = self.te.getItemValues()
+        input_dict['textField'] = ''.join([chr(n2u(glyph)) for glyph in input_dict['textField']])
+        setExtensionDefault(EXTENSION_KEY + ".input_prefs", input_dict)
 
+        # unregisterCurrentGlyphSubscriber(self)
 
     def _getItemAtEvent(self, position:tuple=(0,0)) -> merz.collectionView.MerzCollectionViewItem:
         x,y = position
