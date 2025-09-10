@@ -104,7 +104,10 @@ class Spaceport(Subscriber, ezui.WindowController):
         self.foreground = (0,0,0,1)
         self.background = (1,1,1,1)
 
+        self.showKerning = False
+
         self.font = CurrentFont()
+        self.fonts = [self.font, ]
 
         toolbar = dict(
             autosaveName="demoToolbar",
@@ -205,8 +208,8 @@ class Spaceport(Subscriber, ezui.WindowController):
         #             pass
 
         content = """
-        Show Kerning:                                                 
-        [X]                                                           @showKerningButton
+        Show Kerning:                                                 @showKerningLabel
+        [ ]                                                           @showKerningButton
         Show Metrics:
         ( Off | On )                                                  @showMetricsButton
         Invert Colors:
@@ -219,7 +222,7 @@ class Spaceport(Subscriber, ezui.WindowController):
 
         descriptionData = dict(
             showKerningButton=dict(
-                # selected=1,
+                # hide=False,
             ),
             showMetricsButton=dict(
                 selected=1
@@ -233,6 +236,7 @@ class Spaceport(Subscriber, ezui.WindowController):
         )
 
         self.glyphMap = {}
+
         self.v = ezui.EZPopover(
             # size=(100,100),
             content=content,
@@ -242,6 +246,9 @@ class Spaceport(Subscriber, ezui.WindowController):
             parentAlignment="right",
             controller=self
         )
+
+        self.v.getItem("showKerningButton").show(False)
+        self.v.getItem("showKerningLabel").show(False)
 
         content = """
         * HorizontalStack       @controlsStack
@@ -284,22 +291,57 @@ class Spaceport(Subscriber, ezui.WindowController):
         self.te.setItemValue("textField", "SPACEPORT")
         #contentViewController
         
-
         self.v.getItem("invertColorsButton").set(0)
         self.invertColorsButtonCallback(self.v.getItem("invertColorsButton"))
 
 
+        content = """
+        |-fonts---| @fontsTable
+        |         |
+        |---------|
+        """
+
+        descriptionData = dict(
+            fontsTable=dict(
+                items=AllFonts(),
+                columnDescriptions=[
+                    dict(
+                        identifier="will_use",
+                        title="Add",
+                        cellDescription=dict(
+                            cellType="Checkbox"
+                            )
+                        ),
+                    dict(
+                        identifier="name",
+                        title="Font",
+                        )
+                    ]
+                )
+            )
+
+        self.af = ezui.EZPopover(
+            size=(150, 150),
+            content=content,
+            descriptionData=descriptionData,
+            parent=self.w,
+            behavior="transient",
+            parentAlignment="bottom",
+            controller=self
+        )
+
         self.controlsStackCallback(None)
         self.displaySettingsButtonCallback(None)
         self.showMetricsButtonCallback(None)
-        self.showKerningButtonCallback(None)
+        #self.showKerningButtonCallback(None)
         self.textFieldCallback(None)
+
 
     def started(self):
         self.w.open()
 
     def add_fontCallback(self, sender):
-        pass
+        self.af.open()
 
     def add_designspaceCallback(self, sender):
         pass
@@ -343,7 +385,6 @@ class Spaceport(Subscriber, ezui.WindowController):
 
     def alignmentSegmentButtonCallback(self, sender):
         self.controlsStackCallback(None)
-
 
     def controlsStackCallback(self, sender):
         values = self.te.getItemValues()
@@ -397,14 +438,11 @@ class Spaceport(Subscriber, ezui.WindowController):
             glyphPointsLayer = glyphContainer.getSublayer("glyphPoints")
 
             for symbol in glyphPointsLayer.getSublayers():
-                #symbol.setBackgroundColor(foreground_color)
                 location = symbol.getPosition()
                 settings = symbol.getImageSettings()
                 settings["fillColor"] = foreground_color
                 symbol.setImageSettings(settings)
-            # glyphPointsLayer.setFillColor(foreground_color)
             glyphPointsLayer.setVisible(self.showPoints)
-
         self.foreground = foreground_color
         self.background = background_color
 
@@ -415,7 +453,7 @@ class Spaceport(Subscriber, ezui.WindowController):
     def showKerningButtonCallback(self, sender):
         self.showKerning = self.v.getItemValue("showKerningButton")
         self.displaySettingsButtonCallback(None)
-
+        self.populateItems()
 
     def displaySettingsButtonCallback(self, sender):
         values = self.v.getItemValue("displaySettingsButton")
@@ -586,12 +624,14 @@ class Spaceport(Subscriber, ezui.WindowController):
                     except IndexError:
                         kern = 0
 
+                    if not self.showKerning:
+                        kern = 0
+
                     if kern:
                         item.setXAdvance(kern)
                         kernIndicatorLayer.setVisible(True)
 
                         kern_color = POS_KERN_COLOR if kern > 0 else NEG_KERN_COLOR
-
                         kernIndicatorLayer.appendTextLineSublayer(
                             text=str(kern),
                             pointSize=7,
@@ -605,13 +645,9 @@ class Spaceport(Subscriber, ezui.WindowController):
                         kernIndicatorLayer.setBackgroundColor((*kern_color, .2))
                         kernIndicatorLayer.setSize((abs(kern), abs(font.info.descender) + font.info.ascender))
                         kernIndicatorLayer.setPosition((x, font.info.descender))
-
                         kernIndicatorLayer.setVisible(self.showKerning)
                     else:
                         kernIndicatorLayer.setVisible(False)
-
-
-
                 selectionIndicatorLayer = glyphContainer.getSublayer("selectionIndicator")
                 with selectionIndicatorLayer.propertyGroup():
                     if item in self.selectedItems:
@@ -858,8 +894,14 @@ class Spaceport(Subscriber, ezui.WindowController):
                             elif char == "left":
                                 glyph.width -= spacing_unit
 
-        # for item in self.selectedItems:
-        #     self.set_item_selection_status(item,True)
+        else:
+            # allow for undoing
+            if AppKit.NSEvent.modifierFlags() & AppKit.NSCommandKeyMask:
+                if char.lower() == "z":
+                    for to_undo in self.selectedItems:
+                        glyph = self.getGlyphFromItem(to_undo)
+                        manager = AppKit.NSApp().getUndoManagerForGlyph_(glyph.asDefcon())
+                        manager.undo()
 
 
     def set_item_selection_status(self, collection_item:merz.collectionView.MerzCollectionViewItem, bool=True):
@@ -887,5 +929,7 @@ class Spaceport(Subscriber, ezui.WindowController):
         self.populateItems(reload=True)
 
 
-registerCurrentGlyphSubscriber(Spaceport)
+#registerCurrentGlyphSubscriber(Spaceport)
+
+Spaceport()
 
