@@ -290,7 +290,7 @@ class Spaceport(Subscriber, ezui.WindowController):
             parentAlignment="bottom",
             controller=self
         )
-        # self.te.setItemValue("textField", "SPACEPORT")
+        self.te.setItemValue("textField", "SPACEPORT")
         #contentViewController
         
         self.v.getItem("invertColorsButton").set(0)
@@ -340,8 +340,10 @@ class Spaceport(Subscriber, ezui.WindowController):
         try: self.v.setItemValues(view_prefs)
         except (AttributeError, KeyError): pass
 
-        input_prefs = getExtensionDefault(EXTENSION_KEY + ".input_prefs", fallback=self.te.getItemValues())
-
+        __ = self.te.getItemValues()
+        if isinstance(__["textField"], list): __["textField"] = ''.join([chr(n2u(glyph)) for glyph in __['textField']])
+        
+        input_prefs = getExtensionDefault(EXTENSION_KEY + ".input_prefs", fallback=__)
         try: self.te.setItemValues(input_prefs)
         except (AttributeError, KeyError): pass
 
