@@ -39,6 +39,7 @@ KERNING = "arrowtriangle.right.and.line.vertical.and.arrowtriangle.left"
 INTERPOLATE = "squareshape.split.2x2.dotted"
 VIEW_OPTIONS = "eye"
 SHOW_METRICS = "character.magnify"
+OPENTYPE = "textformat.alt"
 
 KERN_HEIGHT = 100
 
@@ -146,6 +147,14 @@ class Spaceport(Subscriber, ezui.WindowController):
                     text="Kerning",
                     template=True,
                 ),
+
+                dict(
+                    identifier="opentype",
+                    image=symbolImage(symbolName=OPENTYPE, color=(1,1,1,1), weight="regular"),
+                    text="OpenType",
+                    template=True,
+                ),
+
                 dict(
                     identifier="interpolate",
                     image=symbolImage(symbolName=INTERPOLATE, color=(1,1,1,1), weight="regular"),
@@ -367,6 +376,9 @@ class Spaceport(Subscriber, ezui.WindowController):
         pass
 
     def kerningCallback(self, sender):
+        pass
+
+    def opentypeCallback(self, sender):
         pass
 
     def interpolateCallback(self, sender):
