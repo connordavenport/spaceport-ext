@@ -108,6 +108,7 @@ class Spaceport(Subscriber, ezui.WindowController):
         self.background = (1,1,1,1)
 
         self.showKerning = False
+        self.multiline = True
 
         self.font = CurrentFont()
         self.fonts = {f.path:(f==CurrentFont(),f) for f in AllFonts()}
@@ -218,6 +219,8 @@ class Spaceport(Subscriber, ezui.WindowController):
         #             pass
 
         content = """
+        Multiline:                                                 
+        [X]                                                           @multilineButton
         Show Kerning:                                                 @showKerningLabel
         [ ]                                                           @showKerningButton
         Show Metrics:
@@ -383,6 +386,7 @@ class Spaceport(Subscriber, ezui.WindowController):
             controller=self
         )
         # self.w.af.bind("will close", self.updateFontList)
+        
 
     def fontsTableEditCallback(self, sender):
         index = sender.getEditedIndex()
@@ -390,6 +394,8 @@ class Spaceport(Subscriber, ezui.WindowController):
         path  = list(self.fonts.keys())[index]
         use,font = self.fonts[path]
         self.fonts[path] = (new, font)
+
+        self.populateItems()
 
     def add_fontCallback(self, sender):
         self.build_sheet()
@@ -524,6 +530,11 @@ class Spaceport(Subscriber, ezui.WindowController):
     def showMetricsButtonCallback(self, sender):
         self.showMetrics = self.v.getItemValue("showMetricsButton")
         self.displaySettingsButtonCallback(None)
+
+    def multilineButtonCallback(self, sender):
+        self.multiline = self.v.getItemValue("multilineButton")
+        self.displaySettingsButtonCallback(None)
+        self.populateItems()
 
     def showKerningButtonCallback(self, sender):
         self.showKerning = self.v.getItemValue("showKerningButton")
@@ -765,7 +776,13 @@ class Spaceport(Subscriber, ezui.WindowController):
                                             # acceptsHits=False,
                                         )
                             glyphPointsLayer.setVisible(self.showPoints)
+                    if index+1 == len(self.glyphs):
+                        if self.multiline:
+                            item.setForceBreakAfter(True)
+                        else:
+                            item.setForceBreakAfter(False)
                     items.append(item)
+
         self.collectionView.set(items)
 
 
@@ -1013,30 +1030,9 @@ class Spaceport(Subscriber, ezui.WindowController):
     def adjunctGlyphDidChangeOutline(self, info):
         self.populateItems(reload=True)
 
-    def fontListChanged(self, info):
-        print(info)
-        #if info["font"] is not None:
-            #self.thickness = info["font"]
-
-
-def fontListExtractor(subscriber, info):
-    info["font"] = None
-    for lowLevelEvent in info["lowLevelEvents"]:
-        info["font"] = lowLevelEvent.get("font")
 
 #registerCurrentGlyphSubscriber(Spaceport)
 if __name__ == "__main__":
-    
-    if EXTENSION_KEY + ".eventChanged" in getRegisteredSubscriberEvents():
-        registerSubscriberEvent(
-            subscriberEventName=EXTENSION_KEY+".eventChanged",
-            methodName="fontListChanged",
-            lowLevelEventNames=[EXTENSION_KEY+".eventChanged"],
-            eventInfoExtractionFunction=fontListExtractor,
-            dispatcher="roboFont",
-            delay=0,
-            debug=True
-        )
     Spaceport()
 
 
