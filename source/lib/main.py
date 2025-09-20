@@ -41,11 +41,50 @@ INTERPOLATE = "squareshape.split.2x2.dotted"
 VIEW_OPTIONS = "eye"
 SHOW_METRICS = "character.magnify"
 OPENTYPE = "textformat.alt"
+BEAM = "ruler"
 
 KERN_HEIGHT = 100
 
 POS_KERN_COLOR = (0,0,1)
 NEG_KERN_COLOR = (1,0,0)
+
+
+class MerzCollectionViewRGlyphItem(merz.collectionView.MerzCollectionViewItem):
+
+    def __init__(self, *args, **kwargs):
+        self._font = kwargs.get("font")
+        self._glyph = kwargs.get("glyph")
+        super().__init__(*args, **kwargs)
+
+    # Dimensions
+
+    def getGlyph(self):
+        return self._glyph
+
+    def setGlyph(self, value):
+        self._glyph = value
+
+    glyph = property(getGlyph, setGlyph)
+
+    def getFont(self):
+        return self._font
+
+    def setFont(self, value):
+        self._font = value
+
+    font = property(getFont, setFont)
+
+    def getSelected(self):
+        return self._selected
+
+    def setSelected(self, value):
+        self._selected = value
+    # def set_item_selection_status(self, collection_item:MerzCollectionViewRGlyphItem, bool=True):
+        self.getLayer("glyphContainer").getSublayer("selectionIndicator").setVisible(value)
+
+    selected = property(getSelected, setSelected)
+
+
 
 def symbolImage(symbolName:str, color:tuple|AppKit.NSColor, flipped:bool=False, pointSize:float=18.0, weight:str="light", scale:str="medium") -> AppKit.NSImage:
     '''
@@ -110,6 +149,8 @@ class Spaceport(Subscriber, ezui.WindowController):
         self.showKerning = False
         self.multiline = True
 
+        self.showBeam = False
+
         self.font = CurrentFont()
         self.fonts = {f.path:(f==CurrentFont(),f) for f in AllFonts()}
 
@@ -147,7 +188,12 @@ class Spaceport(Subscriber, ezui.WindowController):
                     text="Kerning",
                     template=True,
                 ),
-
+                dict(
+                    identifier="beam",
+                    image=symbolImage(symbolName=BEAM, color=(1,1,1,1), weight="regular"),
+                    text="Beam",
+                    template=True,
+                ),
                 dict(
                     identifier="opentype",
                     image=symbolImage(symbolName=OPENTYPE, color=(1,1,1,1), weight="regular"),
@@ -337,7 +383,7 @@ class Spaceport(Subscriber, ezui.WindowController):
         self.showMetricsButtonCallback(None)
         #self.showKerningButtonCallback(None)
         self.textFieldCallback(None)
-        
+
 
     def started(self):
         self.w.open()
@@ -429,6 +475,15 @@ class Spaceport(Subscriber, ezui.WindowController):
 
     def kerningCallback(self, sender):
         pass
+
+    def beamCallback(self, sender):
+        self.showBeam = not self.showBeam
+
+        print("IMPLIMENT BEAM DRAWING")
+        '''
+        glyph1, glyph2
+        glyph1.beamRightMargin + glyph2.beamLeftMargin 
+        '''
 
     def opentypeCallback(self, sender):
         pass
@@ -586,17 +641,23 @@ class Spaceport(Subscriber, ezui.WindowController):
         # font = self.font
         # glyphs = self.glyphs\
 
-        # print(self.collectionView.merzDocumentViewClass._typesetter)
+        # print(dir(self.collectionView.merzDocumentViewClass))
         items = []
 
         for path,(use,font) in self.fonts.items():
             if use:
                 for index, glyph in enumerate(self.glyphs):
                     glyph = font[glyph]
-                    item = self.collectionView.makeItem(
-                        name=f"{glyph.name}@{font.path}",
+                    # item = self.collectionView.makeItem(
+                    #     name=f"{glyph.name}@{font.path}",
+                    #     acceptsHit=True,
+                    #     )
+                    item = MerzCollectionViewRGlyphItem(
+                        name=glyph.name,
                         acceptsHit=True,
-                        )
+                        glyph=glyph,
+                        font=font,
+                    )
                     # item.setWidth(glyph.width)
                     # item.setHeight(1000)
                     item.getCALayer().setGeometryFlipped_(True) # XXX Ugh. Yell at Tal about this.
@@ -828,7 +889,7 @@ class Spaceport(Subscriber, ezui.WindowController):
 
         # unregisterCurrentGlyphSubscriber(self)
 
-    def _getItemAtEvent(self, position:tuple=(0,0)) -> merz.collectionView.MerzCollectionViewItem:
+    def _getItemAtEvent(self, position:tuple=(0,0)) -> MerzCollectionViewRGlyphItem:
         x,y = position
         hits = self.container.findSublayersContainingPoint(
             (x, y),
@@ -852,20 +913,6 @@ class Spaceport(Subscriber, ezui.WindowController):
         )
         return (x,y)
 
-
-    def getFontFromPath(self, path:str) -> RFont:
-        for f in AllFonts():
-            if path == f.path:
-                return f
-
-    def getGlyphFromItem(self, item:merz.collectionView.MerzCollectionViewItem):
-        parsed = self.parseItemName(item.getName())
-        if parsed:
-            glyphName, fontPath = parsed
-            font = self.getFontFromPath(fontPath)
-            return font[glyphName]
-
-
     def mouseDown(self,view,event):
         event = merz.unpackEvent(event)
         self.start = (x,y) = self._convertLocation(event)
@@ -877,14 +924,15 @@ class Spaceport(Subscriber, ezui.WindowController):
 
         for temp_item in self.collectionView.get():
             if temp_item not in self.selectedItems:
-                self.set_item_selection_status(temp_item,False)
+                temp_item.selected = False
 
         if hit:
             clickCount = event["clickCount"]
-            parsed = self.parseItemName(hit.getName())
+            parsed = hit.glyph
             if parsed:
-                self.set_item_selection_status(hit,True)
-                selectedGlyph = self.getGlyphFromItem(hit)
+                hit.selected = True
+                # selectedGlyph = self.getGlyphFromItem(hit)
+                selectedGlyph = parsed
 
             if selectedGlyph:
                 if AppKit.NSEvent.modifierFlags() & AppKit.NSShiftKeyMask:
@@ -895,7 +943,7 @@ class Spaceport(Subscriber, ezui.WindowController):
                     self.selectedItems = [hit]
                     for temp_item in self.collectionView.get():
                         if temp_item not in self.selectedItems:
-                            self.set_item_selection_status(temp_item,False)
+                            temp_item.selected = False
 
                 if clickCount == 2:
                     OpenGlyphWindow(selectedGlyph)
@@ -908,7 +956,7 @@ class Spaceport(Subscriber, ezui.WindowController):
 
         if not self.selectedItems:
             for temp_item in self.collectionView.get():
-                self.set_item_selection_status(temp_item,False)
+                temp_item.selected = False
 
 
     def mouseDragged(self,view,event):
@@ -961,9 +1009,10 @@ class Spaceport(Subscriber, ezui.WindowController):
         if char in directions:
             for item in self.selectedItems:
 
-                self.set_item_selection_status(item,True)
+                item.selected = True
 
-                glyph = self.getGlyphFromItem(item)
+                # glyph = self.getGlyphFromItem(item)
+                glyph = item.glyph
                                             
                 if char in directions:
                     with glyph.undo(f"Change spacing of {glyph.name}"):
@@ -1001,13 +1050,10 @@ class Spaceport(Subscriber, ezui.WindowController):
             if AppKit.NSEvent.modifierFlags() & AppKit.NSCommandKeyMask:
                 if char.lower() == "z":
                     for to_undo in self.selectedItems:
-                        glyph = self.getGlyphFromItem(to_undo)
+                        glyph = to_undo.glyph
                         manager = AppKit.NSApp().getUndoManagerForGlyph_(glyph.asDefcon())
                         manager.undo()
 
-
-    def set_item_selection_status(self, collection_item:merz.collectionView.MerzCollectionViewItem, bool=True):
-        collection_item.getLayer("glyphContainer").getSublayer("selectionIndicator").setVisible(bool)
 
     def mouseMoved(self, view, event):
         pass
