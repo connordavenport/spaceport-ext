@@ -383,7 +383,7 @@ class Spaceport(Subscriber, ezui.WindowController):
         self.showMetricsButtonCallback(None)
         #self.showKerningButtonCallback(None)
         self.textFieldCallback(None)
-
+        
 
     def started(self):
         self.w.open()
@@ -714,6 +714,11 @@ class Spaceport(Subscriber, ezui.WindowController):
                         backgroundColor=(1,0,0,.3),
                         visible=True
                     )
+
+                    glyphContainer.appendBaseSublayer(
+                        name="beamIndicator",
+                        visible=True,
+                    )
                     # item.appendLayer("selectionIndicator", selectionLayer)
 
                     with item.propertyGroup():
@@ -837,6 +842,52 @@ class Spaceport(Subscriber, ezui.WindowController):
                                             # acceptsHits=False,
                                         )
                             glyphPointsLayer.setVisible(self.showPoints)
+
+                        beamIndicatorLayer = glyphContainer.getSublayer("beamIndicator")
+                        beamIntersectSize = 120
+                        with beamIndicatorLayer.propertyGroup():
+                            try:
+                                next_glyph = self.glyphs[index+1]
+                            except IndexError:
+                                next_glyph = None
+
+                            halfX = int(font.info.xHeight / 2)
+                            right = glyph.getRayRightMargin(halfX, font.info.italicAngle)
+                            left = glyph.getRayLeftMargin(halfX, font.info.italicAngle)
+
+
+                            beamIndicatorLayer.appendOvalSublayer(
+                                position=(left, halfX),
+                                size=(beamIntersectSize,beamIntersectSize),
+                                anchor=(.5,.5),
+                                fillColor=(1,.2,0,1)
+                            )
+
+                            beamIndicatorLayer.appendOvalSublayer(
+                                position=((glyph.width - right), halfX),
+                                size=(beamIntersectSize,beamIntersectSize),
+                                anchor=(.5,.5),
+                                fillColor=(1,.2,0,1)
+                            )
+
+                            if next_glyph:
+                                other_left = font[next_glyph].getRayLeftMargin(halfX, font.info.italicAngle)
+
+                                beamIndicatorLayer.appendTextLineSublayer(
+                                    text=str(round(right + other_left)),
+                                    position=((glyph.width - right), halfX),
+                                    fillColor=(1,1,1,1),
+                                    pointSize=10,
+                                    backgroundColor=(1,.2,0,1),
+                                    cornerRadius=5,
+                                    )
+                                # beamIndicatorLayer.appendOvalSublayer(
+                                #     position=(glyph.width + left, halfX),
+                                #     size=(beamIntersectSize,beamIntersectSize),
+                                #     anchor=(.5,.5),
+                                #     fillColor=(1,.2,0,1)
+                                # )
+
                     if index+1 == len(self.glyphs):
                         if self.multiline:
                             item.setForceBreakAfter(True)
@@ -903,7 +954,6 @@ class Spaceport(Subscriber, ezui.WindowController):
 
     def _convertLocation(self, event:dict) -> tuple:
         location = event["location"]
-        self.container = self.container
         location = self.collectionView.getMerzView().convertWindowCoordinateToViewCoordinate(
             point=location
         )
