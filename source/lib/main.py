@@ -158,6 +158,9 @@ class Spaceport(Subscriber, ezui.WindowController):
         self.font = CurrentFont()
         self.fonts = {f.path:(f==CurrentFont(),f) for f in AllFonts()}
 
+        self.designspaces = {dsp.path:dsp for dsp in AllDesignspaces()}
+        self.designspace = None
+
         self.beamHeight = int(self.font.info.xHeight / 2)
 
         toolbar = dict(
@@ -252,7 +255,6 @@ class Spaceport(Subscriber, ezui.WindowController):
             strokeColor=(0,1,0,1),
             strokeWidth=1
         )
-
 
         # self.marqueeLayer = self.container.appendRectangleSublayer()
 
@@ -407,7 +409,6 @@ class Spaceport(Subscriber, ezui.WindowController):
         | []     | a.ufo   |
         |        |         |
         |------------------|
-        > (+-)               @addRemoveButton
         """
         descriptionData_fonts = dict(
             fontsTable=dict(
@@ -443,18 +444,74 @@ class Spaceport(Subscriber, ezui.WindowController):
             controller=self
         )
 
+    def build_designspace_sheet(self):
+        content_dsps = """
+        |---------|
+        | path    |            @designspaceTable
+        |---------|
+        | a.dsp   |
+        |         |
+        |---------|
+        * HorizontalStack
+        > [X] Show Sources     @showSourcesCheckbox
+        > [ ] Show Instances   @showInstancesCheckbox
+        """
+        descriptionData_dsps = dict(
+            designspaceTable=dict(
+                items=[
+                    dict(
+                        name=os.path.basename(path),
+                        ) for (path, (obj)) in self.designspaces.items()
+                    ],
+                columnDescriptions=[
+                    dict(
+                        identifier="name",
+                        title="Name"
+                    )
+                ],
+                allowsMultipleSelection=False,
+            ),
+        )
+
+        self.w.dsp = ezui.EZSheet(
+            size=(400, 300),
+            content=content_dsps,
+            descriptionData=descriptionData_dsps,
+            parent=self.w,
+            controller=self
+        )
+
+        table=self.w.dsp.getItem("designspaceTable")
+        selection_index = None
+        if self.designspace:
+            for ii, (path,obj) in enumerate(self.designspaces.items()):
+                if obj == self.designspace:
+                    selection_index = ii
+        if selection_index != None:
+            table.setSelectedIndexes([selection_index])
+
+
+    def designspaceTableSelectionCallback(self, sender):
+        index = sender.getSelectedIndexes()
+        if index:
+            index = index[0]
+            path  = list(self.designspaces.keys())[index]
+            obj = self.designspaces[path]
+            self.designspace = obj
+
     def fontsTableEditCallback(self, sender):
         index = sender.getEditedIndex()
         new   = sender.getEditedItem()["will_use"]
         path  = list(self.fonts.keys())[index]
         use,font = self.fonts[path]
         self.fonts[path] = (new, font)
-
         self.populateItems()
+
 
     def add_fontCallback(self, sender):
         self.build_fonts_sheet()
         self.w.af.open()
+
         
     def addRemoveButtonAddCallback(self, sender):
         file = GetFile(fileTypes=["ufoz", "ufo"])
@@ -471,13 +528,15 @@ class Spaceport(Subscriber, ezui.WindowController):
             )
             table.appendItems([item])
         
+
     def addRemoveButtonRemoveCallback(self, sender):
         table = self.w.af.getItem("fontsTable")
         if len(table.selectedItems()) != 1:
             table.removeSelectedItems()
 
     def add_designspaceCallback(self, sender):
-        pass
+        self.build_designspace_sheet()
+        self.w.dsp.open()
 
     def spacingCallback(self, sender):
         pass
@@ -665,6 +724,7 @@ class Spaceport(Subscriber, ezui.WindowController):
 
         for path,(use,font) in self.fonts.items():
             if use:
+                off = font.lib.get('com.typemytype.robofont.italicSlantOffset', 0)
                 for index, glyph in enumerate(self.glyphs):
                     glyph = font[glyph]
                     # item = self.collectionView.makeItem(
@@ -759,7 +819,7 @@ class Spaceport(Subscriber, ezui.WindowController):
                                     start = (glyph.width,0)
                                     end = (glyph.width, depth)
 
-                                val = getattr(glyph, f"{side}Margin")
+                                val = round(getattr(glyph, f"angled{side.title()}Margin"))
                                 if val:
                                     margin = glyphMetricsLayer.appendTextLineSublayer(
                                         text=str(val),
@@ -774,7 +834,9 @@ class Spaceport(Subscriber, ezui.WindowController):
                                     endPoint=end,
                                     strokeWidth=1,
                                     strokeColor=(.2,.2,.2,1),
+                                    strokeCap="round"
                                     )
+                                line.addSkewTransformation(-font.info.italicAngle)
                             width = glyphMetricsLayer.appendTextLineSublayer(
                                 text=str(glyph.width),
                                 pointSize=7,
@@ -784,7 +846,6 @@ class Spaceport(Subscriber, ezui.WindowController):
                                 padding=(0,7),
                                 )
                             glyphMetricsLayer.setVisible(self.showMetrics)
-
 
                         kernIndicatorLayer = glyphContainer.getSublayer("kernIndicator")
                         with kernIndicatorLayer.propertyGroup():
@@ -862,9 +923,8 @@ class Spaceport(Subscriber, ezui.WindowController):
                                         x = point.x
                                         y = point.y
                                         glyphPointsLayer.appendSymbolSublayer(
-                                            position=(x, y),
+                                            position=(x-off, y),
                                             imageSettings=imageSettings,
-                                            # acceptsHits=False,
                                         )
                             glyphPointsLayer.setVisible(self.showPoints)
 
@@ -879,7 +939,6 @@ class Spaceport(Subscriber, ezui.WindowController):
                             right = glyph.getRayRightMargin(self.beamHeight, font.info.italicAngle) or 0
                             left = glyph.getRayLeftMargin(self.beamHeight, font.info.italicAngle) or 0
 
-                            off = font.lib.get('com.typemytype.robofont.italicSlantOffset', 0)
                             aa = font.info.italicAngle
                             if aa:
                                 aa *= -1
