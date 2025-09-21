@@ -151,10 +151,13 @@ class Spaceport(Subscriber, ezui.WindowController):
         self.showKerning = False
         self.multiline = True
 
-        self.showBeam = False
+        self.showBeam = True
+
 
         self.font = CurrentFont()
         self.fonts = {f.path:(f==CurrentFont(),f) for f in AllFonts()}
+
+        self.beamHeight = int(self.font.info.xHeight / 2)
 
         toolbar = dict(
             autosaveName="demoToolbar",
@@ -188,12 +191,6 @@ class Spaceport(Subscriber, ezui.WindowController):
                     identifier="kerning",
                     image=symbolImage(symbolName=KERNING, color=(1,1,1,1), weight="regular"),
                     text="Kerning",
-                    template=True,
-                ),
-                dict(
-                    identifier="beam",
-                    image=symbolImage(symbolName=BEAM, color=(1,1,1,1), weight="regular"),
-                    text="Beam",
                     template=True,
                 ),
                 dict(
@@ -267,6 +264,10 @@ class Spaceport(Subscriber, ezui.WindowController):
         #             pass
 
         content = """
+        Beam:
+        * HorizontalStack
+        > [X]                                                           @showBeamButton
+        > --X------                                                     @beamPositionSlider
         Multiline:                                                 
         [X]                                                           @multilineButton
         Show Kerning:                                                 @showKerningLabel
@@ -282,6 +283,14 @@ class Spaceport(Subscriber, ezui.WindowController):
         """
 
         descriptionData = dict(
+            showBeamButton=dict(
+                value=True,
+            ),
+            beamPositionSlider=dict(
+                minValue=0,
+                maxValue=self.font.info.capHeight,
+                value=int(self.font.info.xHeight/2)
+            ),
             showKerningButton=dict(
                 # hide=False,
             ),
@@ -299,7 +308,7 @@ class Spaceport(Subscriber, ezui.WindowController):
         self.glyphMap = {}
 
         self.v = ezui.EZPopover(
-            # size=(100,100),
+            size=(100,100),
             content=content,
             descriptionData=descriptionData,
             parent=self.w,
@@ -478,19 +487,6 @@ class Spaceport(Subscriber, ezui.WindowController):
     def kerningCallback(self, sender):
         pass
 
-    def beamCallback(self, sender):
-        self.showBeam = not self.showBeam
-
-        items = self.w.getItemValue("collectionView")
-        for item in items:
-            glyphContainer = item.getLayer("glyphContainer")
-            beamIndicatorLayer = glyphContainer.getSublayer("beamIndicator")
-            beamIndicatorLayer.setVisible(self.showBeam)
-        '''
-        glyph1, glyph2
-        glyph1.beamRightMargin + glyph2.beamLeftMargin 
-        '''
-
     def opentypeCallback(self, sender):
         pass
 
@@ -597,6 +593,19 @@ class Spaceport(Subscriber, ezui.WindowController):
         self.displaySettingsButtonCallback(None)
         self.populateItems()
 
+    def beamPositionSliderCallback(self, sender):
+        self.beamHeight = sender.get()
+        self.populateItems()
+
+    def showBeamButtonCallback(self, sender):
+        self.showBeam = self.v.getItemValue("showBeamButton")
+        self.displaySettingsButtonCallback(None)
+        self.populateItems()
+        '''
+        glyph1, glyph2
+        glyph1.beamRightMargin + glyph2.beamLeftMargin 
+        '''
+
     def showKerningButtonCallback(self, sender):
         self.showKerning = self.v.getItemValue("showKerningButton")
         self.displaySettingsButtonCallback(None)
@@ -617,6 +626,9 @@ class Spaceport(Subscriber, ezui.WindowController):
 
             kernIndicatorLayer = glyphContainer.getSublayer("kernIndicator")
             kernIndicatorLayer.setVisible(self.showKerning)
+
+            beamIndicatorLayer = glyphContainer.getSublayer("beamIndicator")
+            beamIndicatorLayer.setVisible(self.showBeam)
 
             glyphFillLayer = glyphContainer.getSublayer("glyphFill")
             glyphFillLayer.setVisible(self.showFill)
@@ -859,10 +871,8 @@ class Spaceport(Subscriber, ezui.WindowController):
                             except IndexError:
                                 next_glyph = None
 
-                            halfX = int(font.info.capHeight / 2)
-
-                            right = glyph.getRayRightMargin(halfX, font.info.italicAngle)
-                            left = glyph.getRayLeftMargin(halfX, font.info.italicAngle)
+                            right = glyph.getRayRightMargin(self.beamHeight, font.info.italicAngle)
+                            left = glyph.getRayLeftMargin(self.beamHeight, font.info.italicAngle)
 
 
                             off = font.lib.get('com.typemytype.robofont.italicSlantOffset', 0)
@@ -881,11 +891,11 @@ class Spaceport(Subscriber, ezui.WindowController):
                             trans = tuple(t)
                             ot = transform.Transform(*trans)
                             
-                            tp,_ = ot.transformPoint((0, halfX))
+                            tp,_ = ot.transformPoint((0, self.beamHeight))
 
                             if index == 0:
                                 beamIndicatorLayer.appendOvalSublayer(
-                                    position=(-(beamIntersectSize*2), halfX),
+                                    position=(-(beamIntersectSize*2), self.beamHeight),
                                     size=(beamIntersectSize*2,beamIntersectSize*2),
                                     anchor=(.5,.5),
                                     fillColor=(1,.2,0,1),
@@ -893,45 +903,45 @@ class Spaceport(Subscriber, ezui.WindowController):
                                     acceptsHit=True,
                                 )
                                 beamIndicatorLayer.appendLineSublayer(
-                                    startPoint=(-beamIntersectSize*2, halfX),
-                                    endPoint=(left+tp, halfX),
+                                    startPoint=(-beamIntersectSize*2, self.beamHeight),
+                                    endPoint=(left+tp, self.beamHeight),
                                     strokeColor=(1,.2,0,.4),
                                     strokeWidth=1,
                                 )
 
                             beamIndicatorLayer.appendOvalSublayer(
-                                position=(left+tp, halfX),
+                                position=(left+tp, self.beamHeight),
                                 size=(beamIntersectSize,beamIntersectSize),
                                 anchor=(.5,.5),
                                 fillColor=(1,.2,0,1)
                             )
 
                             beamIndicatorLayer.appendOvalSublayer(
-                                position=((glyph.width - right)+tp, halfX),
+                                position=((glyph.width - right)+tp, self.beamHeight),
                                 size=(beamIntersectSize,beamIntersectSize),
                                 anchor=(.5,.5),
                                 fillColor=(1,.2,0,1)
                             )
 
                             beamIndicatorLayer.appendLineSublayer(
-                                startPoint=(left+tp, halfX),
-                                endPoint=((glyph.width - right)+tp, halfX),
+                                startPoint=(left+tp, self.beamHeight),
+                                endPoint=((glyph.width - right)+tp, self.beamHeight),
                                 strokeColor=(1,.2,0,.4),
                                 strokeWidth=1,
                                 )
                             if next_glyph:
-                                other_left = font[next_glyph].getRayLeftMargin(halfX, font.info.italicAngle)
+                                other_left = font[next_glyph].getRayLeftMargin(self.beamHeight, font.info.italicAngle)
 
                                 beamIndicatorLayer.appendLineSublayer(
-                                    startPoint=((glyph.width - right)+tp, halfX),
-                                    endPoint=((glyph.width + other_left)+tp, halfX),
+                                    startPoint=((glyph.width - right)+tp, self.beamHeight),
+                                    endPoint=((glyph.width + other_left)+tp, self.beamHeight),
                                     strokeColor=(1,.2,0,1),
                                     strokeWidth=1,
                                     )
                                 beamIndicatorLayer.appendTextLineSublayer(
                                     text=str(round(right + other_left)),
                                     font="SFMono-Regular",
-                                    position=((glyph.width - right) + ((right + other_left)/2)+tp, halfX),
+                                    position=((glyph.width - right) + ((right + other_left)/2)+tp, self.beamHeight),
                                     fillColor=(1,1,1,1),
                                     pointSize=10,
                                     backgroundColor=(1,.2,0,1),
@@ -941,7 +951,7 @@ class Spaceport(Subscriber, ezui.WindowController):
                                     padding=(3,1),
                                     )
                                 # beamIndicatorLayer.appendOvalSublayer(
-                                #     position=(glyph.width + left, halfX),
+                                #     position=(glyph.width + left, self.beamHeight),
                                 #     size=(beamIntersectSize,beamIntersectSize),
                                 #     anchor=(.5,.5),
                                 #     fillColor=(1,.2,0,1)
