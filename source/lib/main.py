@@ -145,8 +145,9 @@ class Spaceport(Subscriber, ezui.WindowController):
 
         self.selectedItems = []
 
-        self.foreground = (0,0,0,1)
-        self.background = (1,1,1,1)
+        self.foreground     = (0, 0, 0, 1)
+        self.background     = (1, 1, 1, 1)
+        self.selectionColor = (0.58, 0.22, 1, 1)
 
         self.showKerning = False
         self.multiline = True
@@ -266,8 +267,8 @@ class Spaceport(Subscriber, ezui.WindowController):
         content = """
         Beam:
         * HorizontalStack
-        > [X]                                                           @showBeamButton
-        > --X------                                                     @beamPositionSlider
+        > [X]                                                         @showBeamButton
+        > --X------                                                   @beamPositionSlider
         Multiline:                                                 
         [X]                                                           @multilineButton
         Show Kerning:                                                 @showKerningLabel
@@ -288,7 +289,7 @@ class Spaceport(Subscriber, ezui.WindowController):
             ),
             beamPositionSlider=dict(
                 minValue=0,
-                maxValue=self.font.info.capHeight,
+                maxValue=self.font.info.unitsPerEm,
                 value=int(self.font.info.xHeight/2)
             ),
             showKerningButton=dict(
@@ -360,7 +361,6 @@ class Spaceport(Subscriber, ezui.WindowController):
         )
         self.te.setItemValue("textField", "SPACEPORT")
         #contentViewController
-        
         self.v.getItem("invertColorsButton").set(0)
         self.invertColorsButtonCallback(self.v.getItem("invertColorsButton"))
 
@@ -399,7 +399,7 @@ class Spaceport(Subscriber, ezui.WindowController):
     def started(self):
         self.w.open()
 
-    def build_sheet(self):
+    def build_fonts_sheet(self):
         content_fonts = """
         |------------------|
         | use    | path    | @fontsTable
@@ -442,8 +442,6 @@ class Spaceport(Subscriber, ezui.WindowController):
             parent=self.w,
             controller=self
         )
-        # self.w.af.bind("will close", self.updateFontList)
-        
 
     def fontsTableEditCallback(self, sender):
         index = sender.getEditedIndex()
@@ -455,7 +453,7 @@ class Spaceport(Subscriber, ezui.WindowController):
         self.populateItems()
 
     def add_fontCallback(self, sender):
-        self.build_sheet()
+        self.build_fonts_sheet()
         self.w.af.open()
         
     def addRemoveButtonAddCallback(self, sender):
@@ -595,6 +593,7 @@ class Spaceport(Subscriber, ezui.WindowController):
 
     def beamPositionSliderCallback(self, sender):
         self.beamHeight = sender.get()
+        self.displaySettingsButtonCallback(None)
         self.populateItems()
 
     def showBeamButtonCallback(self, sender):
@@ -616,6 +615,8 @@ class Spaceport(Subscriber, ezui.WindowController):
         self.showFill = 0 in values
         self.showStroke = 1 in values
         self.showPoints = 2 in values
+
+        self.beamHeight = self.v.getItemValue("beamPositionSlider")
 
         items = self.w.getItemValue("collectionView")
         for item in items:
@@ -717,11 +718,6 @@ class Spaceport(Subscriber, ezui.WindowController):
 
                     glyphContainer.appendBaseSublayer(
                         name="selectionIndicator",
-                        position=(0,self.font.info.descender),
-                        size=(glyph.width, abs(self.font.info.descender) + self.font.info.ascender),
-                        cornerRadius=10,
-                        backgroundColor=(0,1,0,.2),
-                        visible=True
                     )
 
                     glyphContainer.appendBaseSublayer(
@@ -827,6 +823,15 @@ class Spaceport(Subscriber, ezui.WindowController):
 
                         selectionIndicatorLayer = glyphContainer.getSublayer("selectionIndicator")
                         with selectionIndicatorLayer.propertyGroup():
+
+                            selectionIndicatorLayer.appendRectangleSublayer(
+                                position=(0,font.info.descender),
+                                size=(glyph.width, abs(font.info.descender) + font.info.ascender),
+                                fillColor=(0,1,0,.2),
+                                # visible=True
+                            )
+                            selectionIndicatorLayer.addSublayerSkewTransformation((-font.info.italicAngle))
+                            
                             if item in self.selectedItems:
                                 selectionIndicatorLayer.setVisible(True)
                             else:
@@ -871,9 +876,8 @@ class Spaceport(Subscriber, ezui.WindowController):
                             except IndexError:
                                 next_glyph = None
 
-                            right = glyph.getRayRightMargin(self.beamHeight, font.info.italicAngle)
-                            left = glyph.getRayLeftMargin(self.beamHeight, font.info.italicAngle)
-
+                            right = glyph.getRayRightMargin(self.beamHeight, font.info.italicAngle) or 0
+                            left = glyph.getRayLeftMargin(self.beamHeight, font.info.italicAngle) or 0
 
                             off = font.lib.get('com.typemytype.robofont.italicSlantOffset', 0)
                             aa = font.info.italicAngle
@@ -930,7 +934,7 @@ class Spaceport(Subscriber, ezui.WindowController):
                                 strokeWidth=1,
                                 )
                             if next_glyph:
-                                other_left = font[next_glyph].getRayLeftMargin(self.beamHeight, font.info.italicAngle)
+                                other_left = font[next_glyph].getRayLeftMargin(self.beamHeight, font.info.italicAngle) or 0
 
                                 beamIndicatorLayer.appendLineSublayer(
                                     startPoint=((glyph.width - right)+tp, self.beamHeight),
@@ -938,18 +942,20 @@ class Spaceport(Subscriber, ezui.WindowController):
                                     strokeColor=(1,.2,0,1),
                                     strokeWidth=1,
                                     )
-                                beamIndicatorLayer.appendTextLineSublayer(
-                                    text=str(round(right + other_left)),
-                                    font="SFMono-Regular",
-                                    position=((glyph.width - right) + ((right + other_left)/2)+tp, self.beamHeight),
-                                    fillColor=(1,1,1,1),
-                                    pointSize=10,
-                                    backgroundColor=(1,.2,0,1),
-                                    cornerRadius=5,
-                                    horizontalAlignment="center",
-                                    verticalAlignment="center",
-                                    padding=(3,1),
-                                    )
+
+                                if other_left:
+                                    beamIndicatorLayer.appendTextLineSublayer(
+                                        text=str(round(right + other_left)),
+                                        font="SFMono-Regular",
+                                        position=((glyph.width - right) + ((right + other_left)/2)+tp, self.beamHeight),
+                                        fillColor=(1,.2,0,1),
+                                        pointSize=10,
+                                        backgroundColor=(1,.2,0,.2),
+                                        cornerRadius=5,
+                                        horizontalAlignment="center",
+                                        verticalAlignment="bottom",
+                                        padding=(3,1),
+                                        )
                                 # beamIndicatorLayer.appendOvalSublayer(
                                 #     position=(glyph.width + left, self.beamHeight),
                                 #     size=(beamIntersectSize,beamIntersectSize),
@@ -1041,6 +1047,8 @@ class Spaceport(Subscriber, ezui.WindowController):
 
         selectedGlyph = None
 
+        selectedFont = None
+
         for temp_item in self.collectionView.get():
             if temp_item not in self.selectedItems:
                 temp_item.selected = False
@@ -1054,6 +1062,10 @@ class Spaceport(Subscriber, ezui.WindowController):
                 selectedGlyph = parsed
 
             if selectedGlyph:
+
+                if event["modifiers"] == ["command"]:
+                    selectedFont = hit.font
+
                 if AppKit.NSEvent.modifierFlags() & AppKit.NSShiftKeyMask:
                     # print("shift down, append")
                     self.selectedItems.append(hit)
@@ -1076,6 +1088,20 @@ class Spaceport(Subscriber, ezui.WindowController):
         if not self.selectedItems:
             for temp_item in self.collectionView.get():
                 temp_item.selected = False
+
+        for temp_item in self.collectionView.get():
+            layer = temp_item.getLayer("glyphContainer").getSublayer("glyphFill")
+            if temp_item.font == selectedFont:
+
+                layer.setFillColor((*self.selectionColor[0:3],.5))
+                layer.setStrokeColor(self.selectionColor)
+                layer.setStrokeWidth(1)
+                temp_item.selected = False
+            else:
+                layer.setFillColor(self.foreground)
+                layer.setStrokeColor(None)
+                layer.setStrokeWidth(None)
+            
 
 
     def mouseDragged(self,view,event):
@@ -1172,7 +1198,8 @@ class Spaceport(Subscriber, ezui.WindowController):
                         glyph = to_undo.glyph
                         manager = AppKit.NSApp().getUndoManagerForGlyph_(glyph.asDefcon())
                         manager.undo()
-
+                elif char.lower() == "t":
+                    self.te.open()
 
     def mouseMoved(self, view, event):
         pass
