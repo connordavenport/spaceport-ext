@@ -3,7 +3,7 @@ developer: Connor Davenport & Vincent Chan
 developerURL: https://connordavenport.com https://matterofsorts.com
 launchAtStartUp: false
 mainScript: ''
-version: '0.0.6'
+version: '0.0.7'
 addToMenu: 
 - path: main.py
   preferredName: Spaceport
