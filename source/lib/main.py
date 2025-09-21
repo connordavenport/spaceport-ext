@@ -1,10 +1,7 @@
 import AppKit
-import vanilla
-from defconAppKit.windows.baseWindow import BaseWindowController
+from defcon import Font
 from lib.UI.spaceCenter.glyphSequenceEditText import splitText,\
     currentGlyphKey, currentSelectionKey, newLineKey, groupsKey
-from mojo.canvas import CanvasGroup
-from mojo import drawingTools as ctx
 from mojo import events
 from mojo.UI import *
 from mojo.extensions import getExtensionDefault, setExtensionDefault
@@ -56,6 +53,7 @@ class MerzCollectionViewRGlyphItem(merz.collectionView.MerzCollectionViewItem):
     def __init__(self, *args, **kwargs):
         self._font = kwargs.get("font")
         self._glyph = kwargs.get("glyph")
+        self._index = kwargs.get("index")
         super().__init__(*args, **kwargs)
 
     # Dimensions
@@ -81,10 +79,18 @@ class MerzCollectionViewRGlyphItem(merz.collectionView.MerzCollectionViewItem):
 
     def setSelected(self, value):
         self._selected = value
-    # def set_item_selection_status(self, collection_item:MerzCollectionViewRGlyphItem, bool=True):
         self.getLayer("glyphContainer").getSublayer("selectionIndicator").setVisible(value)
 
     selected = property(getSelected, setSelected)
+
+
+    def getIndex(self):
+        return self._index
+
+    def setIndex(self, value):
+        self._index = value
+
+    index = property(getIndex, setIndex)
 
 
 
@@ -498,6 +504,9 @@ class Spaceport(Subscriber, ezui.WindowController):
             path  = list(self.designspaces.keys())[index]
             obj = self.designspaces[path]
             self.designspace = obj
+            self.fonts = {source.path:(True,source.asFontParts()) for source,loc_data in obj.getFonts()}
+        # print(obj.getFonts())
+        self.populateItems()
 
     def fontsTableEditCallback(self, sender):
         index = sender.getEditedIndex()
@@ -736,6 +745,7 @@ class Spaceport(Subscriber, ezui.WindowController):
                         acceptsHit=True,
                         glyph=glyph,
                         font=font,
+                        index=index,
                     )
                     # item.setWidth(glyph.width)
                     # item.setHeight(1000)
@@ -1105,8 +1115,8 @@ class Spaceport(Subscriber, ezui.WindowController):
         selection = []
 
         selectedGlyph = None
-
         selectedFont = None
+        multiFontSelect = False
 
         for temp_item in self.collectionView.get():
             if temp_item not in self.selectedItems:
@@ -1124,6 +1134,9 @@ class Spaceport(Subscriber, ezui.WindowController):
 
                 if event["modifiers"] == ["command"]:
                     selectedFont = hit.font
+
+                elif event["modifiers"] == ["option"]:
+                    multiFontSelect = True
 
                 if AppKit.NSEvent.modifierFlags() & AppKit.NSShiftKeyMask:
                     # print("shift down, append")
@@ -1148,10 +1161,14 @@ class Spaceport(Subscriber, ezui.WindowController):
             for temp_item in self.collectionView.get():
                 temp_item.selected = False
 
+        if multiFontSelect:
+            for temp_item in self.collectionView.get():
+                if temp_item.index == hit.index:
+                    temp_item.selected = True
+
         for temp_item in self.collectionView.get():
             layer = temp_item.getLayer("glyphContainer").getSublayer("glyphFill")
             if temp_item.font == selectedFont:
-
                 layer.setFillColor((*self.selectionColor[0:3],.5))
                 layer.setStrokeColor(self.selectionColor)
                 layer.setStrokeWidth(1)
