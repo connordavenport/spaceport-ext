@@ -167,7 +167,7 @@ class Spaceport(Subscriber, ezui.WindowController):
         self.designspaces = {dsp.path:dsp for dsp in AllDesignspaces()}
         self.designspace = None
 
-        self.beamHeight = int(self.font.info.xHeight / 2)
+        self.beamPosition = int(self.font.info.xHeight / 2)
 
         toolbar = dict(
             autosaveName="demoToolbar",
@@ -660,7 +660,7 @@ class Spaceport(Subscriber, ezui.WindowController):
         self.populateItems()
 
     def beamPositionSliderCallback(self, sender):
-        self.beamHeight = sender.get()
+        self.beamPosition = sender.get()
         self.displaySettingsButtonCallback(None)
         self.populateItems()
 
@@ -684,7 +684,7 @@ class Spaceport(Subscriber, ezui.WindowController):
         self.showStroke = 1 in values
         self.showPoints = 2 in values
 
-        self.beamHeight = self.v.getItemValue("beamPositionSlider")
+        self.beamPosition = self.v.getItemValue("beamPositionSlider")
         self.showBeam   = self.v.getItemValue("showBeamButton")
 
         items = self.w.getItemValue("collectionView")
@@ -947,8 +947,8 @@ class Spaceport(Subscriber, ezui.WindowController):
                             except IndexError:
                                 next_glyph = None
 
-                            right = glyph.getRayRightMargin(self.beamHeight, font.info.italicAngle) or 0
-                            left = glyph.getRayLeftMargin(self.beamHeight, font.info.italicAngle) or 0
+                            right = glyph.getRayRightMargin(self.beamPosition, font.info.italicAngle) or 0
+                            left = glyph.getRayLeftMargin(self.beamPosition, font.info.italicAngle) or 0
 
                             aa = font.info.italicAngle
                             if aa:
@@ -965,11 +965,11 @@ class Spaceport(Subscriber, ezui.WindowController):
                             trans = tuple(t)
                             ot = transform.Transform(*trans)
                             
-                            tp,_ = ot.transformPoint((0, self.beamHeight))
+                            tp,_ = ot.transformPoint((0, self.beamPosition))
 
                             if index == 0:
                                 beamIndicatorLayer.appendOvalSublayer(
-                                    position=(-(beamIntersectSize*2), self.beamHeight),
+                                    position=(-(beamIntersectSize*2), self.beamPosition),
                                     size=(beamIntersectSize*2,beamIntersectSize*2),
                                     anchor=(.5,.5),
                                     fillColor=(1,.2,0,1),
@@ -977,38 +977,38 @@ class Spaceport(Subscriber, ezui.WindowController):
                                     acceptsHit=True,
                                 )
                                 beamIndicatorLayer.appendLineSublayer(
-                                    startPoint=(-beamIntersectSize*2, self.beamHeight),
-                                    endPoint=(left+tp, self.beamHeight),
+                                    startPoint=(-beamIntersectSize*2, self.beamPosition),
+                                    endPoint=(left+tp, self.beamPosition),
                                     strokeColor=(1,.2,0,.4),
                                     strokeWidth=1,
                                 )
 
                             beamIndicatorLayer.appendOvalSublayer(
-                                position=(left+tp, self.beamHeight),
+                                position=(left+tp, self.beamPosition),
                                 size=(beamIntersectSize,beamIntersectSize),
                                 anchor=(.5,.5),
                                 fillColor=(1,.2,0,1)
                             )
 
                             beamIndicatorLayer.appendOvalSublayer(
-                                position=((glyph.width - right)+tp, self.beamHeight),
+                                position=((glyph.width - right)+tp, self.beamPosition),
                                 size=(beamIntersectSize,beamIntersectSize),
                                 anchor=(.5,.5),
                                 fillColor=(1,.2,0,1)
                             )
 
                             beamIndicatorLayer.appendLineSublayer(
-                                startPoint=(left+tp, self.beamHeight),
-                                endPoint=((glyph.width - right)+tp, self.beamHeight),
+                                startPoint=(left+tp, self.beamPosition),
+                                endPoint=((glyph.width - right)+tp, self.beamPosition),
                                 strokeColor=(1,.2,0,.4),
                                 strokeWidth=1,
                                 )
                             if next_glyph:
-                                other_left = font[next_glyph].getRayLeftMargin(self.beamHeight, font.info.italicAngle) or 0
+                                other_left = font[next_glyph].getRayLeftMargin(self.beamPosition, font.info.italicAngle) or 0
 
                                 beamIndicatorLayer.appendLineSublayer(
-                                    startPoint=((glyph.width - right)+tp, self.beamHeight),
-                                    endPoint=((glyph.width + other_left)+tp, self.beamHeight),
+                                    startPoint=((glyph.width - right)+tp, self.beamPosition),
+                                    endPoint=((glyph.width + other_left)+tp, self.beamPosition),
                                     strokeColor=(1,.2,0,1),
                                     strokeWidth=1,
                                     )
@@ -1017,7 +1017,7 @@ class Spaceport(Subscriber, ezui.WindowController):
                                     beamIndicatorLayer.appendTextLineSublayer(
                                         text=str(round(right + other_left)),
                                         font="SFMono-Regular",
-                                        position=((glyph.width - right) + ((right + other_left)/2)+tp, self.beamHeight),
+                                        position=((glyph.width - right) + ((right + other_left)/2)+tp, self.beamPosition),
                                         fillColor=(1,.2,0,1),
                                         pointSize=10,
                                         backgroundColor=(1,.2,0,.2),
@@ -1027,7 +1027,7 @@ class Spaceport(Subscriber, ezui.WindowController):
                                         padding=(3,1),
                                         )
                                 # beamIndicatorLayer.appendOvalSublayer(
-                                #     position=(glyph.width + left, self.beamHeight),
+                                #     position=(glyph.width + left, self.beamPosition),
                                 #     size=(beamIntersectSize,beamIntersectSize),
                                 #     anchor=(.5,.5),
                                 #     fillColor=(1,.2,0,1)
