@@ -16,6 +16,8 @@ from mojo.subscriber import Subscriber, registerCurrentGlyphSubscriber, unregist
 from vanilla.vanillaBase import osVersionCurrent, osVersion12_0
 from glyphNameFormatter.reader import n2u
 import os
+from fontTools.misc import transform
+import math
 
 # ---------
 # Interface
@@ -479,7 +481,11 @@ class Spaceport(Subscriber, ezui.WindowController):
     def beamCallback(self, sender):
         self.showBeam = not self.showBeam
 
-        print("IMPLIMENT BEAM DRAWING")
+        items = self.w.getItemValue("collectionView")
+        for item in items:
+            glyphContainer = item.getLayer("glyphContainer")
+            beamIndicatorLayer = glyphContainer.getSublayer("beamIndicator")
+            beamIndicatorLayer.setVisible(self.showBeam)
         '''
         glyph1, glyph2
         glyph1.beamRightMargin + glyph2.beamLeftMargin 
@@ -817,10 +823,12 @@ class Spaceport(Subscriber, ezui.WindowController):
                         glyphFillLayer = glyphContainer.getSublayer("glyphFill")
                         with glyphFillLayer.propertyGroup():
                             glyphFillLayer.setPath(glyph.getRepresentation("merz.CGPath"))
+                            glyphFillLayer.addTranslationTransformation((-font.lib.get("com.typemytype.robofont.italicSlantOffset", 0), 0), "translate")
                             glyphFillLayer.setVisible(self.showFill)
                         glyphStrokeLayer = glyphContainer.getSublayer("glyphStroke")
                         with glyphStrokeLayer.propertyGroup():
                             glyphStrokeLayer.setPath(glyph.getRepresentation("merz.CGPath"))
+                            glyphStrokeLayer.addTranslationTransformation((-font.lib.get("com.typemytype.robofont.italicSlantOffset", 0), 0), "translate")
                             glyphStrokeLayer.setVisible(self.showStroke)
                         glyphPointsLayer = glyphContainer.getSublayer("glyphPoints")
                         glyphPointsLayer.clearSublayers()
@@ -851,35 +859,86 @@ class Spaceport(Subscriber, ezui.WindowController):
                             except IndexError:
                                 next_glyph = None
 
-                            halfX = int(font.info.xHeight / 2)
+                            halfX = int(font.info.capHeight / 2)
+
                             right = glyph.getRayRightMargin(halfX, font.info.italicAngle)
                             left = glyph.getRayLeftMargin(halfX, font.info.italicAngle)
 
 
+                            off = font.lib.get('com.typemytype.robofont.italicSlantOffset', 0)
+                            aa = font.info.italicAngle
+                            if aa:
+                                aa *= -1
+                            else:
+                                aa = 0
+                            x = y = math.radians(aa)
+                            matrix = transform.Identity.skew(x=x, y=y)
+                            t = transform.Transform()
+                            oX, oY = (0,0)
+                            t = t.translate( oX,  oY)
+                            t = t.transform(matrix)
+                            t = t.translate(-oX, -oY)
+                            trans = tuple(t)
+                            ot = transform.Transform(*trans)
+                            
+                            tp,_ = ot.transformPoint((0, halfX))
+
+                            if index == 0:
+                                beamIndicatorLayer.appendOvalSublayer(
+                                    position=(-(beamIntersectSize*2), halfX),
+                                    size=(beamIntersectSize*2,beamIntersectSize*2),
+                                    anchor=(.5,.5),
+                                    fillColor=(1,.2,0,1),
+                                    horizontalAlignment="right",
+                                    acceptsHit=True,
+                                )
+                                beamIndicatorLayer.appendLineSublayer(
+                                    startPoint=(-beamIntersectSize*2, halfX),
+                                    endPoint=(left+tp, halfX),
+                                    strokeColor=(1,.2,0,.4),
+                                    strokeWidth=1,
+                                )
+
                             beamIndicatorLayer.appendOvalSublayer(
-                                position=(left, halfX),
+                                position=(left+tp, halfX),
                                 size=(beamIntersectSize,beamIntersectSize),
                                 anchor=(.5,.5),
                                 fillColor=(1,.2,0,1)
                             )
 
                             beamIndicatorLayer.appendOvalSublayer(
-                                position=((glyph.width - right), halfX),
+                                position=((glyph.width - right)+tp, halfX),
                                 size=(beamIntersectSize,beamIntersectSize),
                                 anchor=(.5,.5),
                                 fillColor=(1,.2,0,1)
                             )
 
+                            beamIndicatorLayer.appendLineSublayer(
+                                startPoint=(left+tp, halfX),
+                                endPoint=((glyph.width - right)+tp, halfX),
+                                strokeColor=(1,.2,0,.4),
+                                strokeWidth=1,
+                                )
                             if next_glyph:
                                 other_left = font[next_glyph].getRayLeftMargin(halfX, font.info.italicAngle)
 
+                                beamIndicatorLayer.appendLineSublayer(
+                                    startPoint=((glyph.width - right)+tp, halfX),
+                                    endPoint=((glyph.width + other_left)+tp, halfX),
+                                    strokeColor=(1,.2,0,1),
+                                    strokeWidth=1,
+                                    )
                                 beamIndicatorLayer.appendTextLineSublayer(
                                     text=str(round(right + other_left)),
-                                    position=((glyph.width - right), halfX),
+                                    font="SFMono-Regular",
+                                    position=((glyph.width - right) + ((right + other_left)/2)+tp, halfX),
                                     fillColor=(1,1,1,1),
                                     pointSize=10,
                                     backgroundColor=(1,.2,0,1),
                                     cornerRadius=5,
+                                    horizontalAlignment="center",
+                                    verticalAlignment="center",
+                                    padding=(3,1),
                                     )
                                 # beamIndicatorLayer.appendOvalSublayer(
                                 #     position=(glyph.width + left, halfX),
@@ -887,7 +946,7 @@ class Spaceport(Subscriber, ezui.WindowController):
                                 #     anchor=(.5,.5),
                                 #     fillColor=(1,.2,0,1)
                                 # )
-
+                            beamIndicatorLayer.setVisible(self.showBeam)
                     if index+1 == len(self.glyphs):
                         if self.multiline:
                             item.setForceBreakAfter(True)
@@ -1115,10 +1174,14 @@ class Spaceport(Subscriber, ezui.WindowController):
         # print("debug::mouseUp")
 
     def subscribeToGlyphs(self):
-        pass #self.setAdjunctObjectsToObserve(set(self.glyphs))
+        glyphs = []
+        for font in self.fonts:
+            ff = [f for f in AllFonts() if font == f.path][0]
+            glyphs.extend(list(set([ff[glyph] for glyph in self.glyphs])))
+        self.setAdjunctObjectsToObserve(glyphs)
 
     def unsubscribeFromGlyphs(self):
-        pass #self.clearObservedAdjunctObjects()
+        self.clearObservedAdjunctObjects()
 
     def adjunctGlyphDidChangeMetrics(self, info):
         self.populateItems(reload=True)
