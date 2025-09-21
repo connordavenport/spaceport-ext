@@ -685,6 +685,7 @@ class Spaceport(Subscriber, ezui.WindowController):
         self.showPoints = 2 in values
 
         self.beamHeight = self.v.getItemValue("beamPositionSlider")
+        self.showBeam   = self.v.getItemValue("showBeamButton")
 
         items = self.w.getItemValue("collectionView")
         for item in items:
