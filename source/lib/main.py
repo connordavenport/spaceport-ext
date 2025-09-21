@@ -1164,6 +1164,7 @@ class Spaceport(Subscriber, ezui.WindowController):
         if multiFontSelect:
             for temp_item in self.collectionView.get():
                 if temp_item.index == hit.index:
+                    self.selectedItems.append(temp_item)
                     temp_item.selected = True
 
         for temp_item in self.collectionView.get():
