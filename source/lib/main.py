@@ -6,7 +6,7 @@ from mojo import events
 from mojo.UI import *
 from mojo.extensions import getExtensionDefault, setExtensionDefault
 from fontParts.world import CurrentGlyph, CurrentLayer, CurrentFont
-from mojo.roboFont import OpenWindow
+from mojo.roboFont import internalFontClasses
 import ezui
 import merz
 from mojo.subscriber import Subscriber, registerCurrentGlyphSubscriber, unregisterCurrentGlyphSubscriber, registerSubscriberEvent, getRegisteredSubscriberEvents
@@ -46,6 +46,10 @@ KERN_HEIGHT = 100
 
 POS_KERN_COLOR = (0,0,1)
 NEG_KERN_COLOR = (1,0,0)
+
+SOURCE_ICON = "􀀨"
+INSTANCE_ICON = "􀀔"
+STATIC_ICON = ""
 
 
 class MerzCollectionViewRGlyphItem(merz.collectionView.MerzCollectionViewItem):
@@ -91,6 +95,16 @@ class MerzCollectionViewRGlyphItem(merz.collectionView.MerzCollectionViewItem):
         self._index = value
 
     index = property(getIndex, setIndex)
+
+
+    def getOnDisk(self):
+        return self._onDisk
+
+    def setOnDisk(self, value):
+        self._onDisk = value
+
+    onDisk = property(getOnDisk, setOnDisk)
+
 
 
 
@@ -157,7 +171,9 @@ class Spaceport(Subscriber, ezui.WindowController):
 
         self.showKerning = False
         self.multiline = True
-
+        self.openSources = False
+        self.viewSources = True
+        self.viewInstances = False
         self.showBeam = True
 
 
@@ -459,8 +475,9 @@ class Spaceport(Subscriber, ezui.WindowController):
         |         |
         |---------|
         * HorizontalStack
-        > [X] Show Sources     @showSourcesCheckbox
-        > [ ] Show Instances   @showInstancesCheckbox
+        > [ ] Open Sources     @openSourcesCheckbox  
+        > [ ] View Sources     @viewSourcesCheckbox
+        > [ ] View Instances   @viewInstancesCheckbox
         """
         descriptionData_dsps = dict(
             designspaceTable=dict(
@@ -476,6 +493,15 @@ class Spaceport(Subscriber, ezui.WindowController):
                     )
                 ],
                 allowsMultipleSelection=False,
+            ),
+            openSourcesCheckbox=dict(
+                value=self.openSources
+            ),
+            viewSourcesCheckbox=dict(
+                value=self.viewSources
+            ),
+            viewInstancesCheckbox=dict(
+                value=self.viewInstances
             ),
         )
 
@@ -500,13 +526,28 @@ class Spaceport(Subscriber, ezui.WindowController):
     def designspaceTableSelectionCallback(self, sender):
         index = sender.getSelectedIndexes()
         if index:
+            self.openSources = self.w.dsp.getItemValue("openSourcesCheckbox")
+            self.viewSources = self.w.dsp.getItemValue("viewSourcesCheckbox")
+            self.viewInstances = self.w.dsp.getItemValue("viewInstancesCheckbox")
+
             index = index[0]
             path  = list(self.designspaces.keys())[index]
             obj = self.designspaces[path]
             self.designspace = obj
-            self.fonts = {source.path:(True,source.asFontParts()) for source,loc_data in obj.getFonts()}
-        # print(obj.getFonts())
+            self.fonts = {}
+            if self.viewSources:
+                for source,loc_data in obj.getFonts():
+                    source.lib["descriptor"]  = "source"
+                    source.lib["location"]    = loc_data                    
+                    self.fonts[source.path]   = (True,source)
+            if self.viewInstances:
+                for instance in obj.instances:
+                    inst = Font()
+                    inst.lib["descriptor"]    = "instance"
+                    inst.lib["location"]      = instance.designLocation
+                    self.fonts[instance.path] = (True,inst)
         self.populateItems()
+
 
     def fontsTableEditCallback(self, sender):
         index = sender.getEditedIndex()
@@ -516,16 +557,16 @@ class Spaceport(Subscriber, ezui.WindowController):
         self.fonts[path] = (new, font)
         self.populateItems()
 
-
     def add_fontCallback(self, sender):
         self.build_fonts_sheet()
         self.w.af.open()
-
         
     def addRemoveButtonAddCallback(self, sender):
         file = GetFile(fileTypes=["ufoz", "ufo"])
         if file:
             opened = OpenFont(file)
+            opened = SFont(file)
+
             self.fonts[file] = (True, opened)
             
             self.w.af.close()
@@ -536,7 +577,6 @@ class Spaceport(Subscriber, ezui.WindowController):
                 name=os.path.basename(file)
             )
             table.appendItems([item])
-        
 
     def addRemoveButtonRemoveCallback(self, sender):
         table = self.w.af.getItem("fontsTable")
@@ -734,19 +774,38 @@ class Spaceport(Subscriber, ezui.WindowController):
 
         for path,(use,font) in self.fonts.items():
             if use:
+                
+                if font.lib.get("descriptor") == "instance":
+                    self.designspace.makeOneInfo(font.lib.get("location")).extractInfo(font.info)
+
                 off = font.lib.get('com.typemytype.robofont.italicSlantOffset', 0)
                 for index, glyph in enumerate(self.glyphs):
-                    glyph = font[glyph]
+                    on_disk = True
+                    if font.lib.get("descriptor") == "instance":
+                        mathGlyph = self.designspace.makeOneGlyph(glyph, font.lib.get("location"), decomposeComponents=True)
+                        if mathGlyph is not None:
+                            glyph = internalFontClasses.createGlyphObject()
+                            mathGlyph.extractGlyph(glyph)
+                            on_disk = False
+                    else:
+                        glyph = font[glyph]
+
+                    if not isinstance(glyph, RGlyph):
+                        glyph = RGlyph(glyph)
+
                     # item = self.collectionView.makeItem(
                     #     name=f"{glyph.name}@{font.path}",
                     #     acceptsHit=True,
                     #     )
+
+                    # print(font[glyph.name])
                     item = MerzCollectionViewRGlyphItem(
                         name=glyph.name,
                         acceptsHit=True,
                         glyph=glyph,
                         font=font,
                         index=index,
+                        onDisk=on_disk,
                     )
                     # item.setWidth(glyph.width)
                     # item.setHeight(1000)
@@ -754,6 +813,11 @@ class Spaceport(Subscriber, ezui.WindowController):
                     glyphContainer = merz.Base()
                     item.appendLayer("glyphContainer", glyphContainer)
 
+
+                    glyphContainer.appendBaseSublayer(
+                        name="descriptorIndicator",
+                        visible=True,
+                    )
                     # self.glyphMap
                     
                     glyphContainer.appendBaseSublayer(
@@ -817,6 +881,23 @@ class Spaceport(Subscriber, ezui.WindowController):
                             name="descender"
                         )
 
+                        icon = ""
+                        if font.lib.get("descriptor") == "source":
+                            icon = SOURCE_ICON
+                        elif font.lib.get("descriptor") == "instance":
+                            icon = INSTANCE_ICON
+
+                        descriptorIndicatorLayer = glyphContainer.getSublayer("descriptorIndicator")
+                        with descriptorIndicatorLayer.propertyGroup():
+                            if item.index == 0:
+                                descriptorIndicatorLayer.appendTextLineSublayer(
+                                    text=icon,
+                                    pointSize=8,
+                                    position=(-100,0),
+                                    fillColor=(0,0,1,1),
+                                    horizontalAlignment="center",
+                                )
+
                         glyphMetricsLayer = glyphContainer.getSublayer("glyphMetrics")
                         # 
                         # 
@@ -847,7 +928,7 @@ class Spaceport(Subscriber, ezui.WindowController):
                                     strokeColor=(.2,.2,.2,1),
                                     strokeCap="round"
                                     )
-                                line.addSkewTransformation(-font.info.italicAngle)
+                                line.addSkewTransformation(-getattr(font.info, "italicAngle", 0))
                             width = glyphMetricsLayer.appendTextLineSublayer(
                                 text=str(glyph.width),
                                 pointSize=7,
@@ -1004,7 +1085,17 @@ class Spaceport(Subscriber, ezui.WindowController):
                                 strokeWidth=1,
                                 )
                             if next_glyph:
-                                other_left = font[next_glyph].getRayLeftMargin(self.beamPosition, font.info.italicAngle) or 0
+
+                                if font.lib.get("descriptor") == "instance":
+                                    mathGlyph = self.designspace.makeOneGlyph(next_glyph, font.lib.get("location"), decomposeComponents=True)
+                                    if mathGlyph is not None:
+                                        glyph = internalFontClasses.createGlyphObject()
+                                        mathGlyph.extractGlyph(glyph)
+                                        next = RGlyph(glyph)
+                                else:
+                                    next = font[next_glyph]
+
+                                other_left = next.getRayLeftMargin(self.beamPosition, font.info.italicAngle) or 0
 
                                 beamIndicatorLayer.appendLineSublayer(
                                     startPoint=((glyph.width - right)+tp, self.beamPosition),
@@ -1237,7 +1328,7 @@ class Spaceport(Subscriber, ezui.WindowController):
                 # glyph = self.getGlyphFromItem(item)
                 glyph = item.glyph
                                             
-                if char in directions:
+                if item.onDisk:
                     with glyph.undo(f"Change spacing of {glyph.name}"):
                         if "shift" in mods and "command" in mods:
                             spacing_unit = 100
