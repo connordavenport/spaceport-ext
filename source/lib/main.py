@@ -58,6 +58,7 @@ class MerzCollectionViewRGlyphItem(merz.collectionView.MerzCollectionViewItem):
         self._font = kwargs.get("font")
         self._glyph = kwargs.get("glyph")
         self._index = kwargs.get("index")
+        self._onDisk = kwargs.get("onDisk")
         super().__init__(*args, **kwargs)
 
     # Dimensions
@@ -545,7 +546,9 @@ class Spaceport(Subscriber, ezui.WindowController):
                     inst = Font()
                     inst.lib["descriptor"]    = "instance"
                     inst.lib["location"]      = instance.designLocation
+                    obj.makeOneInfo(instance.designLocation).extractInfo(inst.info)
                     self.fonts[instance.path] = (True,inst)
+                    
         self.populateItems()
 
 
@@ -774,9 +777,6 @@ class Spaceport(Subscriber, ezui.WindowController):
 
         for path,(use,font) in self.fonts.items():
             if use:
-                
-                if font.lib.get("descriptor") == "instance":
-                    self.designspace.makeOneInfo(font.lib.get("location")).extractInfo(font.info)
 
                 off = font.lib.get('com.typemytype.robofont.italicSlantOffset', 0)
                 for index, glyph in enumerate(self.glyphs):
@@ -1260,16 +1260,18 @@ class Spaceport(Subscriber, ezui.WindowController):
                     temp_item.selected = True
 
         for temp_item in self.collectionView.get():
-            layer = temp_item.getLayer("glyphContainer").getSublayer("glyphFill")
-            if temp_item.font == selectedFont:
-                layer.setFillColor((*self.selectionColor[0:3],.5))
-                layer.setStrokeColor(self.selectionColor)
-                layer.setStrokeWidth(1)
-                temp_item.selected = False
-            else:
-                layer.setFillColor(self.foreground)
-                layer.setStrokeColor(None)
-                layer.setStrokeWidth(None)
+
+            if not temp_item.onDisk:
+                layer = temp_item.getLayer("glyphContainer").getSublayer("glyphFill")
+                if temp_item.font == selectedFont:
+                    layer.setFillColor((*self.selectionColor[0:3],.5))
+                    layer.setStrokeColor(self.selectionColor)
+                    layer.setStrokeWidth(1)
+                    temp_item.selected = False
+                else:
+                    layer.setFillColor(self.foreground)
+                    layer.setStrokeColor(None)
+                    layer.setStrokeWidth(None)
             
 
 
