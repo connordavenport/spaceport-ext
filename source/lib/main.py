@@ -2,6 +2,9 @@ import AppKit
 from defcon import Font
 from lib.UI.spaceCenter.glyphSequenceEditText import splitText,\
     currentGlyphKey, currentSelectionKey, newLineKey, groupsKey
+from lib.fontObjects.doodleFont import DoodleFont
+from lib.fontObjects.doodleLayer import DoodleLayer
+from lib.fontObjects.doodleGlyph import DoodleGlyph
 from mojo import events
 from mojo.UI import *
 from mojo.extensions import getExtensionDefault, setExtensionDefault
@@ -63,7 +66,7 @@ class MerzCollectionViewRGlyphItem(merz.collectionView.MerzCollectionViewItem):
 
     # Dimensions
 
-    def getGlyph(self):
+    def getGlyph(self) -> DoodleGlyph | RGlyph:
         return self._glyph
 
     def setGlyph(self, value):
@@ -71,37 +74,37 @@ class MerzCollectionViewRGlyphItem(merz.collectionView.MerzCollectionViewItem):
 
     glyph = property(getGlyph, setGlyph)
 
-    def getFont(self):
+    def getFont(self) -> DoodleFont:
         return self._font
 
-    def setFont(self, value):
+    def setFont(self, value:DoodleFont):
         self._font = value
 
     font = property(getFont, setFont)
 
-    def getSelected(self):
+    def getSelected(self) -> bool:
         return self._selected
 
-    def setSelected(self, value):
+    def setSelected(self, value:bool=False):
         self._selected = value
         self.getLayer("glyphContainer").getSublayer("selectionIndicator").setVisible(value)
 
     selected = property(getSelected, setSelected)
 
 
-    def getIndex(self):
+    def getIndex(self) -> int:
         return self._index
 
-    def setIndex(self, value):
+    def setIndex(self, value:int=0):
         self._index = value
 
     index = property(getIndex, setIndex)
 
 
-    def getOnDisk(self):
+    def getOnDisk(self) -> bool:
         return self._onDisk
 
-    def setOnDisk(self, value):
+    def setOnDisk(self, value:bool=True):
         self._onDisk = value
 
     onDisk = property(getOnDisk, setOnDisk)
@@ -160,6 +163,8 @@ def symbolImage(symbolName:str, color:tuple|AppKit.NSColor, flipped:bool=False, 
 
 class Spaceport(Subscriber, ezui.WindowController):
 
+    debug = True
+
     def build(self):
 
         # self._unwrappedItems = []
@@ -168,7 +173,7 @@ class Spaceport(Subscriber, ezui.WindowController):
 
         self.foreground     = (0, 0, 0, 1)
         self.background     = (1, 1, 1, 1)
-        self.selectionColor = (0.58, 0.22, 1, 1)
+        # self.selectionColor = (0, 0, 0, 1)
 
         self.showKerning = False
         self.multiline = True
@@ -176,13 +181,18 @@ class Spaceport(Subscriber, ezui.WindowController):
         self.viewSources = True
         self.viewInstances = False
         self.showBeam = True
+        self.designspaceController = True
 
 
         self.font = CurrentFont()
-        self.fonts = {f.path:(f==CurrentFont(),f) for f in AllFonts()}
+        self.fonts = dict()
 
-        self.designspaces = {dsp.path:dsp for dsp in AllDesignspaces()}
-        self.designspace = None
+        for f in AllFonts():
+            f.lib["descriptor"] = ""
+            self.fonts[f.path] = (f==CurrentFont(), f)
+
+        self.designspaces = dict()
+        self.operator = None
 
         self.beamPosition = int(self.font.info.xHeight / 2)
 
@@ -424,6 +434,48 @@ class Spaceport(Subscriber, ezui.WindowController):
     def started(self):
         self.w.open()
 
+
+    designspaceEditorPreviewLocationDidChangeDelay = 0.01
+
+    # designspace editor notifcations
+    def designspaceEditorPreviewLocationDidChange(self, notification):
+        print("IMPLIMENT BETTER CROSS NOTIFICATION SUPPORT")
+        if self.designspaceController:
+            print(notification["location"])
+
+    def designspaceEditorInstancesDidChangeSelection(self, notification):
+        print("IMPLIMENT BETTER CROSS NOTIFICATION SUPPORT")
+        if self.designspaceController:
+
+            operator = notification["designspace"]
+            instances = notification["selectedItems"]
+            self.designspaceSettingsChanged(
+                    object=operator,
+                    sources=operator.getFonts(),
+                    instances=instances
+            )
+
+    def designspaceEditorSourcesDidChangeSelection(self, notification):
+        print("IMPLIMENT BETTER CROSS NOTIFICATION SUPPORT")
+        if self.designspaceController:
+
+            operator = notification["designspace"]
+            sources = notification["selectedItems"]
+
+            reformated = []
+            fs = operator.getFonts()
+            locations = [s.designLocation for s in sources]
+            for (ff,ll) in fs:
+                if ll in locations:
+                    reformated.append((ff,ll))
+
+            self.designspaceSettingsChanged(
+                    object=operator,
+                    sources=reformated,
+                    instances=operator.instances
+            )
+                
+
     def build_fonts_sheet(self):
         content_fonts = """
         |------------------|
@@ -470,16 +522,21 @@ class Spaceport(Subscriber, ezui.WindowController):
     def build_designspace_sheet(self):
         content_dsps = """
         |---------|
-        | path    |            @designspaceTable
-        |---------|
-        | a.dsp   |
-        |         |
-        |---------|
-        * HorizontalStack
-        > [ ] Open Sources     @openSourcesCheckbox  
-        > [ ] View Sources     @viewSourcesCheckbox
-        > [ ] View Instances   @viewInstancesCheckbox
+        | path    |                             @designspaceTable
+        |---------|                 
+        | a.dsp   |                 
+        |         |                 
+        |---------|                 
+        * HorizontalStack                 
+        > [ ] Open Sources                      @openSourcesCheckbox  
+        > [ ] View Sources                      @viewSourcesCheckbox
+        > [ ] View Instances                    @viewInstancesCheckbox
+
+        > [ ] Use Designspace Editor Controller @useDesignspaceController
         """
+        if not self.designspaces:
+            self.designspaces = {dsp.path:dsp for dsp in AllDesignspaces()}
+
         descriptionData_dsps = dict(
             designspaceTable=dict(
                 items=[
@@ -516,12 +573,49 @@ class Spaceport(Subscriber, ezui.WindowController):
 
         table=self.w.dsp.getItem("designspaceTable")
         selection_index = None
-        if self.designspace:
+        if self.operator:
             for ii, (path,obj) in enumerate(self.designspaces.items()):
-                if obj == self.designspace:
+                if obj == self.operator:
                     selection_index = ii
         if selection_index != None:
             table.setSelectedIndexes([selection_index])
+
+
+    def useDesignspaceControllerCallback(self, sender):
+        self.designspaceController = self.w.dsp.getItemValue("useDesignspaceController")
+
+
+    def designspaceSettingsChanged(self, **kwargs):
+        obj = kwargs.get("object", self.operator)
+        sources = kwargs.get("sources", obj.sources)
+        instances = kwargs.get("instances", obj.instances)
+
+        self.fonts = {}
+        if self.viewSources:
+            for source,loc_data in sources:
+                source.lib["descriptor"] = "source"
+                source.lib["location"]   = loc_data                    
+                self.fonts[source.path]  = (True,source)
+
+        if self.viewInstances:    
+            for instance in instances:
+                inst = internalFontClasses.createFontObject()
+                inst.lib["descriptor"] = "instance"
+                inst.lib["location"]   = instance.designLocation
+                obj.makeOneInfo(instance.designLocation).extractInfo(inst.info)
+
+                rev = []
+                cont, disc = obj.splitLocation(instance.designLocation)
+                if disc:
+                    rev.append((obj, disc))
+                    ss = [s for s,l in obj.getFonts() if set(disc.items()).issubset(l.items())]
+                    if ss:
+                        inst.lib["com.typemytype.robofont.italicSlantOffset"] = ss[0].lib.get("com.typemytype.robofont.italicSlantOffset", 0)
+                else:
+                    inst.lib["com.typemytype.robofont.italicSlantOffset"] = obj.getFonts()[0][0].lib.get("com.typemytype.robofont.italicSlantOffset", 0)
+
+                self.fonts[instance.path] = (True,inst)
+        self.populateItems()
 
 
     def designspaceTableSelectionCallback(self, sender):
@@ -534,22 +628,8 @@ class Spaceport(Subscriber, ezui.WindowController):
             index = index[0]
             path  = list(self.designspaces.keys())[index]
             obj = self.designspaces[path]
-            self.designspace = obj
-            self.fonts = {}
-            if self.viewSources:
-                for source,loc_data in obj.getFonts():
-                    source.lib["descriptor"]  = "source"
-                    source.lib["location"]    = loc_data                    
-                    self.fonts[source.path]   = (True,source)
-            if self.viewInstances:
-                for instance in obj.instances:
-                    inst = Font()
-                    inst.lib["descriptor"]    = "instance"
-                    inst.lib["location"]      = instance.designLocation
-                    obj.makeOneInfo(instance.designLocation).extractInfo(inst.info)
-                    self.fonts[instance.path] = (True,inst)
-                    
-        self.populateItems()
+            self.operator = obj
+            self.designspaceSettingsChanged(object=obj, sources=obj.getFonts(), instances=obj.instances)
 
 
     def fontsTableEditCallback(self, sender):
@@ -704,13 +784,11 @@ class Spaceport(Subscriber, ezui.WindowController):
 
     def beamPositionSliderCallback(self, sender):
         self.beamPosition = sender.get()
-        self.displaySettingsButtonCallback(None)
-        self.populateItems()
+        self.displaySettingsButtonCallback(None, onlyBeam=True)
 
     def showBeamButtonCallback(self, sender):
         self.showBeam = self.v.getItemValue("showBeamButton")
-        self.displaySettingsButtonCallback(None)
-        self.populateItems()
+        self.displaySettingsButtonCallback(None, onlyBeam=True)
         '''
         glyph1, glyph2
         glyph1.beamRightMargin + glyph2.beamLeftMargin 
@@ -721,7 +799,7 @@ class Spaceport(Subscriber, ezui.WindowController):
         self.displaySettingsButtonCallback(None)
         self.populateItems()
 
-    def displaySettingsButtonCallback(self, sender):
+    def displaySettingsButtonCallback(self, sender, onlyBeam=False):
         values = self.v.getItemValue("displaySettingsButton")
         self.showFill = 0 in values
         self.showStroke = 1 in values
@@ -732,28 +810,33 @@ class Spaceport(Subscriber, ezui.WindowController):
 
         items = self.w.getItemValue("collectionView")
         for item in items:
-            glyphContainer = item.getLayer("glyphContainer")
 
-            glyphMetricsLayer = glyphContainer.getSublayer("glyphMetrics")
-            glyphMetricsLayer.setVisible(self.showMetrics)
-
-            kernIndicatorLayer = glyphContainer.getSublayer("kernIndicator")
-            kernIndicatorLayer.setVisible(self.showKerning)
-
-            beamIndicatorLayer = glyphContainer.getSublayer("beamIndicator")
-            beamIndicatorLayer.setVisible(self.showBeam)
-
-            glyphFillLayer = glyphContainer.getSublayer("glyphFill")
-            glyphFillLayer.setVisible(self.showFill)
-            if self.showStroke:
-                glyphFillLayer.setFillColor((*self.foreground[:3], .2))
+            if onlyBeam:
+                self.generateBeam(item)
             else:
-                glyphFillLayer.setFillColor(self.foreground)
+                glyphContainer = item.getLayer("glyphContainer")
 
-            glyphStrokeLayer = glyphContainer.getSublayer("glyphStroke")
-            glyphStrokeLayer.setVisible(self.showStroke)
-            glyphPointsLayer = glyphContainer.getSublayer("glyphPoints")
-            glyphPointsLayer.setVisible(self.showPoints)
+                glyphMetricsLayer = glyphContainer.getSublayer("glyphMetrics")
+                glyphMetricsLayer.setVisible(self.showMetrics)
+
+                kernIndicatorLayer = glyphContainer.getSublayer("kernIndicator")
+                kernIndicatorLayer.setVisible(self.showKerning)
+
+                beamIndicatorLayer = glyphContainer.getSublayer("beamIndicator")
+                beamIndicatorLayer.setVisible(self.showBeam)
+
+                glyphFillLayer = glyphContainer.getSublayer("glyphFill")
+                glyphFillLayer.setVisible(self.showFill)
+                if self.showStroke:
+                    glyphFillLayer.setFillColor((*self.foreground[:3], .2))
+                else:
+                    glyphFillLayer.setFillColor(self.foreground)
+
+                glyphStrokeLayer = glyphContainer.getSublayer("glyphStroke")
+                glyphStrokeLayer.setVisible(self.showStroke)
+                glyphPointsLayer = glyphContainer.getSublayer("glyphPoints")
+                glyphPointsLayer.setVisible(self.showPoints)
+
 
 
     def parseItemName(self, name:str) -> str:
@@ -768,24 +851,22 @@ class Spaceport(Subscriber, ezui.WindowController):
             return None
 
 
-    def populateItems(self, reload=False):
-        # font = self.font
-        # glyphs = self.glyphs\
-
-        # print(dir(self.collectionView.merzDocumentViewClass))
+    def populateItems(self, reload:bool=False):
         items = []
-
         for path,(use,font) in self.fonts.items():
             if use:
-
-                off = font.lib.get('com.typemytype.robofont.italicSlantOffset', 0)
+                upm_scale = font.info.unitsPerEm / 1000
+                off = font.lib.get("com.typemytype.robofont.italicSlantOffset", 0)
                 for index, glyph in enumerate(self.glyphs):
                     on_disk = True
                     if font.lib.get("descriptor") == "instance":
-                        mathGlyph = self.designspace.makeOneGlyph(glyph, font.lib.get("location"), decomposeComponents=True)
+                        _temp = glyph
+                        mathGlyph = self.operator.makeOneGlyph(glyph, font.lib.get("location"), decomposeComponents=True)
                         if mathGlyph is not None:
                             glyph = internalFontClasses.createGlyphObject()
+                            # glyph.font = font
                             mathGlyph.extractGlyph(glyph)
+                            glyph = font.insertGlyph(glyph, name=_temp)
                             on_disk = False
                     else:
                         glyph = font[glyph]
@@ -793,12 +874,6 @@ class Spaceport(Subscriber, ezui.WindowController):
                     if not isinstance(glyph, RGlyph):
                         glyph = RGlyph(glyph)
 
-                    # item = self.collectionView.makeItem(
-                    #     name=f"{glyph.name}@{font.path}",
-                    #     acceptsHit=True,
-                    #     )
-
-                    # print(font[glyph.name])
                     item = MerzCollectionViewRGlyphItem(
                         name=glyph.name,
                         acceptsHit=True,
@@ -807,18 +882,16 @@ class Spaceport(Subscriber, ezui.WindowController):
                         index=index,
                         onDisk=on_disk,
                     )
-                    # item.setWidth(glyph.width)
-                    # item.setHeight(1000)
+
+                    item.setHeight(font.info.unitsPerEm)
                     item.getCALayer().setGeometryFlipped_(True) # XXX Ugh. Yell at Tal about this.
                     glyphContainer = merz.Base()
                     item.appendLayer("glyphContainer", glyphContainer)
-
 
                     glyphContainer.appendBaseSublayer(
                         name="descriptorIndicator",
                         visible=True,
                     )
-                    # self.glyphMap
                     
                     glyphContainer.appendBaseSublayer(
                         name="glyphMetrics",
@@ -834,10 +907,7 @@ class Spaceport(Subscriber, ezui.WindowController):
                         name="glyphFill",
                         fillColor=foreground,
                         visible=True,
-                        # identifier=f"{glyph.name}@{font.path}"
                     )
-                    # filled.setInfoValue("glyph", glyph.name)
-                    # filled.setInfoValue("font", font.path)
 
                     glyphContainer.appendPathSublayer(
                         name="glyphStroke",
@@ -874,18 +944,20 @@ class Spaceport(Subscriber, ezui.WindowController):
                         item.setWidth(glyph.width)
                         item.setHeight(font.info.unitsPerEm)
 
-
                         glyphContainer = item.getLayer("glyphContainer")
                         glyphContainer.addTranslationTransformation(
                             value=(0, -font.info.descender),
                             name="descender"
                         )
 
-                        icon = ""
+                        icon  = ""
+                        color = (0,0,0,0)
                         if font.lib.get("descriptor") == "source":
-                            icon = SOURCE_ICON
+                            icon  = SOURCE_ICON
+                            color = (0,0,1,1)
                         elif font.lib.get("descriptor") == "instance":
-                            icon = INSTANCE_ICON
+                            icon  = INSTANCE_ICON
+                            color = (0,1,1,1)
 
                         descriptorIndicatorLayer = glyphContainer.getSublayer("descriptorIndicator")
                         with descriptorIndicatorLayer.propertyGroup():
@@ -893,14 +965,15 @@ class Spaceport(Subscriber, ezui.WindowController):
                                 descriptorIndicatorLayer.appendTextLineSublayer(
                                     text=icon,
                                     pointSize=8,
-                                    position=(-100,0),
-                                    fillColor=(0,0,1,1),
+                                    position=(-50,font.info.capHeight/2),
+                                    fillColor=color,
                                     horizontalAlignment="center",
+                                    verticalAlignment="center",
+                                    anchor=(.5,.5)
                                 )
 
                         glyphMetricsLayer = glyphContainer.getSublayer("glyphMetrics")
-                        # 
-                        # 
+
                         depth = -75
                         with glyphMetricsLayer.propertyGroup():
                             for side in ["left", "right"]:
@@ -981,7 +1054,6 @@ class Spaceport(Subscriber, ezui.WindowController):
                                 position=(0,font.info.descender),
                                 size=(glyph.width, abs(font.info.descender) + font.info.ascender),
                                 fillColor=(0,1,0,.2),
-                                # visible=True
                             )
                             selectionIndicatorLayer.addSublayerSkewTransformation((-font.info.italicAngle))
                             
@@ -993,16 +1065,16 @@ class Spaceport(Subscriber, ezui.WindowController):
                         glyphFillLayer = glyphContainer.getSublayer("glyphFill")
                         with glyphFillLayer.propertyGroup():
                             glyphFillLayer.setPath(glyph.getRepresentation("merz.CGPath"))
-                            glyphFillLayer.addTranslationTransformation((-font.lib.get("com.typemytype.robofont.italicSlantOffset", 0), 0), "translate")
+                            glyphFillLayer.addTranslationTransformation((-off, 0), "translate")
                             glyphFillLayer.setVisible(self.showFill)
                         glyphStrokeLayer = glyphContainer.getSublayer("glyphStroke")
                         with glyphStrokeLayer.propertyGroup():
                             glyphStrokeLayer.setPath(glyph.getRepresentation("merz.CGPath"))
-                            glyphStrokeLayer.addTranslationTransformation((-font.lib.get("com.typemytype.robofont.italicSlantOffset", 0), 0), "translate")
+                            glyphStrokeLayer.addTranslationTransformation((-off, 0), "translate")
                             glyphStrokeLayer.setVisible(self.showStroke)
                         glyphPointsLayer = glyphContainer.getSublayer("glyphPoints")
                         glyphPointsLayer.clearSublayers()
-                        onCurve = 3
+                        onCurve = 1 * upm_scale 
                         with glyphPointsLayer.propertyGroup():
                             for contour in glyph.contours:
                                 for point in contour.points:
@@ -1020,118 +1092,125 @@ class Spaceport(Subscriber, ezui.WindowController):
                                         )
                             glyphPointsLayer.setVisible(self.showPoints)
 
-                        beamIndicatorLayer = glyphContainer.getSublayer("beamIndicator")
-                        beamIntersectSize = 120
-                        with beamIndicatorLayer.propertyGroup():
-                            try:
-                                next_glyph = self.glyphs[index+1]
-                            except IndexError:
-                                next_glyph = None
+                            self.generateBeam(item)
 
-                            right = glyph.getRayRightMargin(self.beamPosition, font.info.italicAngle) or 0
-                            left = glyph.getRayLeftMargin(self.beamPosition, font.info.italicAngle) or 0
-
-                            aa = font.info.italicAngle
-                            if aa:
-                                aa *= -1
-                            else:
-                                aa = 0
-                            x = y = math.radians(aa)
-                            matrix = transform.Identity.skew(x=x, y=y)
-                            t = transform.Transform()
-                            oX, oY = (0,0)
-                            t = t.translate( oX,  oY)
-                            t = t.transform(matrix)
-                            t = t.translate(-oX, -oY)
-                            trans = tuple(t)
-                            ot = transform.Transform(*trans)
-                            
-                            tp,_ = ot.transformPoint((0, self.beamPosition))
-
-                            if index == 0:
-                                beamIndicatorLayer.appendOvalSublayer(
-                                    position=(-(beamIntersectSize*2), self.beamPosition),
-                                    size=(beamIntersectSize*2,beamIntersectSize*2),
-                                    anchor=(.5,.5),
-                                    fillColor=(1,.2,0,1),
-                                    horizontalAlignment="right",
-                                    acceptsHit=True,
-                                )
-                                beamIndicatorLayer.appendLineSublayer(
-                                    startPoint=(-beamIntersectSize*2, self.beamPosition),
-                                    endPoint=(left+tp, self.beamPosition),
-                                    strokeColor=(1,.2,0,.4),
-                                    strokeWidth=1,
-                                )
-
-                            beamIndicatorLayer.appendOvalSublayer(
-                                position=(left+tp, self.beamPosition),
-                                size=(beamIntersectSize,beamIntersectSize),
-                                anchor=(.5,.5),
-                                fillColor=(1,.2,0,1)
-                            )
-
-                            beamIndicatorLayer.appendOvalSublayer(
-                                position=((glyph.width - right)+tp, self.beamPosition),
-                                size=(beamIntersectSize,beamIntersectSize),
-                                anchor=(.5,.5),
-                                fillColor=(1,.2,0,1)
-                            )
-
-                            beamIndicatorLayer.appendLineSublayer(
-                                startPoint=(left+tp, self.beamPosition),
-                                endPoint=((glyph.width - right)+tp, self.beamPosition),
-                                strokeColor=(1,.2,0,.4),
-                                strokeWidth=1,
-                                )
-                            if next_glyph:
-
-                                if font.lib.get("descriptor") == "instance":
-                                    mathGlyph = self.designspace.makeOneGlyph(next_glyph, font.lib.get("location"), decomposeComponents=True)
-                                    if mathGlyph is not None:
-                                        glyph = internalFontClasses.createGlyphObject()
-                                        mathGlyph.extractGlyph(glyph)
-                                        next = RGlyph(glyph)
-                                else:
-                                    next = font[next_glyph]
-
-                                other_left = next.getRayLeftMargin(self.beamPosition, font.info.italicAngle) or 0
-
-                                beamIndicatorLayer.appendLineSublayer(
-                                    startPoint=((glyph.width - right)+tp, self.beamPosition),
-                                    endPoint=((glyph.width + other_left)+tp, self.beamPosition),
-                                    strokeColor=(1,.2,0,1),
-                                    strokeWidth=1,
-                                    )
-
-                                if other_left:
-                                    beamIndicatorLayer.appendTextLineSublayer(
-                                        text=str(round(right + other_left)),
-                                        font="SFMono-Regular",
-                                        position=((glyph.width - right) + ((right + other_left)/2)+tp, self.beamPosition),
-                                        fillColor=(1,.2,0,1),
-                                        pointSize=10,
-                                        backgroundColor=(1,.2,0,.2),
-                                        cornerRadius=5,
-                                        horizontalAlignment="center",
-                                        verticalAlignment="bottom",
-                                        padding=(3,1),
-                                        )
-                                # beamIndicatorLayer.appendOvalSublayer(
-                                #     position=(glyph.width + left, self.beamPosition),
-                                #     size=(beamIntersectSize,beamIntersectSize),
-                                #     anchor=(.5,.5),
-                                #     fillColor=(1,.2,0,1)
-                                # )
-                            beamIndicatorLayer.setVisible(self.showBeam)
                     if index+1 == len(self.glyphs):
                         if self.multiline:
                             item.setForceBreakAfter(True)
                         else:
                             item.setForceBreakAfter(False)
                     items.append(item)
-
         self.collectionView.set(items)
+
+
+    def generateBeam(self, item:MerzCollectionViewRGlyphItem):
+
+        glyph = item.glyph
+        font = item.font
+        upm_scale = font.info.unitsPerEm / 1000
+        beamIndicatorLayer = item.getLayer("glyphContainer").getSublayer("beamIndicator")
+        beamIndicatorLayer.clearSublayers()
+        # beamIndicatorLayer.addTranslationTransformation(value=(-off,0))
+        beamIntersectSize = 30 * upm_scale
+
+        with beamIndicatorLayer.propertyGroup():
+            try:
+                next_glyph = self.glyphs[item.index+1]
+            except IndexError:
+                next_glyph = None
+
+            right = glyph.getRayRightMargin(self.beamPosition, font.info.italicAngle) or 0
+            left = glyph.getRayLeftMargin(self.beamPosition, font.info.italicAngle) or 0
+
+            aa = font.info.italicAngle
+            if aa:
+                aa *= -1
+            else:
+                aa = 0
+            x = y = math.radians(aa)
+            matrix = transform.Identity.skew(x=x, y=y)
+            t = transform.Transform()
+            oX, oY = (0,0)
+            t = t.translate( oX,  oY)
+            t = t.transform(matrix)
+            t = t.translate(-oX, -oY)
+            trans = tuple(t)
+            ot = transform.Transform(*trans)
+            
+            tp,_ = ot.transformPoint((0, self.beamPosition))
+
+            if item.index == 0:
+
+                if self.multiline:
+                    beamIndicatorLayer.appendOvalSublayer(
+                        position=(-(beamIntersectSize*2), self.beamPosition),
+                        size=(beamIntersectSize*2,beamIntersectSize*2),
+                        anchor=(.5,.5),
+                        fillColor=(1,.2,0,1),
+                        horizontalAlignment="right",
+                        acceptsHit=True,
+                    )
+                beamIndicatorLayer.appendLineSublayer(
+                    startPoint=(-beamIntersectSize*2, self.beamPosition),
+                    endPoint=(left+tp, self.beamPosition),
+                    strokeColor=(1,.2,0,.4),
+                    strokeWidth=1,
+                )
+
+            beamIndicatorLayer.appendOvalSublayer(
+                position=(left+tp, self.beamPosition),
+                size=(beamIntersectSize,beamIntersectSize),
+                anchor=(.5,.5),
+                fillColor=(1,.2,0,1)
+            )
+
+            beamIndicatorLayer.appendOvalSublayer(
+                position=((glyph.width - right)+tp, self.beamPosition),
+                size=(beamIntersectSize,beamIntersectSize),
+                anchor=(.5,.5),
+                fillColor=(1,.2,0,1)
+            )
+
+            beamIndicatorLayer.appendLineSublayer(
+                startPoint=(left+tp, self.beamPosition),
+                endPoint=((glyph.width - right)+tp, self.beamPosition),
+                strokeColor=(1,.2,0,.4),
+                strokeWidth=1,
+                )
+            if next_glyph:
+                if font.lib.get("descriptor") == "instance":
+                    mathGlyph = self.operator.makeOneGlyph(next_glyph, font.lib.get("location"), decomposeComponents=True)
+                    if mathGlyph is not None:
+                        glyph = internalFontClasses.createGlyphObject()
+                        mathGlyph.extractGlyph(glyph)
+                        next = RGlyph(glyph)
+                else:
+                    next = font[next_glyph]
+
+                other_left = next.getRayLeftMargin(self.beamPosition, font.info.italicAngle) or 0
+
+                beamIndicatorLayer.appendLineSublayer(
+                    startPoint=((glyph.width - right)+tp, self.beamPosition),
+                    endPoint=((glyph.width + other_left)+tp, self.beamPosition),
+                    strokeColor=(1,.2,0,1),
+                    strokeWidth=1,
+                )
+
+                if other_left:
+                    beamIndicatorLayer.appendTextLineSublayer(
+                        text=str(round(right + other_left)),
+                        font="SFMono-Regular",
+                        position=((glyph.width - right) + ((right + other_left)/2)+tp, self.beamPosition),
+                        fillColor=(1,.2,0,1),
+                        pointSize=10,
+                        backgroundColor=(1,.2,0,.2),
+                        cornerRadius=5,
+                        horizontalAlignment="center",
+                        verticalAlignment="bottom",
+                        padding=(3,1),
+                    )
+
+            beamIndicatorLayer.setVisible(self.showBeam)
 
 
     def acceptsFirstResponder(self, sender):
@@ -1146,15 +1225,13 @@ class Spaceport(Subscriber, ezui.WindowController):
         values = self.te.getItemValues()
         pointSize = values["pointSizeField"]
         lineHeight = values["lineHeightField"]
-
         minScale = 0.1
         maxScale = 3.0
         magnificationDelta = event.magnification()
         if magnificationDelta < 0:
-            factor = 0.9
+            factor = 0.85
         else:
-            factor = 1.1
-            
+            factor = 1.15
         pointSize *= factor
         scale = pointSize / self.font.info.unitsPerEm
         lineHeight = self.font.info.unitsPerEm * lineHeight * scale
@@ -1164,8 +1241,6 @@ class Spaceport(Subscriber, ezui.WindowController):
             scale=scale,
             lineHeight=lineHeight
         )
-        # self.populateItems()
-
 
     def destroy(self):
         setExtensionDefault(EXTENSION_KEY + ".main_prefs", self.w.getItemValues())
@@ -1173,8 +1248,7 @@ class Spaceport(Subscriber, ezui.WindowController):
         input_dict = self.te.getItemValues()
         input_dict['textField'] = ''.join([chr(n2u(glyph)) for glyph in input_dict['textField']])
         setExtensionDefault(EXTENSION_KEY + ".input_prefs", input_dict)
-
-        # unregisterCurrentGlyphSubscriber(self)
+        self.clearObservedAdjunctObjects()
 
     def _getItemAtEvent(self, position:tuple=(0,0)) -> MerzCollectionViewRGlyphItem:
         x,y = position
@@ -1241,7 +1315,10 @@ class Spaceport(Subscriber, ezui.WindowController):
                             temp_item.selected = False
 
                 if clickCount == 2:
-                    OpenGlyphWindow(selectedGlyph)
+                    try:
+                        OpenGlyphWindow(selectedGlyph)
+                    except:
+                        selectedGlyph.copyToPasteboard()
             else:
                 # print("clearing selection")
                 self.selectedItems = []
@@ -1264,15 +1341,14 @@ class Spaceport(Subscriber, ezui.WindowController):
             if not temp_item.onDisk:
                 layer = temp_item.getLayer("glyphContainer").getSublayer("glyphFill")
                 if temp_item.font == selectedFont:
-                    layer.setFillColor((*self.selectionColor[0:3],.5))
-                    layer.setStrokeColor(self.selectionColor)
+                    layer.setFillColor((*self.foreground[0:3],.5))
+                    layer.setStrokeColor(self.foreground)
                     layer.setStrokeWidth(1)
                     temp_item.selected = False
                 else:
                     layer.setFillColor(self.foreground)
                     layer.setStrokeColor(None)
                     layer.setStrokeWidth(None)
-            
 
 
     def mouseDragged(self,view,event):
@@ -1383,9 +1459,8 @@ class Spaceport(Subscriber, ezui.WindowController):
 
     def subscribeToGlyphs(self):
         glyphs = []
-        for font in self.fonts:
-            ff = [f for f in AllFonts() if font == f.path][0]
-            glyphs.extend(list(set([ff[glyph] for glyph in self.glyphs])))
+        for (__, obj) in self.fonts.values():
+            glyphs.extend(list(set([obj[glyph] for glyph in self.glyphs])))
         self.setAdjunctObjectsToObserve(glyphs)
 
     def unsubscribeFromGlyphs(self):
