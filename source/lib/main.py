@@ -857,6 +857,7 @@ class Spaceport(Subscriber, ezui.WindowController):
             if use:
                 upm_scale = font.info.unitsPerEm / 1000
                 off = font.lib.get("com.typemytype.robofont.italicSlantOffset", 0)
+                skew_angle = getattr(font.info, "italicAngle") or 0
                 for index, glyph in enumerate(self.glyphs):
                     on_disk = True
                     if font.lib.get("descriptor") == "instance":
@@ -1001,7 +1002,7 @@ class Spaceport(Subscriber, ezui.WindowController):
                                     strokeColor=(.2,.2,.2,1),
                                     strokeCap="round"
                                     )
-                                line.addSkewTransformation(-getattr(font.info, "italicAngle", 0))
+                                line.addSkewTransformation(-skew_angle)
                             width = glyphMetricsLayer.appendTextLineSublayer(
                                 text=str(glyph.width),
                                 pointSize=7,
@@ -1055,7 +1056,7 @@ class Spaceport(Subscriber, ezui.WindowController):
                                 size=(glyph.width, abs(font.info.descender) + font.info.ascender),
                                 fillColor=(0,1,0,.2),
                             )
-                            selectionIndicatorLayer.addSublayerSkewTransformation((-font.info.italicAngle))
+                            selectionIndicatorLayer.addSublayerSkewTransformation((-skew_angle))
                             
                             if item in self.selectedItems:
                                 selectionIndicatorLayer.setVisible(True)
