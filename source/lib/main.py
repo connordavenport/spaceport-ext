@@ -812,7 +812,7 @@ class Spaceport(Subscriber, ezui.WindowController):
         for item in items:
 
             if onlyBeam:
-                self.generateBeam(item)
+                self.beamController(item)
             else:
                 glyphContainer = item.getLayer("glyphContainer")
 
@@ -1093,7 +1093,7 @@ class Spaceport(Subscriber, ezui.WindowController):
                                         )
                             glyphPointsLayer.setVisible(self.showPoints)
 
-                            self.generateBeam(item)
+                            self.beamController(item)
 
                     if index+1 == len(self.glyphs):
                         if self.multiline:
@@ -1104,7 +1104,7 @@ class Spaceport(Subscriber, ezui.WindowController):
         self.collectionView.set(items)
 
 
-    def generateBeam(self, item:MerzCollectionViewRGlyphItem):
+    def beamController(self, item:MerzCollectionViewRGlyphItem):
 
         glyph = item.glyph
         font = item.font
@@ -1448,6 +1448,15 @@ class Spaceport(Subscriber, ezui.WindowController):
                         manager.undo()
                 elif char.lower() == "t":
                     self.te.open()
+
+            if mods == []:
+                if char.lower() == "b":
+                    self.showBeam = not self.showBeam
+                    self.v.setItemValue("showBeamButton", self.showBeam)
+
+                    items = self.w.getItemValue("collectionView")
+                    for item in items:
+                        self.beamController(item)
 
     def mouseMoved(self, view, event):
         pass
