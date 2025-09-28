@@ -54,6 +54,8 @@ SOURCE_ICON = "􀀨"
 INSTANCE_ICON = "􀀔"
 STATIC_ICON = ""
 
+REORDER = "􀆏"
+
 
 class MerzCollectionViewRGlyphItem(merz.collectionView.MerzCollectionViewItem):
 
@@ -201,21 +203,21 @@ class Spaceport(Subscriber, ezui.WindowController):
             allowCustomization=True,
             contents=[
                 dict(
-                    identifier="edit_text",
+                    identifier="editText",
                     image=symbolImage(symbolName=EDIT_TEXT, color=(1,1,1,1), weight="regular"),
                     text="Edit Text",
                     template=True,
                 ),
                 dict(
-                    identifier="add_font",
+                    identifier="addFont",
                     image=symbolImage(symbolName=ADD_FONT, color=(1,1,1,1), weight="regular"),
-                    text="Add Font",
+                    text="Fonts",
                     template=True,
                 ),
                 dict(
-                    identifier="add_designspace",
+                    identifier="addDesignspace",
                     image=symbolImage(symbolName=ADD_DESIGNSPACE, color=(1,1,1,1), weight="regular"),
-                    text="Add Designspace",
+                    text="Designspace",
                     template=True,
                 ),
                 dict(
@@ -245,7 +247,7 @@ class Spaceport(Subscriber, ezui.WindowController):
                 ), 
 
                 dict(
-                    identifier="view_options",
+                    identifier="viewOptions",
                     image=symbolImage(symbolName=VIEW_OPTIONS, color=(1,1,1,1), weight="regular"),
                     text="View Options",
                     template=True,
@@ -257,7 +259,7 @@ class Spaceport(Subscriber, ezui.WindowController):
         * MerzCollectionView    @collectionView
         """
         numberFieldWidth = 40
-        descriptionData = dict(
+        description_data = dict(
             collectionView=dict(
                 height="fill",
                 width="fill",
@@ -268,7 +270,7 @@ class Spaceport(Subscriber, ezui.WindowController):
             title="Spaceport",
             toolbar=toolbar,
             content=content,
-            descriptionData=descriptionData,
+            descriptionData=description_data,
             controller=self,
             margins=0,
             size=(1000, 500),
@@ -281,13 +283,7 @@ class Spaceport(Subscriber, ezui.WindowController):
         self.marquee = None
         self.collectionView.setBackgroundColor(AppKit.NSColor.whiteColor())
 
-        self.marqueeLayer = self.container.appendRectangleSublayer(
-            position=(100,100),
-            size=(1000,1000),
-            fillColor=(0,1,0,.1),
-            strokeColor=(0,1,0,1),
-            strokeWidth=1
-        )
+        self.marqueeLayer = self.container.appendBaseSublayer()
 
         # self.marqueeLayer = self.container.appendRectangleSublayer()
 
@@ -310,6 +306,12 @@ class Spaceport(Subscriber, ezui.WindowController):
         [ ]                                                           @showKerningButton
         Show Metrics:
         ( Off | On )                                                  @showMetricsButton
+        -----
+        [ ] Open Sources                                              @openSourcesCheckbox  
+        [ ] View Sources                                              @viewSourcesCheckbox
+        [ ] View Instances                                            @viewInstancesCheckbox
+        [ ] Use Designspace Editor Controller                         @useDesignspaceController
+        ----
         Invert Colors:
         ( {circle.dashed} | {circle.fill} )                           @invertColorsButton
         Fill Options:
@@ -318,7 +320,7 @@ class Spaceport(Subscriber, ezui.WindowController):
         ( {text.alignleft} | {text.aligncenter} | {text.alignright} ) @alignmentSegmentButton
         """
 
-        descriptionData = dict(
+        description_data = dict(
             showBeamButton=dict(
                 value=True,
             ),
@@ -346,7 +348,7 @@ class Spaceport(Subscriber, ezui.WindowController):
         self.v = ezui.EZPopover(
             size=(100,100),
             content=content,
-            descriptionData=descriptionData,
+            descriptionData=description_data,
             parent=self.w,
             behavior="transient",
             parentAlignment="right",
@@ -363,7 +365,7 @@ class Spaceport(Subscriber, ezui.WindowController):
         > *GlyphSequence        @textField
         """
 
-        descriptionData = dict(
+        description_data = dict(
             textField=dict(
                 width="fill",
                 font=self.font
@@ -388,7 +390,7 @@ class Spaceport(Subscriber, ezui.WindowController):
         self.te = ezui.EZPopover(
             size=(self.w.getPosSize()[2], 40),
             content=content,
-            descriptionData=descriptionData,
+            descriptionData=description_data,
             parent=self.w,
             behavior="transient",
             parentAlignment="bottom",
@@ -399,7 +401,7 @@ class Spaceport(Subscriber, ezui.WindowController):
         self.v.getItem("invertColorsButton").set(0)
         self.invertColorsButtonCallback(self.v.getItem("invertColorsButton"))
 
-        # nsTableView = self.af.getItem("fontsTable")._table.getNSTableView()
+        # nsTableView = self.af.getItem("fontTable")._table.getNSTableView()
         # nsTableColumn = nsTableView.tableColumns()[0]
         # nsTableHeaderCell = nsTableColumn.headerCell()
         # nsTableHeaderCell.setImage_(
@@ -477,96 +479,84 @@ class Spaceport(Subscriber, ezui.WindowController):
                 
 
     def build_fonts_sheet(self):
-        content_fonts = """
-        |------------------|
-        | use    | path    | @fontsTable
-        |--------|---------|
-        | []     | a.ufo   |
-        |        |         |
-        |------------------|
+        content = """
+        |-files----| @fontTable
+        |          |
+        |----------|
         """
-        descriptionData_fonts = dict(
-            fontsTable=dict(
+        # (+-)         @fontTableButtons
+
+        description_data = dict(
+            fontTable=dict(
                 items=[
-                    dict(
-                        will_use=use,
-                        name=os.path.basename(path),
-                        ) for (path, (use, font)) in self.fonts.items()
-                    ],
+                    dict(path=path) for (path, (use, font)) in self.fonts.items()
+                ],
+                itemType="dict",
+                acceptedDropFileTypes=[".ufo", ".ufoz"],
+                allowsDropBetweenRows=True,
+                allowsInternalDropReordering=True,
+                showColumnTitles=False,
+                enableDelete=True,
+                alternatingRowColors=True,
                 columnDescriptions=[
                     dict(
-                        identifier="will_use",
-                        title="􀘨",
-                        width=35,
-                        editable=True,
-                        cellDescription=dict(
-                            cellType="Checkbox",
-                            )
-                        ),
-                    dict(
-                        identifier="name",
-                        title="Name"
+                        identifier="path",
+                        title="Path",
+                        cellClassArguments=dict(
+                            showFullPath=False
+                        )
+
                     )
                 ]
             ),
         )
-
         self.w.af = ezui.EZSheet(
             size=(400, 300),
-            content=content_fonts,
-            descriptionData=descriptionData_fonts,
+            content=content,
+            descriptionData=description_data,
             parent=self.w,
             controller=self
         )
 
-    def build_designspace_sheet(self):
-        content_dsps = """
-        |---------|
-        | path    |                             @designspaceTable
-        |---------|                 
-        | a.dsp   |                 
-        |         |                 
-        |---------|                 
-        * HorizontalStack                 
-        > [ ] Open Sources                      @openSourcesCheckbox  
-        > [ ] View Sources                      @viewSourcesCheckbox
-        > [ ] View Instances                    @viewInstancesCheckbox
+        indexes = [ii for ii,(i,obj) in enumerate(self.fonts.items()) if obj[0]]
+        self.w.af.getItem("fontTable").setSelectedIndexes(indexes)
 
-        > [ ] Use Designspace Editor Controller @useDesignspaceController
+
+    def build_designspace_sheet(self):
+
+        content = """
+        |-files----| @designspaceTable
+        |          |
+        |----------|
         """
         if not self.designspaces:
             self.designspaces = {dsp.path:dsp for dsp in AllDesignspaces()}
 
-        descriptionData_dsps = dict(
+        description_data = dict(
             designspaceTable=dict(
                 items=[
-                    dict(
-                        name=os.path.basename(path),
-                        ) for (path, (obj)) in self.designspaces.items()
-                    ],
+                dict(path=dsp) for dsp in self.designspaces.keys()
+                ],
+                itemType="dict",
+                acceptedDropFileTypes=[".designspace"],
+                allowsMultipleSelection=False,
+                allowsDropBetweenRows=True,
+                allowsDragOut=False,
+                showColumnTitles=False,
+                alternatingRowColors=True,
                 columnDescriptions=[
                     dict(
-                        identifier="name",
-                        title="Name"
-                    )
-                ],
-                allowsMultipleSelection=False,
-            ),
-            openSourcesCheckbox=dict(
-                value=self.openSources
-            ),
-            viewSourcesCheckbox=dict(
-                value=self.viewSources
-            ),
-            viewInstancesCheckbox=dict(
-                value=self.viewInstances
+                        identifier="path",
+                        title="Path"
+                    ),
+                ]
             ),
         )
 
         self.w.dsp = ezui.EZSheet(
             size=(400, 300),
-            content=content_dsps,
-            descriptionData=descriptionData_dsps,
+            content=content,
+            descriptionData=description_data,
             parent=self.w,
             controller=self
         )
@@ -582,7 +572,7 @@ class Spaceport(Subscriber, ezui.WindowController):
 
 
     def useDesignspaceControllerCallback(self, sender):
-        self.designspaceController = self.w.dsp.getItemValue("useDesignspaceController")
+        self.designspaceController = self.v.getItemValue("useDesignspaceController")
 
 
     def designspaceSettingsChanged(self, **kwargs):
@@ -617,56 +607,60 @@ class Spaceport(Subscriber, ezui.WindowController):
                 self.fonts[instance.path] = (True,inst)
         self.populateItems()
 
-
     def designspaceTableSelectionCallback(self, sender):
         index = sender.getSelectedIndexes()
         if index:
-            self.openSources = self.w.dsp.getItemValue("openSourcesCheckbox")
-            self.viewSources = self.w.dsp.getItemValue("viewSourcesCheckbox")
-            self.viewInstances = self.w.dsp.getItemValue("viewInstancesCheckbox")
-
             index = index[0]
             path  = list(self.designspaces.keys())[index]
             obj = self.designspaces[path]
             self.operator = obj
             self.designspaceSettingsChanged(object=obj, sources=obj.getFonts(), instances=obj.instances)
 
-
-    def fontsTableEditCallback(self, sender):
-        index = sender.getEditedIndex()
-        new   = sender.getEditedItem()["will_use"]
-        path  = list(self.fonts.keys())[index]
-        use,font = self.fonts[path]
-        self.fonts[path] = (new, font)
-        self.populateItems()
-
-    def add_fontCallback(self, sender):
+    def addFontCallback(self, sender):
         self.build_fonts_sheet()
         self.w.af.open()
+
+
+    def fontTableSelectionCallback(self, sender):
+        selected = [item["path"] for item in sender.getSelectedItems()]
+        reordered = {item["path"]:() for item in sender.get()}
+        for path, (use, font) in self.fonts.items():
+            if path in selected:
+                reordered[path] = (True, font)
+            else:
+                reordered[path] = (False, font)
+        self.fonts = reordered
+        self.populateItems()
         
-    def addRemoveButtonAddCallback(self, sender):
+    def fontTableCreateItemsForDroppedPathsCallback(self, sender, paths):
+        fonts = []
+        for path in paths:
+            opened = OpenFont(path)
+            self.fonts[path] = (True, opened)
+            item = dict(
+                path=path,
+            )
+            fonts.append(item)
+        return fonts
+
+    def fontTableButtonsAddCallback(self, sender):
         file = GetFile(fileTypes=["ufoz", "ufo"])
         if file:
             opened = OpenFont(file)
-            opened = SFont(file)
-
             self.fonts[file] = (True, opened)
-            
-            self.w.af.close()
-            # need to close the window first and then add item
-            table = self.w.af.getItem("fontsTable")
-            item = table.makeItem(
-                use=True,
-                name=os.path.basename(file)
-            )
-            table.appendItems([item])
+            self.w.af.getItem("fontTable").close()
+        self.populateItems()
 
-    def addRemoveButtonRemoveCallback(self, sender):
-        table = self.w.af.getItem("fontsTable")
-        if len(table.selectedItems()) != 1:
-            table.removeSelectedItems()
+    def fontTableDeleteCallback(self, sender):
+        if len(sender.get()) > 1:
+            items = sender.getSelectedIndexes()
+            for it in items:
+                ir = list(self.fonts.keys())[it]
+                del self.fonts[ir]
+            sender.removeSelection()
 
-    def add_designspaceCallback(self, sender):
+
+    def addDesignspaceCallback(self, sender):
         self.build_designspace_sheet()
         self.w.dsp.open()
 
@@ -682,10 +676,10 @@ class Spaceport(Subscriber, ezui.WindowController):
     def interpolateCallback(self, sender):
         pass
 
-    def view_optionsCallback(self,sender):
+    def viewOptionsCallback(self,sender):
         self.v.open()
 
-    def edit_textCallback(self, sender):
+    def editTextCallback(self, sender):
         self.te.open()
         subwindow = self.te.getNSWindow().contentViewController().view().window()
         subwindow.makeFirstResponder_(self.te.getItem("textField").getNSTextField())
@@ -801,12 +795,16 @@ class Spaceport(Subscriber, ezui.WindowController):
 
     def displaySettingsButtonCallback(self, sender, onlyBeam=False):
         values = self.v.getItemValue("displaySettingsButton")
-        self.showFill = 0 in values
-        self.showStroke = 1 in values
-        self.showPoints = 2 in values
+        self.showFill      = 0 in values
+        self.showStroke    = 1 in values
+        self.showPoints    = 2 in values
 
-        self.beamPosition = self.v.getItemValue("beamPositionSlider")
-        self.showBeam   = self.v.getItemValue("showBeamButton")
+        self.openSources   = self.v.getItemValue("openSourcesCheckbox")
+        self.viewSources   = self.v.getItemValue("viewSourcesCheckbox")
+        self.viewInstances = self.v.getItemValue("viewInstancesCheckbox")
+
+        self.beamPosition  = self.v.getItemValue("beamPositionSlider")
+        self.showBeam      = self.v.getItemValue("showBeamButton")
 
         items = self.w.getItemValue("collectionView")
         for item in items:
@@ -899,6 +897,11 @@ class Spaceport(Subscriber, ezui.WindowController):
                         visible=True,
                     )
 
+                    glyphContainer.appendBaseSublayer(
+                        name="reorderIndicator",
+                        visible=True,
+                    )
+
                     if self.showStroke:
                         foreground = (*self.foreground[:3], .2)
                     else:
@@ -972,6 +975,18 @@ class Spaceport(Subscriber, ezui.WindowController):
                                     verticalAlignment="center",
                                     anchor=(.5,.5)
                                 )
+
+                        reorderLayer = glyphContainer.getSublayer("reorderIndicator")
+                        with reorderLayer.propertyGroup():
+                            reorderLayer.appendTextLineSublayer(
+                                text=REORDER,
+                                pointSize=20,
+                                                                # buffer
+                                position=(glyph.bounds[2] + (100 * upm_scale), int(font.info.capHeight / 2)),
+                                verticalAlignment="center",
+                                horizontalAlignment="center",
+                                )
+                            reorderLayer.setVisible(False)
 
                         glyphMetricsLayer = glyphContainer.getSublayer("glyphMetrics")
 
@@ -1092,7 +1107,6 @@ class Spaceport(Subscriber, ezui.WindowController):
                                             imageSettings=imageSettings,
                                         )
                             glyphPointsLayer.setVisible(self.showPoints)
-
                             self.beamController(item)
 
                     if index+1 == len(self.glyphs):
@@ -1338,18 +1352,19 @@ class Spaceport(Subscriber, ezui.WindowController):
                     temp_item.selected = True
 
         for temp_item in self.collectionView.get():
+            # if not temp_item.onDisk:
+            layer = temp_item.getLayer("glyphContainer").getSublayer("glyphFill")
+            reorder = temp_item.getLayer("glyphContainer").getSublayer("reorderIndicator")
 
-            if not temp_item.onDisk:
-                layer = temp_item.getLayer("glyphContainer").getSublayer("glyphFill")
-                if temp_item.font == selectedFont:
-                    layer.setFillColor((*self.foreground[0:3],.5))
-                    layer.setStrokeColor(self.foreground)
-                    layer.setStrokeWidth(1)
-                    temp_item.selected = False
-                else:
-                    layer.setFillColor(self.foreground)
-                    layer.setStrokeColor(None)
-                    layer.setStrokeWidth(None)
+            if temp_item.font == selectedFont:
+                layer.setFillColor((*self.foreground[0:3],.75))
+                temp_item.selected = False
+
+                if temp_item.getForceBreakAfter():
+                    reorder.setVisible(True)
+            else:
+                layer.setFillColor(self.foreground)
+                reorder.setVisible(False)
 
 
     def mouseDragged(self,view,event):
