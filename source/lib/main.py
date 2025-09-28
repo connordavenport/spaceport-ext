@@ -18,6 +18,7 @@ from glyphNameFormatter.reader import n2u
 import os
 from fontTools.misc import transform
 import math
+from pprint import pprint
 
 # ---------
 # Interface
@@ -54,8 +55,6 @@ SOURCE_ICON = "􀀨"
 INSTANCE_ICON = "􀀔"
 STATIC_ICON = ""
 
-REORDER = "􀆏"
-
 
 class MerzCollectionViewRGlyphItem(merz.collectionView.MerzCollectionViewItem):
 
@@ -64,9 +63,10 @@ class MerzCollectionViewRGlyphItem(merz.collectionView.MerzCollectionViewItem):
         self._glyph = kwargs.get("glyph")
         self._index = kwargs.get("index")
         self._onDisk = kwargs.get("onDisk")
+        self._offset = kwargs.get("offset", 0)
+        self._skewAngle = kwargs.get("skewAngle", 0)
+        self._scaler = kwargs.get("scaler", 1)
         super().__init__(*args, **kwargs)
-
-    # Dimensions
 
     def getGlyph(self) -> DoodleGlyph | RGlyph:
         return self._glyph
@@ -93,7 +93,6 @@ class MerzCollectionViewRGlyphItem(merz.collectionView.MerzCollectionViewItem):
 
     selected = property(getSelected, setSelected)
 
-
     def getIndex(self) -> int:
         return self._index
 
@@ -101,7 +100,6 @@ class MerzCollectionViewRGlyphItem(merz.collectionView.MerzCollectionViewItem):
         self._index = value
 
     index = property(getIndex, setIndex)
-
 
     def getOnDisk(self) -> bool:
         return self._onDisk
@@ -111,12 +109,35 @@ class MerzCollectionViewRGlyphItem(merz.collectionView.MerzCollectionViewItem):
 
     onDisk = property(getOnDisk, setOnDisk)
 
+    def getOffset(self) -> int | float:
+        return self._offset
+
+    def setOffset(self, value:int | float):
+        self._offset = value
+
+    offset = property(getOffset, setOffset)
+
+    def getSkewAngle(self) ->  int | float:
+        return self._skewAngle
+
+    def setSkewAngle(self, value: int | float):
+        self._skewAngle = value
+
+    skewAngle = property(getSkewAngle, setSkewAngle)
+
+    def getScaler(self) ->  int | float:
+        return self._scaler
+
+    def setScaler(self, value: int | float):
+        self._scaler = value
+
+    scaler = property(getScaler, setScaler)
 
 
 
 def symbolImage(symbolName:str, color:tuple|AppKit.NSColor, flipped:bool=False, pointSize:float=18.0, weight:str="light", scale:str="medium") -> AppKit.NSImage:
     '''
-    taken from designspace editors
+    taken from designspace editor
     '''
     image = None
     if osVersionCurrent >= osVersion12_0:
@@ -163,19 +184,19 @@ def symbolImage(symbolName:str, color:tuple|AppKit.NSColor, flipped:bool=False, 
         image.setFlipped_(True)
     return image
 
+
 class Spaceport(Subscriber, ezui.WindowController):
 
     debug = True
 
     def build(self):
 
-        # self._unwrappedItems = []
+        self._cache_ = []
 
         self.selectedItems = []
 
         self.foreground     = (0, 0, 0, 1)
         self.background     = (1, 1, 1, 1)
-        # self.selectionColor = (0, 0, 0, 1)
 
         self.showKerning = False
         self.multiline = True
@@ -186,8 +207,10 @@ class Spaceport(Subscriber, ezui.WindowController):
         self.designspaceController = True
 
 
-        self.font = CurrentFont()
-        self.fonts = dict()
+        self.font   = CurrentFont()
+        self.fonts  = dict()
+        self.glyphs = []
+
 
         for f in AllFonts():
             f.lib["descriptor"] = ""
@@ -285,15 +308,6 @@ class Spaceport(Subscriber, ezui.WindowController):
 
         self.marqueeLayer = self.container.appendBaseSublayer()
 
-        # self.marqueeLayer = self.container.appendRectangleSublayer()
-
-        # for item in self.w.getItemValues():
-        #     if "Field" in item:
-        #         ii = self.w.getItem(item)
-        #         try:
-        #             ii.hide(True)
-        #         except:
-        #             pass
 
         content = """
         Beam:
@@ -400,16 +414,6 @@ class Spaceport(Subscriber, ezui.WindowController):
         #contentViewController
         self.v.getItem("invertColorsButton").set(0)
         self.invertColorsButtonCallback(self.v.getItem("invertColorsButton"))
-
-        # nsTableView = self.af.getItem("fontTable")._table.getNSTableView()
-        # nsTableColumn = nsTableView.tableColumns()[0]
-        # nsTableHeaderCell = nsTableColumn.headerCell()
-        # nsTableHeaderCell.setImage_(
-        #     ezui.makeImage(
-        #     symbolName="eye.circle.fill",
-        #     template=True
-        #     )
-        # )
         
         # main_prefs = getExtensionDefault(EXTENSION_KEY + ".main_prefs", fallback=self.w.getItemValues())
         # try: self.w.setItemValues(main_prefs)
@@ -445,6 +449,7 @@ class Spaceport(Subscriber, ezui.WindowController):
         if self.designspaceController:
             print(notification["location"])
 
+
     def designspaceEditorInstancesDidChangeSelection(self, notification):
         print("IMPLIMENT BETTER CROSS NOTIFICATION SUPPORT")
         if self.designspaceController:
@@ -456,6 +461,7 @@ class Spaceport(Subscriber, ezui.WindowController):
                     sources=operator.getFonts(),
                     instances=instances
             )
+
 
     def designspaceEditorSourcesDidChangeSelection(self, notification):
         print("IMPLIMENT BETTER CROSS NOTIFICATION SUPPORT")
@@ -476,7 +482,25 @@ class Spaceport(Subscriber, ezui.WindowController):
                     sources=reformated,
                     instances=operator.instances
             )
-                
+
+
+    def openSourcesCheckboxCallback(self, sender):
+        self.openSources = sender.get()
+
+
+    def viewSourcesCheckboxCallback(self, sender):
+        self.viewSources = sender.get()
+        self.designspaceSettingsChanged()
+
+
+    def viewInstancesCheckboxCallback(self, sender):
+        self.viewInstances = sender.get()
+        self.designspaceSettingsChanged()
+
+
+    def useDesignspaceControllerCallback(self, sender):
+        self.designspaceController = self.v.getItemValue("useDesignspaceController")
+
 
     def build_fonts_sheet(self):
         content = """
@@ -571,16 +595,13 @@ class Spaceport(Subscriber, ezui.WindowController):
             table.setSelectedIndexes([selection_index])
 
 
-    def useDesignspaceControllerCallback(self, sender):
-        self.designspaceController = self.v.getItemValue("useDesignspaceController")
-
-
     def designspaceSettingsChanged(self, **kwargs):
         obj = kwargs.get("object", self.operator)
-        sources = kwargs.get("sources", obj.sources)
+        sources = kwargs.get("sources", obj.getFonts())
         instances = kwargs.get("instances", obj.instances)
 
         self.fonts = {}
+
         if self.viewSources:
             for source,loc_data in sources:
                 source.lib["descriptor"] = "source"
@@ -605,7 +626,9 @@ class Spaceport(Subscriber, ezui.WindowController):
                     inst.lib["com.typemytype.robofont.italicSlantOffset"] = obj.getFonts()[0][0].lib.get("com.typemytype.robofont.italicSlantOffset", 0)
 
                 self.fonts[instance.path] = (True,inst)
+
         self.populateItems()
+
 
     def designspaceTableSelectionCallback(self, sender):
         index = sender.getSelectedIndexes()
@@ -615,6 +638,7 @@ class Spaceport(Subscriber, ezui.WindowController):
             obj = self.designspaces[path]
             self.operator = obj
             self.designspaceSettingsChanged(object=obj, sources=obj.getFonts(), instances=obj.instances)
+
 
     def addFontCallback(self, sender):
         self.build_fonts_sheet()
@@ -631,7 +655,8 @@ class Spaceport(Subscriber, ezui.WindowController):
                 reordered[path] = (False, font)
         self.fonts = reordered
         self.populateItems()
-        
+
+
     def fontTableCreateItemsForDroppedPathsCallback(self, sender, paths):
         fonts = []
         for path in paths:
@@ -643,6 +668,7 @@ class Spaceport(Subscriber, ezui.WindowController):
             fonts.append(item)
         return fonts
 
+
     def fontTableButtonsAddCallback(self, sender):
         file = GetFile(fileTypes=["ufoz", "ufo"])
         if file:
@@ -650,6 +676,7 @@ class Spaceport(Subscriber, ezui.WindowController):
             self.fonts[file] = (True, opened)
             self.w.af.getItem("fontTable").close()
         self.populateItems()
+
 
     def fontTableDeleteCallback(self, sender):
         if len(sender.get()) > 1:
@@ -664,35 +691,43 @@ class Spaceport(Subscriber, ezui.WindowController):
         self.build_designspace_sheet()
         self.w.dsp.open()
 
+
     def spacingCallback(self, sender):
         pass
+
 
     def kerningCallback(self, sender):
         pass
 
+
     def opentypeCallback(self, sender):
         pass
+
 
     def interpolateCallback(self, sender):
         pass
 
+
     def viewOptionsCallback(self,sender):
         self.v.open()
+
 
     def editTextCallback(self, sender):
         self.te.open()
         subwindow = self.te.getNSWindow().contentViewController().view().window()
         subwindow.makeFirstResponder_(self.te.getItem("textField").getNSTextField())
 
+
     def currentGlyphDidSetGlyph(self, info):
         self.textFieldCallback(None)
 
+
     def textFieldCallback(self, sender):
         self.unsubscribeFromGlyphs()
-        self.glyphNames = self.te.getItemValue("textField")
+        glyphNames = self.te.getItemValue("textField")
         font = self.font
         holding = []
-        for name in self.glyphNames:
+        for name in glyphNames:
             if name in font.keys():
                 holding.append(name)
 
@@ -704,8 +739,10 @@ class Spaceport(Subscriber, ezui.WindowController):
         self.subscribeToGlyphs()
         self.populateItems()
 
+
     def alignmentSegmentButtonCallback(self, sender):
         self.controlsStackCallback(None)
+
 
     def controlsStackCallback(self, sender):
         values = self.te.getItemValues()
@@ -767,31 +804,33 @@ class Spaceport(Subscriber, ezui.WindowController):
         self.foreground = foreground_color
         self.background = background_color
 
+
     def showMetricsButtonCallback(self, sender):
         self.showMetrics = self.v.getItemValue("showMetricsButton")
         self.displaySettingsButtonCallback(None)
+
 
     def multilineButtonCallback(self, sender):
         self.multiline = self.v.getItemValue("multilineButton")
         self.displaySettingsButtonCallback(None)
         self.populateItems()
 
+
     def beamPositionSliderCallback(self, sender):
         self.beamPosition = sender.get()
         self.displaySettingsButtonCallback(None, onlyBeam=True)
 
+
     def showBeamButtonCallback(self, sender):
         self.showBeam = self.v.getItemValue("showBeamButton")
         self.displaySettingsButtonCallback(None, onlyBeam=True)
-        '''
-        glyph1, glyph2
-        glyph1.beamRightMargin + glyph2.beamLeftMargin 
-        '''
+
 
     def showKerningButtonCallback(self, sender):
         self.showKerning = self.v.getItemValue("showKerningButton")
         self.displaySettingsButtonCallback(None)
         self.populateItems()
+
 
     def displaySettingsButtonCallback(self, sender, onlyBeam=False):
         values = self.v.getItemValue("displaySettingsButton")
@@ -836,285 +875,372 @@ class Spaceport(Subscriber, ezui.WindowController):
                 glyphPointsLayer.setVisible(self.showPoints)
 
 
+    def buildItem(self, **kwargs) -> MerzCollectionViewRGlyphItem:
+        name = kwargs.get("name")
+        glyph = kwargs.get("glyph")
+        font = kwargs.get("font")
+        index = kwargs.get("index")
+        onDisk = kwargs.get("onDisk")
+        skewAngle = kwargs.get("skewAngle")
+        off = kwargs.get("italicOffset")
 
-    def parseItemName(self, name:str) -> str:
-        if name:
-            if "@" not in name:
-                return None
-            glyphName,fontPath = name.split("@")
-            glyphName.strip(" ")
-            fontPath.strip(" ")
-            return (glyphName, fontPath)
+        item = MerzCollectionViewRGlyphItem(
+            name=name,
+            acceptsHit=True,
+            glyph=glyph,
+            font=font,
+            index=index,
+            onDisk=onDisk,
+            skewAngle=skewAngle,
+            italicOffset=off,
+            scaler=(font.info.unitsPerEm/1000)
+        )
+
+        item.setHeight(font.info.unitsPerEm)
+        item.getCALayer().setGeometryFlipped_(True) # XXX Ugh. Yell at Tal about this.
+        glyphContainer = merz.Base()
+        item.appendLayer("glyphContainer", glyphContainer)
+
+        glyphContainer.appendBaseSublayer(
+            name="descriptorIndicator",
+            visible=True,
+        )
+        
+        glyphContainer.appendBaseSublayer(
+            name="glyphMetrics",
+            visible=True,
+        )
+
+        glyphContainer.appendBaseSublayer(
+            name="reorderIndicator",
+            visible=True,
+        )
+
+        if self.showStroke:
+            foreground = (*self.foreground[:3], .2)
         else:
-            return None
+            foreground = self.foreground
+
+        filled = glyphContainer.appendPathSublayer(
+            name="glyphFill",
+            fillColor=foreground,
+            visible=True,
+        )
+
+        glyphContainer.appendPathSublayer(
+            name="glyphStroke",
+            fillColor=None,
+            strokeColor=self.foreground,
+            strokeWidth=1,
+            visible=True,
+        )
+        glyphContainer.appendBaseSublayer(
+            name="glyphPoints",
+            visible=True,
+        )
+
+        glyphContainer.appendBaseSublayer(
+            name="selectionIndicator",
+        )
+
+        glyphContainer.appendBaseSublayer(
+            name="kernIndicator",
+            position=(0, 0),
+            size=(0, 0),
+            cornerRadius=3,
+            backgroundColor=(1,0,0,.3),
+            visible=True
+        )
+
+        glyphContainer.appendBaseSublayer(
+            name="beamIndicator",
+            visible=True,
+        )
+        # item.appendLayer("selectionIndicator", selectionLayer)
+
+        with item.propertyGroup():
+            item.setWidth(glyph.width)
+            item.setHeight(font.info.unitsPerEm)
+
+            glyphContainer = item.getLayer("glyphContainer")
+            glyphContainer.addTranslationTransformation(
+                value=(0, -font.info.descender),
+                name="descender"
+            )
+
+            icon  = ""
+            color = (0,0,0,0)
+            if font.lib.get("descriptor") == "source":
+                icon  = SOURCE_ICON
+                color = (0,0,1,1)
+            elif font.lib.get("descriptor") == "instance":
+                icon  = INSTANCE_ICON
+                color = (0,1,1,1)
+
+            descriptorIndicatorLayer = glyphContainer.getSublayer("descriptorIndicator")
+            with descriptorIndicatorLayer.propertyGroup():
+                if item.index == 0:
+                    descriptorIndicatorLayer.appendTextLineSublayer(
+                        text=icon,
+                        pointSize=8,
+                        position=(-50,font.info.capHeight/2),
+                        fillColor=color,
+                        horizontalAlignment="center",
+                        verticalAlignment="center",
+                        anchor=(.5,.5)
+                    )
+
+            glyphMetricsLayer = glyphContainer.getSublayer("glyphMetrics")
+
+            depth = -75
+            with glyphMetricsLayer.propertyGroup():
+                for side in ["left", "right"]:
+                    if side == "left":
+                        start = (0,0)
+                        end = (0, depth)
+                    else:
+                        start = (glyph.width,0)
+                        end = (glyph.width, depth)
+
+                    val = round(getattr(glyph, f"angled{side.title()}Margin"))
+                    if val:
+                        margin = glyphMetricsLayer.appendTextLineSublayer(
+                            name=f"glyph{side.title()}MetricsValueSublayer",
+                            text=str(val),
+                            pointSize=7,
+                            position=(start[0],round(depth/2)),
+                            fillColor=(.2,.2,.2,1),
+                            horizontalAlignment=side,
+                            padding=(5,0),
+                            )
+                    line = glyphMetricsLayer.appendLineSublayer(
+                        name=f"glyphMetrics{side.title()}LinesSublayer",
+                        startPoint=start,
+                        endPoint=end,
+                        strokeWidth=1,
+                        strokeColor=(.2,.2,.2,1),
+                        strokeCap="round"
+                        )
+                    line.addSkewTransformation(-skewAngle)
+                width = glyphMetricsLayer.appendTextLineSublayer(
+                    name="glyphWidthSublayer",
+                    text=str(glyph.width),
+                    pointSize=7,
+                    position=(round(glyph.width/2),round(depth/2)),
+                    fillColor=(.2,.2,.2,1),
+                    horizontalAlignment="center",
+                    padding=(0,7),
+                    )
+                glyphMetricsLayer.setVisible(self.showMetrics)
+
+            kernIndicatorLayer = glyphContainer.getSublayer("kernIndicator")
+            with kernIndicatorLayer.propertyGroup():
+
+                kern = 0
+                try:
+                    next_glyph = self.glyphs[index+1]
+                    kern = font.kerning.find((glyph.name, next_glyph))
+                except IndexError:
+                    kern = 0
+
+                if not self.showKerning:
+                    kern = 0
+
+                if kern:
+                    item.setXAdvance(kern)
+                    kernIndicatorLayer.setVisible(True)
+
+                    kern_color = POS_KERN_COLOR if kern > 0 else NEG_KERN_COLOR
+                    kernIndicatorLayer.appendTextLineSublayer(
+                        text=str(kern),
+                        pointSize=7,
+                        position=((abs(kern)/2), 0),
+                        fillColor=(*kern_color,1),
+                        horizontalAlignment="center",
+                        # padding=(0,0),
+                        )
+
+                    x = (glyph.width+kern) if kern < 0 else glyph.width
+                    kernIndicatorLayer.setBackgroundColor((*kern_color, .2))
+                    kernIndicatorLayer.setSize((abs(kern), abs(font.info.descender) + font.info.ascender))
+                    kernIndicatorLayer.setPosition((x, font.info.descender))
+                    kernIndicatorLayer.setVisible(self.showKerning)
+                else:
+                    kernIndicatorLayer.setVisible(False)
+
+            selectionIndicatorLayer = glyphContainer.getSublayer("selectionIndicator")
+            with selectionIndicatorLayer.propertyGroup():
+
+                selectionIndicatorLayer.appendRectangleSublayer(
+                    name="selectionIndicatorDrawing",
+                    position=(0,font.info.descender),
+                    size=(glyph.width, abs(font.info.descender) + font.info.ascender),
+                    fillColor=(0,1,0,.2),
+                )
+                selectionIndicatorLayer.addSublayerSkewTransformation((-skewAngle))
+                
+                if item in self.selectedItems:
+                    selectionIndicatorLayer.setVisible(True)
+                else:
+                    selectionIndicatorLayer.setVisible(False)
+            
+            glyphFillLayer = glyphContainer.getSublayer("glyphFill")
+            with glyphFillLayer.propertyGroup():
+                glyphFillLayer.setPath(glyph.getRepresentation("merz.CGPath"))
+                glyphFillLayer.addTranslationTransformation((-off, 0), "translate")
+                glyphFillLayer.setVisible(self.showFill)
+            glyphStrokeLayer = glyphContainer.getSublayer("glyphStroke")
+            with glyphStrokeLayer.propertyGroup():
+                glyphStrokeLayer.setPath(glyph.getRepresentation("merz.CGPath"))
+                glyphStrokeLayer.addTranslationTransformation((-off, 0), "translate")
+                glyphStrokeLayer.setVisible(self.showStroke)
+            glyphPointsLayer = glyphContainer.getSublayer("glyphPoints")
+            glyphPointsLayer.clearSublayers()
+            onCurve = 3 * item.scaler
+            with glyphPointsLayer.propertyGroup():
+                for contour in glyph.contours:
+                    for point in contour.points:
+                        if point.type != "offcurve":
+                            imageSettings = dict(
+                                name="oval",
+                                size=(onCurve,onCurve),
+                                fillColor=(0, 0, 0, 1)
+                            )
+                            x = point.x
+                            y = point.y
+                            glyphPointsLayer.appendSymbolSublayer(
+                                position=(x-off, y),
+                                imageSettings=imageSettings,
+                            )
+                glyphPointsLayer.setVisible(self.showPoints)
+                self.beamController(item)
+
+        if index+1 == len(self.glyphs):
+            if self.multiline:
+                item.setForceBreakAfter(True)
+            else:
+                item.setForceBreakAfter(False)
+        return item
+
+
+    def updateItem(self, item:MerzCollectionViewRGlyphItem, **kwargs):
+        """
+        a faster alternative to rebuilding glyphs everytime
+        """
+        glyphContainer = item.getLayer("glyphContainer")
+        glyphMetricsLayer = glyphContainer.getSublayer("glyphMetrics")
+
+        glyph = item.glyph
+        skewAngle = item.skewAngle
+        item.setWidth(glyph.width)
+
+        depth = -75
+        with glyphMetricsLayer.propertyGroup():
+            for side in ["left", "right"]:
+                if side == "left":
+                    start = (0,0)
+                    end = (0, depth)
+                else:
+                    start = (glyph.width,0)
+                    end = (glyph.width, depth)
+
+                val = round(getattr(glyph, f"angled{side.title()}Margin"))
+                if val:
+                    margin = glyphMetricsLayer.getSublayer(f"glyph{side.title()}MetricsValueSublayer")
+                    margin.setText(str(val))
+                    margin.setPosition((start[0],round(depth/2)))
+
+                line = glyphMetricsLayer.getSublayer(f"glyphMetrics{side.title()}LinesSublayer")
+                line.setStartPoint(start)
+                line.setEndPoint(end)
+
+        glyphFillLayer = glyphContainer.getSublayer("glyphFill")
+        #with glyphFillLayer.propertyGroup():    # for some reason this wont work inside a property group
+        glyphFillLayer.setPath(glyph.getRepresentation("merz.CGPath"))
+        glyphFillLayer.addTranslationTransformation((-item.offset, 0), "translate")
+
+        glyphStrokeLayer = glyphContainer.getSublayer("glyphStroke")
+        #with glyphStrokeLayer.propertyGroup():    # for some reason this wont work inside a property group
+        glyphStrokeLayer.setPath(glyph.getRepresentation("merz.CGPath"))
+        glyphStrokeLayer.addTranslationTransformation((-item.offset, 0), "translate")
+
+        glyphPointsLayer = glyphContainer.getSublayer("glyphPoints")
+        glyphPointsLayer.clearSublayers()
+        onCurve = 3 * item.scaler
+        with glyphPointsLayer.propertyGroup():
+            for contour in glyph.contours:
+                for point in contour.points:
+                    if point.type != "offcurve":
+                        imageSettings = dict(
+                            name="oval",
+                            size=(onCurve,onCurve),
+                            fillColor=(0, 0, 0, 1)
+                        )
+                        x = point.x
+                        y = point.y
+                        glyphPointsLayer.appendSymbolSublayer(
+                            position=(x-item.offset, y),
+                            imageSettings=imageSettings,
+                        )
+            glyphPointsLayer.setVisible(self.showPoints)
+
+        self.beamController(item)
+
+        selection = glyphContainer.getSublayer("selectionIndicator").getSublayer("selectionIndicatorDrawing")
+        selection.setPosition((0,glyph.font.info.descender))
+        selection.setSize((glyph.width, abs(glyph.font.info.descender) + glyph.font.info.ascender))
 
 
     def populateItems(self, reload:bool=False):
         items = []
         for path,(use,font) in self.fonts.items():
             if use:
-                upm_scale = font.info.unitsPerEm / 1000
-                off = font.lib.get("com.typemytype.robofont.italicSlantOffset", 0)
-                skew_angle = getattr(font.info, "italicAngle") or 0
                 for index, glyph in enumerate(self.glyphs):
-                    on_disk = True
-                    if font.lib.get("descriptor") == "instance":
-                        _temp = glyph
-                        mathGlyph = self.operator.makeOneGlyph(glyph, font.lib.get("location"), decomposeComponents=True)
-                        if mathGlyph is not None:
-                            glyph = internalFontClasses.createGlyphObject()
-                            # glyph.font = font
-                            mathGlyph.extractGlyph(glyph)
-                            glyph = font.insertGlyph(glyph, name=_temp)
-                            on_disk = False
-                    else:
-                        glyph = font[glyph]
+                    item = None
+                    if self._cache_:
+                        if len(self._cache_) > index+1:
+                            hold = self._cache_[index]
+                            if hold == glyph:
+                                item_holder = [_item for _item in self.w.getItemValue("collectionView") if font == _item.font and glyph == _item.glyph.name and index == _item.index]
+                                if item_holder:
+                                    item = item_holder[0]
+                                    if index+1 == len(self.glyphs):
+                                        if self.multiline:
+                                            item.setForceBreakAfter(True)
+                                        else:
+                                            item.setForceBreakAfter(False)
 
-                    if not isinstance(glyph, RGlyph):
-                        glyph = RGlyph(glyph)
-
-                    item = MerzCollectionViewRGlyphItem(
-                        name=glyph.name,
-                        acceptsHit=True,
-                        glyph=glyph,
-                        font=font,
-                        index=index,
-                        onDisk=on_disk,
-                    )
-
-                    item.setHeight(font.info.unitsPerEm)
-                    item.getCALayer().setGeometryFlipped_(True) # XXX Ugh. Yell at Tal about this.
-                    glyphContainer = merz.Base()
-                    item.appendLayer("glyphContainer", glyphContainer)
-
-                    glyphContainer.appendBaseSublayer(
-                        name="descriptorIndicator",
-                        visible=True,
-                    )
-                    
-                    glyphContainer.appendBaseSublayer(
-                        name="glyphMetrics",
-                        visible=True,
-                    )
-
-                    glyphContainer.appendBaseSublayer(
-                        name="reorderIndicator",
-                        visible=True,
-                    )
-
-                    if self.showStroke:
-                        foreground = (*self.foreground[:3], .2)
-                    else:
-                        foreground = self.foreground
-
-                    filled = glyphContainer.appendPathSublayer(
-                        name="glyphFill",
-                        fillColor=foreground,
-                        visible=True,
-                    )
-
-                    glyphContainer.appendPathSublayer(
-                        name="glyphStroke",
-                        fillColor=None,
-                        strokeColor=self.foreground,
-                        strokeWidth=1,
-                        visible=True,
-                    )
-                    glyphContainer.appendBaseSublayer(
-                        name="glyphPoints",
-                        visible=True,
-                    )
-
-                    glyphContainer.appendBaseSublayer(
-                        name="selectionIndicator",
-                    )
-
-                    glyphContainer.appendBaseSublayer(
-                        name="kernIndicator",
-                        position=(0, 0),
-                        size=(0, 0),
-                        cornerRadius=3,
-                        backgroundColor=(1,0,0,.3),
-                        visible=True
-                    )
-
-                    glyphContainer.appendBaseSublayer(
-                        name="beamIndicator",
-                        visible=True,
-                    )
-                    # item.appendLayer("selectionIndicator", selectionLayer)
-
-                    with item.propertyGroup():
-                        item.setWidth(glyph.width)
-                        item.setHeight(font.info.unitsPerEm)
-
-                        glyphContainer = item.getLayer("glyphContainer")
-                        glyphContainer.addTranslationTransformation(
-                            value=(0, -font.info.descender),
-                            name="descender"
-                        )
-
-                        icon  = ""
-                        color = (0,0,0,0)
-                        if font.lib.get("descriptor") == "source":
-                            icon  = SOURCE_ICON
-                            color = (0,0,1,1)
-                        elif font.lib.get("descriptor") == "instance":
-                            icon  = INSTANCE_ICON
-                            color = (0,1,1,1)
-
-                        descriptorIndicatorLayer = glyphContainer.getSublayer("descriptorIndicator")
-                        with descriptorIndicatorLayer.propertyGroup():
-                            if item.index == 0:
-                                descriptorIndicatorLayer.appendTextLineSublayer(
-                                    text=icon,
-                                    pointSize=8,
-                                    position=(-50,font.info.capHeight/2),
-                                    fillColor=color,
-                                    horizontalAlignment="center",
-                                    verticalAlignment="center",
-                                    anchor=(.5,.5)
-                                )
-
-                        reorderLayer = glyphContainer.getSublayer("reorderIndicator")
-                        with reorderLayer.propertyGroup():
-                            reorderLayer.appendTextLineSublayer(
-                                text=REORDER,
-                                pointSize=20,
-                                                                # buffer
-                                position=(glyph.bounds[2] + (100 * upm_scale), int(font.info.capHeight / 2)),
-                                verticalAlignment="center",
-                                horizontalAlignment="center",
-                                )
-                            reorderLayer.setVisible(False)
-
-                        glyphMetricsLayer = glyphContainer.getSublayer("glyphMetrics")
-
-                        depth = -75
-                        with glyphMetricsLayer.propertyGroup():
-                            for side in ["left", "right"]:
-                                if side == "left":
-                                    start = (0,0)
-                                    end = (0, depth)
-                                else:
-                                    start = (glyph.width,0)
-                                    end = (glyph.width, depth)
-
-                                val = round(getattr(glyph, f"angled{side.title()}Margin"))
-                                if val:
-                                    margin = glyphMetricsLayer.appendTextLineSublayer(
-                                        text=str(val),
-                                        pointSize=7,
-                                        position=(start[0],round(depth/2)),
-                                        fillColor=(.2,.2,.2,1),
-                                        horizontalAlignment=side,
-                                        padding=(5,0),
-                                        )
-                                line = glyphMetricsLayer.appendLineSublayer(
-                                    startPoint=start,
-                                    endPoint=end,
-                                    strokeWidth=1,
-                                    strokeColor=(.2,.2,.2,1),
-                                    strokeCap="round"
-                                    )
-                                line.addSkewTransformation(-skew_angle)
-                            width = glyphMetricsLayer.appendTextLineSublayer(
-                                text=str(glyph.width),
-                                pointSize=7,
-                                position=(round(glyph.width/2),round(depth/2)),
-                                fillColor=(.2,.2,.2,1),
-                                horizontalAlignment="center",
-                                padding=(0,7),
-                                )
-                            glyphMetricsLayer.setVisible(self.showMetrics)
-
-                        kernIndicatorLayer = glyphContainer.getSublayer("kernIndicator")
-                        with kernIndicatorLayer.propertyGroup():
-
-                            kern = 0
-                            try:
-                                next_glyph = self.glyphs[index+1]
-                                kern = font.kerning.find((glyph.name, next_glyph))
-                            except IndexError:
-                                kern = 0
-
-                            if not self.showKerning:
-                                kern = 0
-
-                            if kern:
-                                item.setXAdvance(kern)
-                                kernIndicatorLayer.setVisible(True)
-
-                                kern_color = POS_KERN_COLOR if kern > 0 else NEG_KERN_COLOR
-                                kernIndicatorLayer.appendTextLineSublayer(
-                                    text=str(kern),
-                                    pointSize=7,
-                                    position=((abs(kern)/2), 0),
-                                    fillColor=(*kern_color,1),
-                                    horizontalAlignment="center",
-                                    # padding=(0,0),
-                                    )
-
-                                x = (glyph.width+kern) if kern < 0 else glyph.width
-                                kernIndicatorLayer.setBackgroundColor((*kern_color, .2))
-                                kernIndicatorLayer.setSize((abs(kern), abs(font.info.descender) + font.info.ascender))
-                                kernIndicatorLayer.setPosition((x, font.info.descender))
-                                kernIndicatorLayer.setVisible(self.showKerning)
-                            else:
-                                kernIndicatorLayer.setVisible(False)
-
-                        selectionIndicatorLayer = glyphContainer.getSublayer("selectionIndicator")
-                        with selectionIndicatorLayer.propertyGroup():
-
-                            selectionIndicatorLayer.appendRectangleSublayer(
-                                position=(0,font.info.descender),
-                                size=(glyph.width, abs(font.info.descender) + font.info.ascender),
-                                fillColor=(0,1,0,.2),
-                            )
-                            selectionIndicatorLayer.addSublayerSkewTransformation((-skew_angle))
-                            
-                            if item in self.selectedItems:
-                                selectionIndicatorLayer.setVisible(True)
-                            else:
-                                selectionIndicatorLayer.setVisible(False)
-                        
-                        glyphFillLayer = glyphContainer.getSublayer("glyphFill")
-                        with glyphFillLayer.propertyGroup():
-                            glyphFillLayer.setPath(glyph.getRepresentation("merz.CGPath"))
-                            glyphFillLayer.addTranslationTransformation((-off, 0), "translate")
-                            glyphFillLayer.setVisible(self.showFill)
-                        glyphStrokeLayer = glyphContainer.getSublayer("glyphStroke")
-                        with glyphStrokeLayer.propertyGroup():
-                            glyphStrokeLayer.setPath(glyph.getRepresentation("merz.CGPath"))
-                            glyphStrokeLayer.addTranslationTransformation((-off, 0), "translate")
-                            glyphStrokeLayer.setVisible(self.showStroke)
-                        glyphPointsLayer = glyphContainer.getSublayer("glyphPoints")
-                        glyphPointsLayer.clearSublayers()
-                        onCurve = 1 * upm_scale 
-                        with glyphPointsLayer.propertyGroup():
-                            for contour in glyph.contours:
-                                for point in contour.points:
-                                    if point.type != "offcurve":
-                                        imageSettings = dict(
-                                            name="oval",
-                                            size=(onCurve,onCurve),
-                                            fillColor=(0, 0, 0, 1)
-                                        )
-                                        x = point.x
-                                        y = point.y
-                                        glyphPointsLayer.appendSymbolSublayer(
-                                            position=(x-off, y),
-                                            imageSettings=imageSettings,
-                                        )
-                            glyphPointsLayer.setVisible(self.showPoints)
-                            self.beamController(item)
-
-                    if index+1 == len(self.glyphs):
-                        if self.multiline:
-                            item.setForceBreakAfter(True)
+                    if not item:
+                        on_disk = True
+                        skewAngle = getattr(font.info, "italicAngle") or 0
+                        off = font.lib.get("com.typemytype.robofont.italicSlantOffset", 0)
+                        if font.lib.get("descriptor") == "instance":
+                            _temp = glyph
+                            mathGlyph = self.operator.makeOneGlyph(glyph, font.lib.get("location"), decomposeComponents=True)
+                            if mathGlyph is not None:
+                                glyph = internalFontClasses.createGlyphObject()
+                                # glyph.font = font
+                                mathGlyph.extractGlyph(glyph)
+                                glyph = font.insertGlyph(glyph, name=_temp)
+                                on_disk = False
                         else:
-                            item.setForceBreakAfter(False)
+                            glyph = font[glyph]
+
+                        if not isinstance(glyph, RGlyph):
+                            glyph = RGlyph(glyph)
+
+                        item = self.buildItem(
+                                        name=glyph.name,
+                                        glyph=glyph,
+                                        font=font,
+                                        index=index,
+                                        onDisk=on_disk,
+                                        skewAngle=skewAngle,
+                                        italicOffset=off,
+                                )
                     items.append(item)
+
+        self._cache_ = self.glyphs
         self.collectionView.set(items)
 
 
@@ -1122,11 +1248,10 @@ class Spaceport(Subscriber, ezui.WindowController):
 
         glyph = item.glyph
         font = item.font
-        upm_scale = font.info.unitsPerEm / 1000
         beamIndicatorLayer = item.getLayer("glyphContainer").getSublayer("beamIndicator")
         beamIndicatorLayer.clearSublayers()
         # beamIndicatorLayer.addTranslationTransformation(value=(-off,0))
-        beamIntersectSize = 30 * upm_scale
+        beamIntersectSize = 30 * item.scaler
 
         with beamIndicatorLayer.propertyGroup():
             try:
@@ -1265,6 +1390,7 @@ class Spaceport(Subscriber, ezui.WindowController):
         setExtensionDefault(EXTENSION_KEY + ".input_prefs", input_dict)
         self.clearObservedAdjunctObjects()
 
+
     def _getItemAtEvent(self, position:tuple=(0,0)) -> MerzCollectionViewRGlyphItem:
         x,y = position
         hits = self.container.findSublayersContainingPoint(
@@ -1277,6 +1403,7 @@ class Spaceport(Subscriber, ezui.WindowController):
         hit = hits[0]
         return hit
 
+
     def _convertLocation(self, event:dict) -> tuple:
         location = event["location"]
         location = self.collectionView.getMerzView().convertWindowCoordinateToViewCoordinate(
@@ -1287,6 +1414,7 @@ class Spaceport(Subscriber, ezui.WindowController):
             self.container
         )
         return (x,y)
+
 
     def mouseDown(self,view,event):
         event = merz.unpackEvent(event)
@@ -1351,21 +1479,6 @@ class Spaceport(Subscriber, ezui.WindowController):
                     self.selectedItems.append(temp_item)
                     temp_item.selected = True
 
-        for temp_item in self.collectionView.get():
-            # if not temp_item.onDisk:
-            layer = temp_item.getLayer("glyphContainer").getSublayer("glyphFill")
-            reorder = temp_item.getLayer("glyphContainer").getSublayer("reorderIndicator")
-
-            if temp_item.font == selectedFont:
-                layer.setFillColor((*self.foreground[0:3],.75))
-                temp_item.selected = False
-
-                if temp_item.getForceBreakAfter():
-                    reorder.setVisible(True)
-            else:
-                layer.setFillColor(self.foreground)
-                reorder.setVisible(False)
-
 
     def mouseDragged(self,view,event):
         self.hoverItem = None
@@ -1396,18 +1509,10 @@ class Spaceport(Subscriber, ezui.WindowController):
         else:
             return
 
-        # self.marqueeLayer.setPosition(p)
-        # self.marqueeLayer.setSize(s)
-
-        # pos = marquee.getPosition()
-        # sz = marquee.getSize()
-        # x,y,w,h = pos[0],pos[1],sz[0],sz[1]
-
 
     def keyDown(self, view, event):
 
         directions = "left right up down".split(" ")
-
         event = merz.unpackEvent(event)
 
         mods = event["modifiers"]
@@ -1473,29 +1578,47 @@ class Spaceport(Subscriber, ezui.WindowController):
                     for item in items:
                         self.beamController(item)
 
+
     def mouseMoved(self, view, event):
         pass
         # print("debug::mouseMoved")
 
+
     def mouseUp(self, view, event):
-        # pass
-        self.marqueeLayer.clearSublayers()
+        pass
         # print("debug::mouseUp")
+
 
     def subscribeToGlyphs(self):
         glyphs = []
         for (__, obj) in self.fonts.values():
-            glyphs.extend(list(set([obj[glyph] for glyph in self.glyphs])))
+            try:
+                glyphs.extend(list(set([obj[glyph] for glyph in self.glyphs])))
+            except:
+                pass
         self.setAdjunctObjectsToObserve(glyphs)
+
 
     def unsubscribeFromGlyphs(self):
         self.clearObservedAdjunctObjects()
 
+
     def adjunctGlyphDidChangeMetrics(self, info):
-        self.populateItems(reload=True)
+        items = self.w.getItemValue("collectionView")
+        for item in items:
+            if item.glyph == info["glyph"]:
+                self.updateItem(item)
+
+        self.collectionView.set(self.w.getItemValue("collectionView")) # this is the only external way to reload the view
+
 
     def adjunctGlyphDidChangeOutline(self, info):
-        self.populateItems(reload=True)
+        items = self.w.getItemValue("collectionView")
+        for item in items:
+            if item.glyph == info["glyph"]:
+                self.updateItem(item)
+        self.collectionView.set(self.w.getItemValue("collectionView")) # this is the only external way to reload the view
+
 
 
 #registerCurrentGlyphSubscriber(Spaceport)
