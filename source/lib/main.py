@@ -1382,6 +1382,7 @@ class Spaceport(Subscriber, ezui.WindowController):
             lineHeight=lineHeight
         )
 
+
     def destroy(self):
         setExtensionDefault(EXTENSION_KEY + ".main_prefs", self.w.getItemValues())
         setExtensionDefault(EXTENSION_KEY + ".view_prefs", self.v.getItemValues())
