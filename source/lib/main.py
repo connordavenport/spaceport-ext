@@ -5,6 +5,10 @@ from lib.UI.spaceCenter.glyphSequenceEditText import splitText,\
 from lib.fontObjects.doodleFont import DoodleFont
 from lib.fontObjects.doodleLayer import DoodleLayer
 from lib.fontObjects.doodleGlyph import DoodleGlyph
+
+from lib.UI.spaceCenter import spaceInputScrollView as spaceInput
+from lib.UI.spaceCenter.lineViewGlyphWrappers import  GlyphRecord
+
 from mojo import events
 from mojo.UI import *
 from mojo.extensions import getExtensionDefault, setExtensionDefault
@@ -309,18 +313,18 @@ class Spaceport(Subscriber, ezui.WindowController):
 
         self.marqueeLayer = self.container.appendBaseSublayer()
 
+        self.w.matrix = spaceInput.SpaceInputScrollView((0, -48, 0, 48))
+
 
         content = """
         Beam:
         * HorizontalStack
         > [X]                                                         @showBeamButton
         > --X------                                                   @beamPositionSlider
-        Multiline:                                                 
-        [X]                                                           @multilineButton
-        Show Kerning:                                                 @showKerningLabel
-        [ ]                                                           @showKerningButton
-        Show Metrics:
-        ( Off | On )                                                  @showMetricsButton
+        [X] Multiline                                                 @multilineButton
+        [ ] Show Kerning                                              @showKerningButton
+        [X] Show Metrics                                              @showMetricsButton
+        [X] Show Space Matrix                                         @showSpaceMatrixButton
         -----
         [ ] Open Sources                                              @openSourcesCheckbox  
         [ ] View Sources                                              @viewSourcesCheckbox
@@ -348,13 +352,16 @@ class Spaceport(Subscriber, ezui.WindowController):
                 # hide=False,
             ),
             showMetricsButton=dict(
-                selected=1
+                value=True
             ),
             displaySettingsButton=dict(
                 selected=[0]
             ),
             alignmentSegmentButton=dict(
                 selected=0
+            ),
+            showSpaceMatrixButton=dict(
+                value=True,
             ),
         )
 
@@ -371,7 +378,6 @@ class Spaceport(Subscriber, ezui.WindowController):
         )
 
         self.v.getItem("showKerningButton").show(False)
-        self.v.getItem("showKerningLabel").show(False)
 
         content = """
         * HorizontalStack       @controlsStack
@@ -502,6 +508,9 @@ class Spaceport(Subscriber, ezui.WindowController):
     def useDesignspaceControllerCallback(self, sender):
         self.designspaceController = self.v.getItemValue("useDesignspaceController")
 
+    def showSpaceMatrixButtonCallback(self, sender):
+        self.w.matrix.show(sender.get())
+        
 
     def build_fonts_sheet(self):
         content = """
@@ -893,6 +902,8 @@ class Spaceport(Subscriber, ezui.WindowController):
 
             if onlyBeam:
                 self.beamController(item)
+                self.w.matrix.setShowBeam(self.showBeam)
+                self.w.matrix.setBeamPosition(self.beamPosition)
             else:
                 glyphContainer = item.getLayer("glyphContainer")
 
@@ -1236,7 +1247,8 @@ class Spaceport(Subscriber, ezui.WindowController):
 
     def populateItems(self, reload:bool=False):
         items = []
-        for path,(use,font) in self.fonts.items():
+        _glyphRecords = []
+        for font_index, (path,(use,font)) in enumerate(self.fonts.items()):
             if use:
                 for index, glyph in enumerate(self.glyphs):
                     item = None
@@ -1244,7 +1256,14 @@ class Spaceport(Subscriber, ezui.WindowController):
                         if len(self._cache_) > index+1:
                             hold = self._cache_[index]
                             if hold == glyph:
-                                item_holder = [_item for _item in self.w.getItemValue("collectionView") if font == _item.font and glyph == _item.glyph.name and index == _item.index]
+                                item_holder = [_item
+                                               for _item in self.w.getItemValue("collectionView")
+                                               if font == _item.font
+                                               and
+                                               glyph == _item.glyph.name
+                                               and
+                                               index == _item.index
+                                              ]
                                 if item_holder:
                                     item = item_holder[0]
                                     if index+1 == len(self.glyphs):
@@ -1272,6 +1291,9 @@ class Spaceport(Subscriber, ezui.WindowController):
                         if not isinstance(glyph, RGlyph):
                             glyph = RGlyph(glyph)
 
+                        if font_index == 0:
+                            _glyphRecords.append(GlyphRecord(glyph.naked()))
+
                         item = self.buildItem(
                                         name=glyph.name,
                                         glyph=glyph,
@@ -1285,6 +1307,8 @@ class Spaceport(Subscriber, ezui.WindowController):
 
         self._cache_ = self.glyphs
         self.collectionView.set(items)
+
+        self.w.matrix.set(_glyphRecords)
 
 
     def beamController(self, item:MerzCollectionViewRGlyphItem):
@@ -1523,6 +1547,11 @@ class Spaceport(Subscriber, ezui.WindowController):
                     self.selectedItems.append(temp_item)
                     temp_item.selected = True
 
+        # only set the matrix for one font at a time, the selected one.
+        if len(set([hits.glyph.font for hits in self.selectedItems])) == 1:
+            records = [GlyphRecord(item.glyph.naked()) for item in self.collectionView.get() if item.glyph.font == selectedGlyph.font]
+            self.w.matrix.set(records)
+
 
     def mouseDragged(self,view,event):
         self.hoverItem = None
@@ -1618,6 +1647,8 @@ class Spaceport(Subscriber, ezui.WindowController):
                     self.showBeam = not self.showBeam
                     self.v.setItemValue("showBeamButton", self.showBeam)
 
+                    self.w.matrix.setShowBeam(self.showBeam)
+
                     items = self.w.getItemValue("collectionView")
                     for item in items:
                         self.beamController(item)
@@ -1648,20 +1679,21 @@ class Spaceport(Subscriber, ezui.WindowController):
 
 
     def adjunctGlyphDidChangeMetrics(self, info):
+        self.w.matrix._glyphWidthChanged(info)
         items = self.w.getItemValue("collectionView")
         for item in items:
             if item.glyph == info["glyph"]:
                 self.updateItem(item)
-
-        self.collectionView.set(self.w.getItemValue("collectionView")) # this is the only external way to reload the view
+        self.collectionView.set(self.w.getItemValue("collectionView")) # i think that this is the only external-way to reload the view
 
 
     def adjunctGlyphDidChangeOutline(self, info):
+        self.w.matrix._glyphChanged(info)
         items = self.w.getItemValue("collectionView")
         for item in items:
             if item.glyph == info["glyph"]:
                 self.updateItem(item)
-        self.collectionView.set(self.w.getItemValue("collectionView")) # this is the only external way to reload the view
+        self.collectionView.set(self.w.getItemValue("collectionView")) # i think that this is the only external-way to reload the view
 
 
 
