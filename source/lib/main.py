@@ -19,6 +19,7 @@ import os
 from fontTools.misc import transform
 import math
 from pprint import pprint
+from designspaceEditor.ui import DesignspaceEditorController
 
 # ---------
 # Interface
@@ -504,16 +505,22 @@ class Spaceport(Subscriber, ezui.WindowController):
 
     def build_fonts_sheet(self):
         content = """
-        |-files----| @fontTable
+        ({arrow.clockwise})    @refreshOrderButton
+        |-files----|           @fontTable
         |          |
         |----------|
         """
-        # (+-)         @fontTableButtons
 
         description_data = dict(
+            refreshOrderButton=dict(
+                height=20,
+                width=20,
+                toolTip="Refresh Font Ordering"
+            ),
+
             fontTable=dict(
                 items=[
-                    dict(path=path) for (path, (use, font)) in self.fonts.items()
+                    dict(use=use,path=path) for (path, (use, font)) in self.fonts.items()
                 ],
                 itemType="dict",
                 acceptedDropFileTypes=[".ufo", ".ufoz"],
@@ -524,13 +531,21 @@ class Spaceport(Subscriber, ezui.WindowController):
                 alternatingRowColors=True,
                 columnDescriptions=[
                     dict(
+                        editable=True,
+                        width=20,
+                        identifier="use",
+                        title="View",
+                        cellDescription=dict(
+                            cellType="Checkbox"
+                        )
+                    ),
+                    dict(
                         identifier="path",
                         title="Path",
                         cellClassArguments=dict(
                             showFullPath=False
-                        )
+                    )),
 
-                    )
                 ]
             ),
         )
@@ -554,12 +569,12 @@ class Spaceport(Subscriber, ezui.WindowController):
         |----------|
         """
         if not self.designspaces:
-            self.designspaces = {dsp.path:dsp for dsp in AllDesignspaces()}
+            self.designspaces = {dsp.path:(False, dsp) for dsp in AllDesignspaces()}
 
         description_data = dict(
             designspaceTable=dict(
                 items=[
-                dict(path=dsp) for dsp in self.designspaces.keys()
+                    dict(use=use,path=path) for (path, (use, dsp)) in self.designspaces.items()
                 ],
                 itemType="dict",
                 acceptedDropFileTypes=[".designspace"],
@@ -569,6 +584,15 @@ class Spaceport(Subscriber, ezui.WindowController):
                 showColumnTitles=False,
                 alternatingRowColors=True,
                 columnDescriptions=[
+                  dict(
+                        editable=True,
+                        width=20,
+                        identifier="use",
+                        title="View",
+                        cellDescription=dict(
+                            cellType="Checkbox"
+                        )
+                    ),
                     dict(
                         identifier="path",
                         title="Path"
@@ -588,7 +612,7 @@ class Spaceport(Subscriber, ezui.WindowController):
         table=self.w.dsp.getItem("designspaceTable")
         selection_index = None
         if self.operator:
-            for ii, (path,obj) in enumerate(self.designspaces.items()):
+            for ii, (path,(use, obj)) in enumerate(self.designspaces.items()):
                 if obj == self.operator:
                     selection_index = ii
         if selection_index != None:
@@ -597,47 +621,62 @@ class Spaceport(Subscriber, ezui.WindowController):
 
     def designspaceSettingsChanged(self, **kwargs):
         obj = kwargs.get("object", self.operator)
-        sources = kwargs.get("sources", obj.getFonts())
-        instances = kwargs.get("instances", obj.instances)
 
-        self.fonts = {}
+        if obj:
+            sources = kwargs.get("sources", obj.getFonts())
+            instances = kwargs.get("instances", obj.instances)
 
-        if self.viewSources:
-            for source,loc_data in sources:
-                source.lib["descriptor"] = "source"
-                source.lib["location"]   = loc_data                    
-                self.fonts[source.path]  = (True,source)
+            # self.fonts = {}
 
-        if self.viewInstances:    
-            for instance in instances:
-                inst = internalFontClasses.createFontObject()
-                inst.lib["descriptor"] = "instance"
-                inst.lib["location"]   = instance.designLocation
-                obj.makeOneInfo(instance.designLocation).extractInfo(inst.info)
+            if self.viewSources:
+                for source,loc_data in sources:
+                    source.lib["descriptor"] = "source"
+                    source.lib["location"]   = loc_data                    
+                    self.fonts[source.path]  = (True,source)
 
-                rev = []
-                cont, disc = obj.splitLocation(instance.designLocation)
-                if disc:
-                    rev.append((obj, disc))
-                    ss = [s for s,l in obj.getFonts() if set(disc.items()).issubset(l.items())]
-                    if ss:
-                        inst.lib["com.typemytype.robofont.italicSlantOffset"] = ss[0].lib.get("com.typemytype.robofont.italicSlantOffset", 0)
-                else:
-                    inst.lib["com.typemytype.robofont.italicSlantOffset"] = obj.getFonts()[0][0].lib.get("com.typemytype.robofont.italicSlantOffset", 0)
+            if self.viewInstances:    
+                for instance in instances:
+                    inst = internalFontClasses.createFontObject()
+                    inst.lib["descriptor"] = "instance"
+                    inst.lib["location"]   = instance.designLocation
+                    obj.makeOneInfo(instance.designLocation).extractInfo(inst.info)
 
-                self.fonts[instance.path] = (True,inst)
+                    rev = []
+                    cont, disc = obj.splitLocation(instance.designLocation)
+                    if disc:
+                        rev.append((obj, disc))
+                        ss = [s for s,l in obj.getFonts() if set(disc.items()).issubset(l.items())]
+                        if ss:
+                            inst.lib["com.typemytype.robofont.italicSlantOffset"] = ss[0].lib.get("com.typemytype.robofont.italicSlantOffset", 0)
+                    else:
+                        inst.lib["com.typemytype.robofont.italicSlantOffset"] = obj.getFonts()[0][0].lib.get("com.typemytype.robofont.italicSlantOffset", 0)
 
-        self.populateItems()
+                    self.fonts[instance.path] = (True,inst)
+
+            self.populateItems()
 
 
-    def designspaceTableSelectionCallback(self, sender):
-        index = sender.getSelectedIndexes()
-        if index:
-            index = index[0]
-            path  = list(self.designspaces.keys())[index]
-            obj = self.designspaces[path]
-            self.operator = obj
-            self.designspaceSettingsChanged(object=obj, sources=obj.getFonts(), instances=obj.instances)
+    def designspaceTableEditCallback(self, sender):
+        index = sender.getEditedIndex()
+        path  = list(self.designspaces.keys())[index]
+        obj = self.designspaces[path][-1]
+        self.operator = obj
+        self.designspaces[path] = ([item["use"] for item in sender.get() if item["path"] == path][0], obj)
+        self.designspaceSettingsChanged(object=obj, sources=obj.getFonts(), instances=obj.instances)
+
+
+    def designspaceTableCreateItemsForDroppedPathsCallback(self, sender, paths):
+        operators = []
+        for path in paths:
+            controller = DesignspaceEditorController(path)
+            operator = controller.operator
+            self.designspaces[path] = (False,operator)
+            item = dict(
+                use=False,
+                path=path,
+            )
+            operators.append(item)
+        return operators
 
 
     def addFontCallback(self, sender):
@@ -645,15 +684,19 @@ class Spaceport(Subscriber, ezui.WindowController):
         self.w.af.open()
 
 
-    def fontTableSelectionCallback(self, sender):
-        selected = [item["path"] for item in sender.getSelectedItems()]
-        reordered = {item["path"]:() for item in sender.get()}
-        for path, (use, font) in self.fonts.items():
-            if path in selected:
-                reordered[path] = (True, font)
-            else:
-                reordered[path] = (False, font)
-        self.fonts = reordered
+    def refreshOrderButtonCallback(self, sender):
+        reordered = [item["path"] for item in self.w.af.getItemValue("fontTable")]
+        if reordered != list(self.fonts.keys()):
+            self.fonts = {item["path"]:(item["use"],self.fonts[item["path"]][1]) for item in self.w.af.getItemValue("fontTable")}
+            self.populateItems()
+
+
+    def fontTableEditCallback(self, sender):
+        index = sender.getEditedIndex()
+        new   = sender.getEditedItem()["use"]
+        path  = list(self.fonts.keys())[index]
+        use,font = self.fonts[path]
+        self.fonts[path] = (new, font)
         self.populateItems()
 
 
