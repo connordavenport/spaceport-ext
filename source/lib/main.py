@@ -1211,12 +1211,10 @@ class Spaceport(Subscriber, ezui.WindowController):
         glyphFillLayer = glyphContainer.getSublayer("glyphFill")
         #with glyphFillLayer.propertyGroup():    # for some reason this wont work inside a property group
         glyphFillLayer.setPath(glyph.getRepresentation("merz.CGPath"))
-        glyphFillLayer.addTranslationTransformation((-item.offset, 0), "translate")
 
         glyphStrokeLayer = glyphContainer.getSublayer("glyphStroke")
         #with glyphStrokeLayer.propertyGroup():    # for some reason this wont work inside a property group
         glyphStrokeLayer.setPath(glyph.getRepresentation("merz.CGPath"))
-        glyphStrokeLayer.addTranslationTransformation((-item.offset, 0), "translate")
 
         glyphPointsLayer = glyphContainer.getSublayer("glyphPoints")
         glyphPointsLayer.clearSublayers()
