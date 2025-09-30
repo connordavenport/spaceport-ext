@@ -1219,6 +1219,7 @@ class Spaceport(Subscriber, ezui.WindowController):
         glyphPointsLayer = glyphContainer.getSublayer("glyphPoints")
         glyphPointsLayer.clearSublayers()
         onCurve = 3 * item.scaler
+        
         with glyphPointsLayer.propertyGroup():
             for contour in glyph.contours:
                 for point in contour.points:
@@ -1246,6 +1247,7 @@ class Spaceport(Subscriber, ezui.WindowController):
     def populateItems(self, reload:bool=False):
         items = []
         _glyphRecords = []
+        
         for font_index, (path,(use,font)) in enumerate(self.fonts.items()):
             if use:
                 for index, glyph in enumerate(self.glyphs):
@@ -1289,9 +1291,6 @@ class Spaceport(Subscriber, ezui.WindowController):
                         if not isinstance(glyph, RGlyph):
                             glyph = RGlyph(glyph)
 
-                        if font_index == 0:
-                            _glyphRecords.append(GlyphRecord(glyph.naked()))
-
                         item = self.buildItem(
                                         name=glyph.name,
                                         glyph=glyph,
@@ -1301,6 +1300,10 @@ class Spaceport(Subscriber, ezui.WindowController):
                                         skewAngle=skewAngle,
                                         italicOffset=off,
                                 )
+
+                    if font_index == 0:
+                        _glyphRecords.append(GlyphRecord(item.glyph.naked()))
+
                     items.append(item)
 
         self._cache_ = self.glyphs
@@ -1549,6 +1552,11 @@ class Spaceport(Subscriber, ezui.WindowController):
         if len(set([hits.glyph.font for hits in self.selectedItems])) == 1:
             records = [GlyphRecord(item.glyph.naked()) for item in self.collectionView.get() if item.glyph.font == selectedGlyph.font]
             self.w.matrix.set(records)
+
+        elif multiFontSelect:
+            records = [GlyphRecord(item.glyph.naked()) for item in self.selectedItems]
+            self.w.matrix.set(records)
+
 
 
     def mouseDragged(self,view,event):
