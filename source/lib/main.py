@@ -524,7 +524,7 @@ class Spaceport(Subscriber, ezui.WindowController):
             refreshOrderButton=dict(
                 height=20,
                 width=20,
-                toolTip="Refresh Font Ordering"
+                # toolTip="Refresh Font Ordering"
             ),
 
             fontTable=dict(
