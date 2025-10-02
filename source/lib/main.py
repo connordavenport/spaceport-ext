@@ -41,7 +41,7 @@ CURRENTGLYPH_CHAR = "/?"
 NEWLINE_CHAR = "\\n"
 
 EDIT_TEXT = "character.cursor.ibeam"
-ADD_FONT = "plus"
+ADD_FONT = "document.badge.plus.fill"
 ADD_DESIGNSPACE = "grid"
 SPACING = "arrow.left.and.right.text.vertical"
 KERNING = "arrowtriangle.right.and.line.vertical.and.arrowtriangle.left"
