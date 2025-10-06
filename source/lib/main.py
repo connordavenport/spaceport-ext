@@ -41,8 +41,8 @@ CURRENTGLYPH_CHAR = "/?"
 NEWLINE_CHAR = "\\n"
 
 EDIT_TEXT = "character.cursor.ibeam"
-ADD_FONT = "document.badge.plus.fill"
-ADD_DESIGNSPACE = "grid"
+ADD_FONT = "document.badge.gearshape"
+ADD_DESIGNSPACE = "squareshape.split.3x3"
 SPACING = "arrow.left.and.right.text.vertical"
 KERNING = "arrowtriangle.right.and.line.vertical.and.arrowtriangle.left"
 INTERPOLATE = "squareshape.split.2x2.dotted"
@@ -64,6 +64,7 @@ STATIC_ICON = ""
 class MerzCollectionViewRGlyphItem(merz.collectionView.MerzCollectionViewItem):
 
     def __init__(self, *args, **kwargs):
+        self._name = kwargs.get("name")
         self._font = kwargs.get("font")
         self._glyph = kwargs.get("glyph")
         self._index = kwargs.get("index")
@@ -71,12 +72,21 @@ class MerzCollectionViewRGlyphItem(merz.collectionView.MerzCollectionViewItem):
         self._offset = kwargs.get("offset", 0)
         self._skewAngle = kwargs.get("skewAngle", 0)
         self._scaler = kwargs.get("scaler", 1)
+        self._location = kwargs.get("location", {})
         super().__init__(*args, **kwargs)
+
+    def getName(self) -> str:
+        return self._name
+
+    def setName(self, value:str):
+        self._name = value
+
+    name = property(getName, setName)
 
     def getGlyph(self) -> DoodleGlyph | RGlyph:
         return self._glyph
 
-    def setGlyph(self, value):
+    def setGlyph(self, value:DoodleGlyph | RGlyph):
         self._glyph = value
 
     glyph = property(getGlyph, setGlyph)
@@ -137,6 +147,14 @@ class MerzCollectionViewRGlyphItem(merz.collectionView.MerzCollectionViewItem):
         self._scaler = value
 
     scaler = property(getScaler, setScaler)
+
+    def getLocation(self) ->  dict[str | float]:
+        return self._location
+
+    def setLocation(self, value: dict[str | float]):
+        self._location = value
+
+    location = property(getLocation, setLocation)
 
 
 
@@ -244,7 +262,7 @@ class Spaceport(Subscriber, ezui.WindowController):
                 ),
                 dict(
                     identifier="addDesignspace",
-                    image=symbolImage(symbolName=ADD_DESIGNSPACE, color=(1,1,1,1), weight="regular"),
+                    image=symbolImage(symbolName=ADD_DESIGNSPACE, color=(1,1,1,1), weight="light"),
                     text="Designspace",
                     template=True,
                 ),
@@ -452,9 +470,14 @@ class Spaceport(Subscriber, ezui.WindowController):
 
     # designspace editor notifcations
     def designspaceEditorPreviewLocationDidChange(self, notification):
-        print("IMPLIMENT BETTER CROSS NOTIFICATION SUPPORT")
         if self.designspaceController:
-            print(notification["location"])
+            selectedFonts = list(set([i.font for i in self.selectedItems]))
+            if len(selectedFonts) == 1:
+                for item in self.collectionView.get():
+                    if item.font == selectedFonts[0] and not item.onDisk:
+                        self.updateItem(item, updated_location=notification["location"])
+
+        self.collectionView.set(self.w.getItemValue("collectionView")) # i think that this is the only external-way to reload the view
 
 
     def designspaceEditorInstancesDidChangeSelection(self, notification):
@@ -937,6 +960,7 @@ class Spaceport(Subscriber, ezui.WindowController):
         onDisk = kwargs.get("onDisk")
         skewAngle = kwargs.get("skewAngle")
         off = kwargs.get("italicOffset")
+        location = kwargs.get("location")
 
         item = MerzCollectionViewRGlyphItem(
             name=name,
@@ -947,7 +971,8 @@ class Spaceport(Subscriber, ezui.WindowController):
             onDisk=onDisk,
             skewAngle=skewAngle,
             italicOffset=off,
-            scaler=(font.info.unitsPerEm/1000)
+            scaler=(font.info.unitsPerEm/1000),
+            location=location,
         )
 
         item.setHeight(font.info.unitsPerEm)
@@ -1022,24 +1047,21 @@ class Spaceport(Subscriber, ezui.WindowController):
                 name="descender"
             )
 
-            icon  = ""
-            color = (0,0,0,0)
+            location_data  = ""
             if font.lib.get("descriptor") == "source":
-                icon  = SOURCE_ICON
-                color = (0,0,1,1)
+                location_data += f" s: {" ".join([f"{axis}:{value}" for axis,value in location.items()])}"
             elif font.lib.get("descriptor") == "instance":
-                icon  = INSTANCE_ICON
-                color = (0,1,1,1)
+                location_data += f" i: {" ".join([f"{axis}:{value}" for axis,value in location.items()])}"
 
             descriptorIndicatorLayer = glyphContainer.getSublayer("descriptorIndicator")
             with descriptorIndicatorLayer.propertyGroup():
                 if item.index == 0:
                     descriptorIndicatorLayer.appendTextLineSublayer(
-                        text=icon,
+                        text=location_data,
                         pointSize=8,
-                        position=(-50,font.info.capHeight/2),
-                        fillColor=color,
-                        horizontalAlignment="center",
+                        position=(-50,-200*item.scaler),
+                        fillColor=(*self.foreground[0:3], .5),
+                        horizontalAlignment="left",
                         verticalAlignment="center",
                         anchor=(.5,.5)
                     )
@@ -1150,21 +1172,18 @@ class Spaceport(Subscriber, ezui.WindowController):
                 glyphStrokeLayer.setVisible(self.showStroke)
             glyphPointsLayer = glyphContainer.getSublayer("glyphPoints")
             glyphPointsLayer.clearSublayers()
-            onCurve = 3 * item.scaler
+            onCurve = 20 * item.scaler
             with glyphPointsLayer.propertyGroup():
                 for contour in glyph.contours:
                     for point in contour.points:
                         if point.type != "offcurve":
-                            imageSettings = dict(
-                                name="oval",
-                                size=(onCurve,onCurve),
-                                fillColor=(0, 0, 0, 1)
-                            )
                             x = point.x
                             y = point.y
-                            glyphPointsLayer.appendSymbolSublayer(
+                            glyphPointsLayer.appendOvalSublayer(
                                 position=(x-off, y),
-                                imageSettings=imageSettings,
+                                size=(onCurve,onCurve),
+                                anchor=(.5,.5),
+                                fillColor=(0, 0, 0, 1),
                             )
                 glyphPointsLayer.setVisible(self.showPoints)
                 self.beamController(item)
@@ -1184,7 +1203,30 @@ class Spaceport(Subscriber, ezui.WindowController):
         glyphContainer = item.getLayer("glyphContainer")
         glyphMetricsLayer = glyphContainer.getSublayer("glyphMetrics")
 
-        glyph = item.glyph
+        font = item.font
+        loc = kwargs.get("updated_location")
+        if loc:
+            mathGlyph = self.operator.makeOneGlyph(item.name, loc, decomposeComponents=True)
+            if mathGlyph is not None:
+                glyph = internalFontClasses.createGlyphObject()
+                glyph = RGlyph(mathGlyph.extractGlyph(glyph))
+                location_data = f" i: {" ".join([f"{axis}:{value}" for axis,value in loc.items()])}"
+
+                loc_layer = glyphContainer.getSublayer("descriptorIndicator")
+                with loc_layer.propertyGroup():
+                    loc_layer.clearSublayers()
+                    if item.index == 0:
+                        loc_layer.appendTextLineSublayer(
+                            text=location_data,
+                            pointSize=8,
+                            position=(-50,-200*item.scaler),
+                            fillColor=(*self.foreground[0:3], .5),
+                            horizontalAlignment="left",
+                            verticalAlignment="center",
+                            anchor=(.5,.5)
+                        )
+
+        
         skewAngle = item.skewAngle
         item.setWidth(glyph.width)
 
@@ -1208,6 +1250,10 @@ class Spaceport(Subscriber, ezui.WindowController):
                 line.setStartPoint(start)
                 line.setEndPoint(end)
 
+            wd = glyphMetricsLayer.getSublayer("glyphWidthSublayer")
+            wd.setText(str(glyph.width))
+            wd.setPosition((round(glyph.width/2),round(depth/2)))
+
         glyphFillLayer = glyphContainer.getSublayer("glyphFill")
         #with glyphFillLayer.propertyGroup():    # for some reason this wont work inside a property group
         glyphFillLayer.setPath(glyph.getRepresentation("merz.CGPath"))
@@ -1218,30 +1264,27 @@ class Spaceport(Subscriber, ezui.WindowController):
 
         glyphPointsLayer = glyphContainer.getSublayer("glyphPoints")
         glyphPointsLayer.clearSublayers()
-        onCurve = 3 * item.scaler
+        onCurve = 20 * item.scaler
         
         with glyphPointsLayer.propertyGroup():
             for contour in glyph.contours:
                 for point in contour.points:
                     if point.type != "offcurve":
-                        imageSettings = dict(
-                            name="oval",
-                            size=(onCurve,onCurve),
-                            fillColor=(0, 0, 0, 1)
-                        )
                         x = point.x
                         y = point.y
-                        glyphPointsLayer.appendSymbolSublayer(
-                            position=(x-item.offset, y),
-                            imageSettings=imageSettings,
+                        glyphPointsLayer.appendOvalSublayer(
+                            position=(x, y),
+                            size=(onCurve,onCurve),
+                            anchor=(.5,.5),
+                            fillColor=(0, 0, 0, 1),
                         )
             glyphPointsLayer.setVisible(self.showPoints)
 
         self.beamController(item)
 
         selection = glyphContainer.getSublayer("selectionIndicator").getSublayer("selectionIndicatorDrawing")
-        selection.setPosition((0,glyph.font.info.descender))
-        selection.setSize((glyph.width, abs(glyph.font.info.descender) + glyph.font.info.ascender))
+        selection.setPosition((0,font.info.descender))
+        selection.setSize((glyph.width, abs(font.info.descender) + font.info.ascender))
 
 
     def populateItems(self, reload:bool=False):
@@ -1299,6 +1342,7 @@ class Spaceport(Subscriber, ezui.WindowController):
                                         onDisk=on_disk,
                                         skewAngle=skewAngle,
                                         italicOffset=off,
+                                        location=font.lib.get("location")
                                 )
 
                     if font_index == 0:
@@ -1705,6 +1749,7 @@ class Spaceport(Subscriber, ezui.WindowController):
 
 #registerCurrentGlyphSubscriber(Spaceport)
 if __name__ == "__main__":
-    Spaceport()
+    if CurrentFont():
+        Spaceport()
 
 
