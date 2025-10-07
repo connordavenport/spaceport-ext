@@ -1102,9 +1102,9 @@ class Spaceport(Subscriber, ezui.WindowController):
 
             location_data  = ""
             if font.lib.get("descriptor") == "source":
-                location_data += f" s: {" ".join([f"{axis}:{value}" for axis,value in location.items()])}"
+                location_data += f' s: {" ".join([f"{axis}:{value}" for axis,value in location.items()])}'
             elif font.lib.get("descriptor") == "instance":
-                location_data += f" i: {" ".join([f"{axis}:{value}" for axis,value in location.items()])}"
+                location_data += f' i: {" ".join([f"{axis}:{value}" for axis,value in location.items()])}'
             else:
                 location_data += f"    {os.path.basename(item.font.path)}"
 
