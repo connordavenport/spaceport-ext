@@ -26,6 +26,7 @@ from fontTools.designspaceLib import (DesignSpaceDocument, AxisDescriptor,
 import math
 from pprint import pprint
 from designspaceEditor.ui import DesignspaceEditorController
+from designspaceEditor.locationPreview import PreviewLocationFinder
 
 # ---------
 # Interface
@@ -254,8 +255,12 @@ class Spaceport(Subscriber, ezui.WindowController):
             f.lib["descriptor"] = ""
             self.fonts[f.path] = (f==CurrentFont(), f)
 
+        self.internalPreview = False
         self.designspaces = dict()
         self.operator = None
+
+        self.sources   = []
+        self.instances = []
 
         self.beamPosition = int(self.font.info.xHeight / 2)
 
@@ -481,18 +486,17 @@ class Spaceport(Subscriber, ezui.WindowController):
         self.w.open()
 
 
-
     # designspace editor notifcations
     designspaceEditorPreviewLocationDidChangeDelay = 0.01
 
     def designspaceEditorPreviewLocationDidChange(self, notification):
-        if self.designspaceController:
+        if self.designspaceController or self.internalPreview:
             selectedFonts = list(set([i.font for i in self.selectedItems if not i.onDisk]))
             if len(selectedFonts) == 1:
                 pass
             elif not selectedFonts:
                 if not list(self.fonts.values())[0][0]:
-                    self.fontTableEditCallback(None)
+                    self.fontTableEditCallback(None) # turn on preview location
                 # grab out dummy instance
                 selectedFonts = [list(self.fonts.values())[0][-1]]
 
@@ -503,36 +507,31 @@ class Spaceport(Subscriber, ezui.WindowController):
 
 
     def designspaceEditorInstancesDidChangeSelection(self, notification):
-        print("IMPLIMENT BETTER CROSS NOTIFICATION SUPPORT")
         if self.designspaceController:
-
             operator = notification["designspace"]
-            instances = notification["selectedItems"]
+            self.instances = notification["selectedItems"]
             self.designspaceSettingsChanged(
                     object=operator,
-                    sources=operator.getFonts(),
-                    instances=instances
+                    sources=self.sources,
+                    instances=self.instances
             )
 
 
     def designspaceEditorSourcesDidChangeSelection(self, notification):
-        print("IMPLIMENT BETTER CROSS NOTIFICATION SUPPORT")
         if self.designspaceController:
-
             operator = notification["designspace"]
             sources = notification["selectedItems"]
-
             reformated = []
             fs = operator.getFonts()
             locations = [s.designLocation for s in sources]
             for (ff,ll) in fs:
                 if ll in locations:
                     reformated.append((ff,ll))
-
+            self.sources = reformated
             self.designspaceSettingsChanged(
                     object=operator,
-                    sources=reformated,
-                    instances=operator.instances
+                    sources=self.sources,
+                    instances=self.instances
             )
 
 
@@ -681,31 +680,30 @@ class Spaceport(Subscriber, ezui.WindowController):
             sources = kwargs.get("sources", obj.getFonts())
             instances = kwargs.get("instances", obj.instances)
 
+            # remove designspace items
+            fonts_dict = list(self.fonts.items())
+            for _path, (_view, _font) in fonts_dict:
+                if _view: 
+                    if _font.lib.get("descriptor") in ["instance", "source"]:
+                        del self.fonts[_path]
 
-            if "temp.ufo" not in self.fonts.keys():
+            if "Preview Location" not in self.fonts.keys():
                 # create a temporary instance that we can interpolate on if no fonts are selected
                 temp = internalFontClasses.createFontObject()
                 temp.lib["descriptor"] = "instance"
                 temp.lib["location"]   = obj.findDefault().designLocation
                 obj.makeOneInfo(temp.lib["location"]).extractInfo(temp.info)
 
-                rev = []
                 cont, disc = obj.splitLocation(temp.lib["location"])
                 if disc:
-                    rev.append((obj, disc))
                     ss = [s for s,l in obj.getFonts() if set(disc.items()).issubset(l.items())]
                     if ss:
                         temp.lib["com.typemytype.robofont.italicSlantOffset"] = ss[0].lib.get("com.typemytype.robofont.italicSlantOffset", 0)
                 else:
                     temp.lib["com.typemytype.robofont.italicSlantOffset"] = obj.getFonts()[0][0].lib.get("com.typemytype.robofont.italicSlantOffset", 0)
-
-
                 items = list(self.fonts.items())
-                items.insert(0, ('temp.ufo', (False, temp)))
+                items.insert(0, ('Preview Location', (False, temp)))
                 self.fonts = dict(items)
-
-                # self.fonts["temp.ufo"] = (False,temp)
-
 
             if self.viewSources:
                 for source,loc_data in sources:
@@ -715,24 +713,19 @@ class Spaceport(Subscriber, ezui.WindowController):
 
             if self.viewInstances:    
                 for instance in instances:
-
                     inst = internalFontClasses.createFontObject()
                     inst.lib["descriptor"] = "instance"
                     inst.lib["location"]   = instance.designLocation
                     obj.makeOneInfo(instance.designLocation).extractInfo(inst.info)
 
-                    rev = []
                     cont, disc = obj.splitLocation(instance.designLocation)
                     if disc:
-                        rev.append((obj, disc))
                         ss = [s for s,l in obj.getFonts() if set(disc.items()).issubset(l.items())]
                         if ss:
                             inst.lib["com.typemytype.robofont.italicSlantOffset"] = ss[0].lib.get("com.typemytype.robofont.italicSlantOffset", 0)
                     else:
                         inst.lib["com.typemytype.robofont.italicSlantOffset"] = obj.getFonts()[0][0].lib.get("com.typemytype.robofont.italicSlantOffset", 0)
-
                     self.fonts[instance.path] = (True,inst)
-
             self.populateItems()
 
 
@@ -741,8 +734,12 @@ class Spaceport(Subscriber, ezui.WindowController):
         path  = list(self.designspaces.keys())[index]
         obj = self.designspaces[path][-1]
         self.operator = obj
+
+        self.sources = obj.getFonts()
+        self.instances = obj.instances
+
         self.designspaces[path] = ([item["use"] for item in sender.get() if item["path"] == path][0], obj)
-        self.designspaceSettingsChanged(object=obj, sources=obj.getFonts(), instances=obj.instances)
+        self.designspaceSettingsChanged(object=obj, sources=self.sources, instances=self.instances)
 
 
     def designspaceTableCreateItemsForDroppedPathsCallback(self, sender, paths):
@@ -834,6 +831,59 @@ class Spaceport(Subscriber, ezui.WindowController):
 
     def interpolateCallback(self, sender):
         pass
+        # # modified from DSE
+        # if self.operator:
+        #     content = """
+        #     = TwoColumnForm
+        #     """
+        #     descriptionData = dict(
+        #         content=dict(
+        #             itemColumnWidth=200
+        #         ),
+        #     )
+        #     for axisDescriptor in self.operator.axes:
+        #         value = axisDescriptor.default
+        #         if hasattr(axisDescriptor, "values"):
+        #             # discrete axis
+        #             content += f"""
+        #             : {axisDescriptor.name}:
+        #             ( ...)         @{axisDescriptor.name}
+        #             """
+        #             descriptionData[axisDescriptor.name] = dict(
+        #                 items=[str(value) for value in axisDescriptor.values]
+        #             )
+        #         else:
+        #             content += f"""
+        #             : {axisDescriptor.name}:
+        #             ---X--- [__]     @{axisDescriptor.name}
+        #             """
+        #             minimum, default, maximum = self.operator.getAxisExtremes(axisDescriptor)
+        #             descriptionData[axisDescriptor.name] = dict(
+        #                 minValue=minimum,
+        #                 maxValue=maximum,
+        #                 value=value
+        #             )
+
+        #     content += """
+        #     =====
+        #     ( Add as Instance )   @addAsInstance
+        #     """
+        #     self.vp = ezui.EZPopover(
+        #         content=content,
+        #         descriptionData=descriptionData,
+        #         parent=self.w,
+        #         parentAlignment="bottom",
+        #         behavior="transient",
+        #         size="auto",
+        #         controller=self
+        #     )
+
+        #     self.vp.open()
+
+
+    def contentCallback(self, sender):
+        self.internalPreview = True
+        self.operator.setPreviewLocation(location=sender.get())
 
 
     def viewOptionsCallback(self,sender):
@@ -1013,7 +1063,7 @@ class Spaceport(Subscriber, ezui.WindowController):
         onDisk = kwargs.get("onDisk")
         skewAngle = kwargs.get("skewAngle")
         off = kwargs.get("italicOffset")
-        location = kwargs.get("location")
+        location = kwargs.get("location", {})
 
         item = MerzCollectionViewRGlyphItem(
             name=name,
@@ -1264,7 +1314,6 @@ class Spaceport(Subscriber, ezui.WindowController):
         font = item.font
         loc = kwargs.get("updated_location")
         if loc:
-
             item.location = loc
             infoMutator = self.operator.makeOneInfo(loc)
             item.skewAngle = infoMutator.italicAngle
@@ -1273,11 +1322,13 @@ class Spaceport(Subscriber, ezui.WindowController):
             if libMutator:
                 lib = libMutator.makeInstance(loc)
                 item.offset = lib.get("com.typemytype.robofont.italicSlantOffset", 0)
-                    
+
             mathGlyph = self.operator.makeOneGlyph(item.name, loc, decomposeComponents=True)
             if mathGlyph is not None:
                 glyph = internalFontClasses.createGlyphObject()
                 glyph = RGlyph(mathGlyph.extractGlyph(glyph))
+                item.glyph = glyph
+                
                 loc_layer = glyphContainer.getSublayer("descriptorIndicator")
                 with loc_layer.propertyGroup():
                     loc_layer.clearSublayers()
@@ -1419,7 +1470,7 @@ class Spaceport(Subscriber, ezui.WindowController):
                                         onDisk=on_disk,
                                         skewAngle=skewAngle,
                                         italicOffset=off,
-                                        location=font.lib.get("location")
+                                        location=font.lib.get("location", {})
                                 )
 
                     if font_index == 0:
