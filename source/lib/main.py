@@ -275,36 +275,35 @@ class Spaceport(Subscriber, ezui.WindowController):
                     template=True,
                 ),
                 dict(
-                    identifier="addFont",
+                    identifier="addObjects",
                     image=symbolImage(symbolName=ADD_FONT, color=(1,1,1,1), weight="regular"),
-                    text="Fonts",
+                    text="Objects",
                     template=True,
                 ),
-                dict(
-                    identifier="addDesignspace",
-                    image=symbolImage(symbolName=ADD_DESIGNSPACE, color=(1,1,1,1), weight="light"),
-                    text="Designspace",
-                    template=True,
-                ),
-                dict(
-                    identifier="spacing",
-                    image=symbolImage(symbolName=SPACING, color=(1,1,1,1), weight="regular"),
-                    text="Spacing",
-                    template=True,
-                ),
-                dict(
-                    identifier="kerning",
-                    image=symbolImage(symbolName=KERNING, color=(1,1,1,1), weight="regular"),
-                    text="Kerning",
-                    template=True,
-                ),
+                # dict(
+                #     identifier="addDesignspace",
+                #     image=symbolImage(symbolName=ADD_DESIGNSPACE, color=(1,1,1,1), weight="light"),
+                #     text="Designspace",
+                #     template=True,
+                # ),
+                # dict(
+                #     identifier="spacing",
+                #     image=symbolImage(symbolName=SPACING, color=(1,1,1,1), weight="regular"),
+                #     text="Spacing",
+                #     template=True,
+                # ),
+                # dict(
+                #     identifier="kerning",
+                #     image=symbolImage(symbolName=KERNING, color=(1,1,1,1), weight="regular"),
+                #     text="Kerning",
+                #     template=True,
+                # ),
                 dict(
                     identifier="opentype",
                     image=symbolImage(symbolName=OPENTYPE, color=(1,1,1,1), weight="regular"),
                     text="OpenType",
                     template=True,
                 ),
-
                 dict(
                     identifier="interpolate",
                     image=symbolImage(symbolName=INTERPOLATE, color=(1,1,1,1), weight="regular"),
@@ -348,9 +347,7 @@ class Spaceport(Subscriber, ezui.WindowController):
         self.marqueeLayer = self.container.appendRectangleSublayer()
         self.marquee = None
         self.collectionView.setBackgroundColor(AppKit.NSColor.whiteColor())
-
         self.marqueeLayer = self.container.appendBaseSublayer()
-
         self.w.matrix = spaceInput.SpaceInputScrollView((0, -48, 0, 48))
 
 
@@ -364,11 +361,6 @@ class Spaceport(Subscriber, ezui.WindowController):
         [X] Show Metrics                                              @showMetricsButton
         [X] Show Space Matrix                                         @showSpaceMatrixButton
         -----
-        [ ] Open Sources                                              @openSourcesCheckbox  
-        [ ] View Sources                                              @viewSourcesCheckbox
-        [ ] View Instances                                            @viewInstancesCheckbox
-        [ ] Use Designspace Editor Controller                         @useDesignspaceController
-        ----
         Invert Colors:
         ( {circle.dashed} | {circle.fill} )                           @invertColorsButton
         Fill Options:
@@ -539,39 +531,72 @@ class Spaceport(Subscriber, ezui.WindowController):
         self.openSources = sender.get()
 
 
-    def viewSourcesCheckboxCallback(self, sender):
-        self.viewSources = sender.get()
+    def DSSettingsButtonCallback(self, sender):
+        self.viewSources           = 0 in sender.get()
+        self.viewInstances         = 1 in sender.get()
+        self.designspaceController = 2 in sender.get()
         self.designspaceSettingsChanged()
-
-
-    def viewInstancesCheckboxCallback(self, sender):
-        self.viewInstances = sender.get()
-        self.designspaceSettingsChanged()
-
-
-    def useDesignspaceControllerCallback(self, sender):
-        self.designspaceController = self.v.getItemValue("useDesignspaceController")
-
+        
 
     def showSpaceMatrixButtonCallback(self, sender):
         self.w.matrix.show(sender.get())
         
 
-    def build_fonts_sheet(self):
+    def build_objects_sheet(self):
+
+        if not self.designspaces:
+            self.designspaces = {dsp.path:(False, dsp) for dsp in AllDesignspaces()}
+
         content = """
-        ({arrow.clockwise})    @refreshOrderButton
-        |-files----|           @fontTable
-        |          |
-        |----------|
+        = ToolbarTabs
+        * ToolbarTab:                                                      @fontTab
+        > * Box                                                            @fontBox = HorizontalStack
+        >> ( Refresh Order )                                               @refreshOrderButton
+        >> ( Add All Open Fonts )                                          @openAllFontsButton
+        > |-files----|                                                     @fontTable
+        > |          |  
+        > |----------|  
+        * ToolbarTab:                                                      @designspaceTab
+        > * Box                                                            @designspaceBox = HorizontalStack
+        >> ((  X View Sources X | View Instances | X DSE Controller X ))   @DSSettingsButton
+        # >> [ ]                                                           @viewSourcesCheckbox
+        # >> View Sources                                                  @viewSourcesText
+        # >> [ ]                                                           @viewInstancesCheckbox
+        # >> View Instances                                                @viewInstancesText
+        # >> [ ]                                                           @useDesignspaceController
+        # >> DSE Controller                                                @useDesignspaceText
+        > |-files----|                                                     @designspaceTable
+        > |          |
+        > |----------|
         """
 
         description_data = dict(
-            refreshOrderButton=dict(
-                height=20,
-                width=20,
-                # toolTip="Refresh Font Ordering"
+            contents=dict(
+                displayMode="text",
+                allowCustomization=True,
+                toolbarStyle="preference"
             ),
 
+            fontTab=dict(
+                identifier="fontTab",
+                image=symbolImage(symbolName="dot.square", color=(1,1,1,1), weight="regular"),
+                text="Fonts",
+                template=True,
+            ),
+            designspaceTab=dict(
+                identifier="designspaceTab",
+                image=symbolImage(symbolName="arrow.up.left.and.down.right.and.arrow.up.right.and.down.left", color=(1,1,1,1), weight="regular"),
+                text="Designspaces",
+                template=True,
+            ),
+
+
+            fontBox=dict(
+                height=50
+            ),
+            designspaceBox=dict(
+                height=50
+            ),
             fontTable=dict(
                 items=[
                     dict(use=use,path=path) for (path, (use, font)) in self.fonts.items()
@@ -580,52 +605,28 @@ class Spaceport(Subscriber, ezui.WindowController):
                 acceptedDropFileTypes=[".ufo", ".ufoz"],
                 allowsDropBetweenRows=True,
                 allowsInternalDropReordering=True,
-                showColumnTitles=False,
+                showColumnTitles=True,
                 enableDelete=True,
                 alternatingRowColors=True,
                 columnDescriptions=[
                     dict(
                         editable=True,
-                        width=20,
+                        width=50,
                         identifier="use",
-                        title="View",
+                        title="Display",
                         cellDescription=dict(
                             cellType="Checkbox"
                         )
                     ),
                     dict(
                         identifier="path",
-                        title="Path",
+                        title="UFO",
                         cellClassArguments=dict(
                             showFullPath=False
                     )),
 
                 ]
             ),
-        )
-        self.w.af = ezui.EZSheet(
-            size=(400, 300),
-            content=content,
-            descriptionData=description_data,
-            parent=self.w,
-            controller=self
-        )
-
-        indexes = [ii for ii,(i,obj) in enumerate(self.fonts.items()) if obj[0]]
-        self.w.af.getItem("fontTable").setSelectedIndexes(indexes)
-
-
-    def build_designspace_sheet(self):
-
-        content = """
-        |-files----| @designspaceTable
-        |          |
-        |----------|
-        """
-        if not self.designspaces:
-            self.designspaces = {dsp.path:(False, dsp) for dsp in AllDesignspaces()}
-
-        description_data = dict(
             designspaceTable=dict(
                 items=[
                     dict(use=use,path=path) for (path, (use, dsp)) in self.designspaces.items()
@@ -635,35 +636,40 @@ class Spaceport(Subscriber, ezui.WindowController):
                 allowsMultipleSelection=False,
                 allowsDropBetweenRows=True,
                 allowsDragOut=False,
-                showColumnTitles=False,
+                showColumnTitles=True,
                 alternatingRowColors=True,
                 columnDescriptions=[
                   dict(
                         editable=True,
-                        width=20,
+                        width=50,
                         identifier="use",
-                        title="View",
+                        title="Display",
                         cellDescription=dict(
                             cellType="Checkbox"
                         )
                     ),
                     dict(
                         identifier="path",
-                        title="Path"
+                        title="Designspace"
                     ),
                 ]
             ),
         )
 
-        self.w.dsp = ezui.EZSheet(
-            size=(400, 300),
+        self.w.objw = ezui.EZSheet(
+            autosaveName="objectController",
+            size=(500,500),
             content=content,
             descriptionData=description_data,
             parent=self.w,
             controller=self
         )
+        # self.cleanUpUI()
 
-        table=self.w.dsp.getItem("designspaceTable")
+        indexes = [ii for ii,(i,obj) in enumerate(self.fonts.items()) if obj[0]]
+        self.w.objw.getItem("fontTable").setSelectedIndexes(indexes)
+
+        table=self.w.objw.getItem("designspaceTable")
         selection_index = None
         if self.operator:
             for ii, (path,(use, obj)) in enumerate(self.designspaces.items()):
@@ -671,6 +677,21 @@ class Spaceport(Subscriber, ezui.WindowController):
                     selection_index = ii
         if selection_index != None:
             table.setSelectedIndexes([selection_index])
+
+    def cleanUpUI(self):
+        """
+        update UI after building
+        """
+        font = AppKit.NSFont.monospacedSystemFontOfSize_weight_(11, 0)
+        for item in self.w.objw.getItems():
+            ii = self.w.objw.getItem(item)
+            if isinstance(ii, ezui.items.label.Label):
+                ii.getNSTextField().setFont_(font)
+            elif isinstance(ii, (ezui.items.checkbox.Checkbox, ezui.items.pushButton.PushButton)):
+                ii.getNSButton().setFont_(font)
+            elif isinstance(ii, ezui.items.segmentButton.SegmentButton):
+                ii.getNSSegmentedButton().setFont_(font)
+
 
 
     def designspaceSettingsChanged(self, **kwargs):
@@ -690,17 +711,23 @@ class Spaceport(Subscriber, ezui.WindowController):
             if "Preview Location" not in self.fonts.keys():
                 # create a temporary instance that we can interpolate on if no fonts are selected
                 temp = internalFontClasses.createFontObject()
+                temp.info.familyName = "Preview Location"
                 temp.lib["descriptor"] = "instance"
                 temp.lib["location"]   = obj.findDefault().designLocation
                 obj.makeOneInfo(temp.lib["location"]).extractInfo(temp.info)
 
-                cont, disc = obj.splitLocation(temp.lib["location"])
-                if disc:
-                    ss = [s for s,l in obj.getFonts() if set(disc.items()).issubset(l.items())]
-                    if ss:
-                        temp.lib["com.typemytype.robofont.italicSlantOffset"] = ss[0].lib.get("com.typemytype.robofont.italicSlantOffset", 0)
-                else:
-                    temp.lib["com.typemytype.robofont.italicSlantOffset"] = obj.getFonts()[0][0].lib.get("com.typemytype.robofont.italicSlantOffset", 0)
+                libMutator = obj.getLibEntryMutator(obj.getLocationType(temp.lib["location"])[2])
+                if libMutator:
+                    lib = libMutator.makeInstance(temp.lib["location"])
+                    temp.lib["com.typemytype.robofont.italicSlantOffset"] = lib.get("com.typemytype.robofont.italicSlantOffset", 0)
+
+                # cont, disc = obj.splitLocation(temp.lib["location"])
+                # if disc:
+                #     ss = [s for s,l in obj.getFonts() if set(disc.items()).issubset(l.items())]
+                #     if ss:
+                #         temp.lib["com.typemytype.robofont.italicSlantOffset"] = ss[0].lib.get("com.typemytype.robofont.italicSlantOffset", 0)
+                # else:
+                #     temp.lib["com.typemytype.robofont.italicSlantOffset"] = obj.getFonts()[0][0].lib.get("com.typemytype.robofont.italicSlantOffset", 0)
                 items = list(self.fonts.items())
                 items.insert(0, ('Preview Location', (False, temp)))
                 self.fonts = dict(items)
@@ -718,13 +745,18 @@ class Spaceport(Subscriber, ezui.WindowController):
                     inst.lib["location"]   = instance.designLocation
                     obj.makeOneInfo(instance.designLocation).extractInfo(inst.info)
 
-                    cont, disc = obj.splitLocation(instance.designLocation)
-                    if disc:
-                        ss = [s for s,l in obj.getFonts() if set(disc.items()).issubset(l.items())]
-                        if ss:
-                            inst.lib["com.typemytype.robofont.italicSlantOffset"] = ss[0].lib.get("com.typemytype.robofont.italicSlantOffset", 0)
-                    else:
-                        inst.lib["com.typemytype.robofont.italicSlantOffset"] = obj.getFonts()[0][0].lib.get("com.typemytype.robofont.italicSlantOffset", 0)
+                    libMutator = obj.getLibEntryMutator(obj.getLocationType(instance.designLocation)[2])
+                    if libMutator:
+                        lib = libMutator.makeInstance(instance.designLocation)
+                        inst.lib["com.typemytype.robofont.italicSlantOffset"] = lib.get("com.typemytype.robofont.italicSlantOffset", 0)
+
+                    # cont, disc = obj.splitLocation(instance.designLocation)
+                    # if disc:
+                    #     ss = [s for s,l in obj.getFonts() if set(disc.items()).issubset(l.items())]
+                    #     if ss:
+                    #         inst.lib["com.typemytype.robofont.italicSlantOffset"] = ss[0].lib.get("com.typemytype.robofont.italicSlantOffset", 0)
+                    # else:
+                    #     inst.lib["com.typemytype.robofont.italicSlantOffset"] = obj.getFonts()[0][0].lib.get("com.typemytype.robofont.italicSlantOffset", 0)
                     self.fonts[instance.path] = (True,inst)
             self.populateItems()
 
@@ -756,15 +788,15 @@ class Spaceport(Subscriber, ezui.WindowController):
         return operators
 
 
-    def addFontCallback(self, sender):
-        self.build_fonts_sheet()
-        self.w.af.open()
+    def addObjectsCallback(self, sender):
+        self.build_objects_sheet()
+        self.w.objw.open()
 
 
     def refreshOrderButtonCallback(self, sender):
-        reordered = [item["path"] for item in self.w.af.getItemValue("fontTable")]
+        reordered = [item["path"] for item in self.w.objw.getItemValue("fontTable")]
         if reordered != list(self.fonts.keys()):
-            self.fonts = {item["path"]:(item["use"],self.fonts[item["path"]][1]) for item in self.w.af.getItemValue("fontTable")}
+            self.fonts = {item["path"]:(item["use"],self.fonts[item["path"]][1]) for item in self.w.objw.getItemValue("fontTable")}
             self.populateItems()
 
 
@@ -799,7 +831,7 @@ class Spaceport(Subscriber, ezui.WindowController):
         if file:
             opened = OpenFont(file)
             self.fonts[file] = (True, opened)
-            self.w.af.getItem("fontTable").close()
+            self.w.objw.getItem("fontTable").close()
         self.populateItems()
 
 
@@ -813,8 +845,8 @@ class Spaceport(Subscriber, ezui.WindowController):
 
 
     def addDesignspaceCallback(self, sender):
-        self.build_designspace_sheet()
-        self.w.dsp.open()
+        self.build_objects_sheet()
+        self.w.objw.open()
 
 
     def spacingCallback(self, sender):
@@ -881,9 +913,9 @@ class Spaceport(Subscriber, ezui.WindowController):
         #     self.vp.open()
 
 
-    def contentCallback(self, sender):
-        self.internalPreview = True
-        self.operator.setPreviewLocation(location=sender.get())
+    # def contentCallback(self, sender):
+    #     self.internalPreview = True
+    #     self.operator.setPreviewLocation(location=sender.get())
 
 
     def viewOptionsCallback(self,sender):
@@ -1015,10 +1047,6 @@ class Spaceport(Subscriber, ezui.WindowController):
         self.showFill      = 0 in values
         self.showStroke    = 1 in values
         self.showPoints    = 2 in values
-
-        self.openSources   = self.v.getItemValue("openSourcesCheckbox")
-        self.viewSources   = self.v.getItemValue("viewSourcesCheckbox")
-        self.viewInstances = self.v.getItemValue("viewInstancesCheckbox")
 
         self.beamPosition  = self.v.getItemValue("beamPositionSlider")
         self.showBeam      = self.v.getItemValue("showBeamButton")
@@ -1317,11 +1345,13 @@ class Spaceport(Subscriber, ezui.WindowController):
             item.location = loc
             infoMutator = self.operator.makeOneInfo(loc)
             item.skewAngle = infoMutator.italicAngle
+            item.font.info.italicAngle = item.skewAngle
 
             libMutator = self.operator.getLibEntryMutator(self.operator.getLocationType(loc)[2])
             if libMutator:
                 lib = libMutator.makeInstance(loc)
                 item.offset = lib.get("com.typemytype.robofont.italicSlantOffset", 0)
+                item.font.lib["com.typemytype.robofont.italicSlantOffset"] = item.offset
 
             mathGlyph = self.operator.makeOneGlyph(item.name, loc, decomposeComponents=True)
             if mathGlyph is not None:
@@ -1503,10 +1533,14 @@ class Spaceport(Subscriber, ezui.WindowController):
             except IndexError:
                 next_glyph = None
 
-            right = glyph.getRayRightMargin(self.beamPosition, font.info.italicAngle) or 0
-            left = glyph.getRayLeftMargin(self.beamPosition, font.info.italicAngle) or 0
+            right = glyph.getRayRightMargin(self.beamPosition, item.skewAngle) or 0
+            left = glyph.getRayLeftMargin(self.beamPosition, item.skewAngle) or 0
 
-            aa = font.info.italicAngle
+            if font.info.familyName == "Preview Location":
+                right += item.offset
+                left -= item.offset
+
+            aa = item.skewAngle
             if aa:
                 aa *= -1
             else:
@@ -1571,7 +1605,10 @@ class Spaceport(Subscriber, ezui.WindowController):
                 # else:
                 #     next = font[next_glyph]
 
-                other_left = next_glyph.getRayLeftMargin(self.beamPosition, font.info.italicAngle) or 0
+                other_left = next_glyph.getRayLeftMargin(self.beamPosition, item.skewAngle) or 0
+
+                if font.info.familyName == "Preview Location":
+                    other_left -= item.offset
 
                 beamIndicatorLayer.appendLineSublayer(
                     startPoint=((glyph.width - right)+tp, self.beamPosition),
