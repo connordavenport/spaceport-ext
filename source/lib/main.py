@@ -21,6 +21,8 @@ from vanilla.vanillaBase import osVersionCurrent, osVersion12_0
 from glyphNameFormatter.reader import n2u
 import os
 from fontTools.misc import transform
+from fontTools.designspaceLib import (DesignSpaceDocument, AxisDescriptor,
+                                      SourceDescriptor, InstanceDescriptor)
 import math
 from pprint import pprint
 from designspaceEditor.ui import DesignspaceEditorController
@@ -73,6 +75,9 @@ class MerzCollectionViewRGlyphItem(merz.collectionView.MerzCollectionViewItem):
         self._skewAngle = kwargs.get("skewAngle", 0)
         self._scaler = kwargs.get("scaler", 1)
         self._location = kwargs.get("location", {})
+        self._selected = False
+        self._selectedVisible = False
+
         super().__init__(*args, **kwargs)
 
     def getName(self) -> str:
@@ -107,6 +112,16 @@ class MerzCollectionViewRGlyphItem(merz.collectionView.MerzCollectionViewItem):
         self.getLayer("glyphContainer").getSublayer("selectionIndicator").setVisible(value)
 
     selected = property(getSelected, setSelected)
+
+    def getSelectedVisible(self) -> bool:
+        return self._selectedVisible
+
+    def setSelectedVisible(self, value:bool=False):
+        # not the same as .visible, this only controls the view state not the selected state
+        self._selectedVisible = value
+        self.getLayer("glyphContainer").getSublayer("selectionIndicator").setVisible(value)
+
+    selectedVisible = property(getSelectedVisible, setSelectedVisible)
 
     def getIndex(self) -> int:
         return self._index
@@ -466,17 +481,24 @@ class Spaceport(Subscriber, ezui.WindowController):
         self.w.open()
 
 
-    designspaceEditorPreviewLocationDidChangeDelay = 0.01
 
     # designspace editor notifcations
+    designspaceEditorPreviewLocationDidChangeDelay = 0.01
+
     def designspaceEditorPreviewLocationDidChange(self, notification):
         if self.designspaceController:
-            selectedFonts = list(set([i.font for i in self.selectedItems]))
+            selectedFonts = list(set([i.font for i in self.selectedItems if not i.onDisk]))
             if len(selectedFonts) == 1:
-                for item in self.collectionView.get():
-                    if item.font == selectedFonts[0] and not item.onDisk:
-                        self.updateItem(item, updated_location=notification["location"])
+                pass
+            elif not selectedFonts:
+                if not list(self.fonts.values())[0][0]:
+                    self.fontTableEditCallback(None)
+                # grab out dummy instance
+                selectedFonts = [list(self.fonts.values())[0][-1]]
 
+            for item in self.collectionView.get():
+                if item.font == selectedFonts[0]:
+                    self.updateItem(item, updated_location=notification["location"])
         self.collectionView.set(self.w.getItemValue("collectionView")) # i think that this is the only external-way to reload the view
 
 
@@ -530,6 +552,7 @@ class Spaceport(Subscriber, ezui.WindowController):
 
     def useDesignspaceControllerCallback(self, sender):
         self.designspaceController = self.v.getItemValue("useDesignspaceController")
+
 
     def showSpaceMatrixButtonCallback(self, sender):
         self.w.matrix.show(sender.get())
@@ -658,7 +681,31 @@ class Spaceport(Subscriber, ezui.WindowController):
             sources = kwargs.get("sources", obj.getFonts())
             instances = kwargs.get("instances", obj.instances)
 
-            # self.fonts = {}
+
+            if "temp.ufo" not in self.fonts.keys():
+                # create a temporary instance that we can interpolate on if no fonts are selected
+                temp = internalFontClasses.createFontObject()
+                temp.lib["descriptor"] = "instance"
+                temp.lib["location"]   = obj.findDefault().designLocation
+                obj.makeOneInfo(temp.lib["location"]).extractInfo(temp.info)
+
+                rev = []
+                cont, disc = obj.splitLocation(temp.lib["location"])
+                if disc:
+                    rev.append((obj, disc))
+                    ss = [s for s,l in obj.getFonts() if set(disc.items()).issubset(l.items())]
+                    if ss:
+                        temp.lib["com.typemytype.robofont.italicSlantOffset"] = ss[0].lib.get("com.typemytype.robofont.italicSlantOffset", 0)
+                else:
+                    temp.lib["com.typemytype.robofont.italicSlantOffset"] = obj.getFonts()[0][0].lib.get("com.typemytype.robofont.italicSlantOffset", 0)
+
+
+                items = list(self.fonts.items())
+                items.insert(0, ('temp.ufo', (False, temp)))
+                self.fonts = dict(items)
+
+                # self.fonts["temp.ufo"] = (False,temp)
+
 
             if self.viewSources:
                 for source,loc_data in sources:
@@ -668,6 +715,7 @@ class Spaceport(Subscriber, ezui.WindowController):
 
             if self.viewInstances:    
                 for instance in instances:
+
                     inst = internalFontClasses.createFontObject()
                     inst.lib["descriptor"] = "instance"
                     inst.lib["location"]   = instance.designLocation
@@ -724,8 +772,13 @@ class Spaceport(Subscriber, ezui.WindowController):
 
 
     def fontTableEditCallback(self, sender):
-        index = sender.getEditedIndex()
-        new   = sender.getEditedItem()["use"]
+        if sender:
+            index = sender.getEditedIndex()
+            new   = sender.getEditedItem()["use"]
+        else:
+            index = 0
+            new = True
+
         path  = list(self.fonts.keys())[index]
         use,font = self.fonts[path]
         self.fonts[path] = (new, font)
@@ -1052,11 +1105,14 @@ class Spaceport(Subscriber, ezui.WindowController):
                 location_data += f" s: {" ".join([f"{axis}:{value}" for axis,value in location.items()])}"
             elif font.lib.get("descriptor") == "instance":
                 location_data += f" i: {" ".join([f"{axis}:{value}" for axis,value in location.items()])}"
+            else:
+                location_data += f"    {os.path.basename(item.font.path)}"
 
             descriptorIndicatorLayer = glyphContainer.getSublayer("descriptorIndicator")
             with descriptorIndicatorLayer.propertyGroup():
                 if item.index == 0:
                     descriptorIndicatorLayer.appendTextLineSublayer(
+                        font="SFMono-Regular",
                         text=location_data,
                         pointSize=8,
                         position=(-50,-200*item.scaler),
@@ -1203,30 +1259,38 @@ class Spaceport(Subscriber, ezui.WindowController):
         glyphContainer = item.getLayer("glyphContainer")
         glyphMetricsLayer = glyphContainer.getSublayer("glyphMetrics")
 
+        glyph = item.glyph
         font = item.font
         loc = kwargs.get("updated_location")
         if loc:
+
+            item.location = loc
+            infoMutator = self.operator.makeOneInfo(loc)
+            item.skewAngle = infoMutator.italicAngle
+
+            libMutator = self.operator.getLibEntryMutator(self.operator.getLocationType(loc)[2])
+            if libMutator:
+                lib = libMutator.makeInstance(loc)
+                item.offset = lib.get("com.typemytype.robofont.italicSlantOffset", 0)
+                    
             mathGlyph = self.operator.makeOneGlyph(item.name, loc, decomposeComponents=True)
             if mathGlyph is not None:
                 glyph = internalFontClasses.createGlyphObject()
                 glyph = RGlyph(mathGlyph.extractGlyph(glyph))
-                location_data = f" i: {" ".join([f"{axis}:{value}" for axis,value in loc.items()])}"
-
                 loc_layer = glyphContainer.getSublayer("descriptorIndicator")
                 with loc_layer.propertyGroup():
                     loc_layer.clearSublayers()
                     if item.index == 0:
                         loc_layer.appendTextLineSublayer(
-                            text=location_data,
+                            text=f" 􀤒 {" ".join([f"{axis}:{round(value,3)}" for axis,value in loc.items()])}",
+                            font="SFMono-Regular",
                             pointSize=8,
                             position=(-50,-200*item.scaler),
-                            fillColor=(*self.foreground[0:3], .5),
+                            fillColor=(0.5819, 0.2157, 1.0, 1.0),
                             horizontalAlignment="left",
                             verticalAlignment="center",
-                            anchor=(.5,.5)
+                            anchor=(.5,.5),
                         )
-
-        
         skewAngle = item.skewAngle
         item.setWidth(glyph.width)
 
@@ -1256,10 +1320,16 @@ class Spaceport(Subscriber, ezui.WindowController):
 
         glyphFillLayer = glyphContainer.getSublayer("glyphFill")
         #with glyphFillLayer.propertyGroup():    # for some reason this wont work inside a property group
+        try: glyphFillLayer.removeTransformation("translate")
+        except: pass
+        glyphFillLayer.addTranslationTransformation((-item.offset, 0), "translate")
         glyphFillLayer.setPath(glyph.getRepresentation("merz.CGPath"))
 
         glyphStrokeLayer = glyphContainer.getSublayer("glyphStroke")
         #with glyphStrokeLayer.propertyGroup():    # for some reason this wont work inside a property group
+        try: glyphStrokeLayer.removeTransformation("translate")
+        except: pass
+        glyphStrokeLayer.addTranslationTransformation((-item.offset, 0), "translate")
         glyphStrokeLayer.setPath(glyph.getRepresentation("merz.CGPath"))
 
         glyphPointsLayer = glyphContainer.getSublayer("glyphPoints")
@@ -1273,7 +1343,7 @@ class Spaceport(Subscriber, ezui.WindowController):
                         x = point.x
                         y = point.y
                         glyphPointsLayer.appendOvalSublayer(
-                            position=(x, y),
+                            position=(x-item.offset, y),
                             size=(onCurve,onCurve),
                             anchor=(.5,.5),
                             fillColor=(0, 0, 0, 1),
@@ -1285,6 +1355,11 @@ class Spaceport(Subscriber, ezui.WindowController):
         selection = glyphContainer.getSublayer("selectionIndicator").getSublayer("selectionIndicatorDrawing")
         selection.setPosition((0,font.info.descender))
         selection.setSize((glyph.width, abs(font.info.descender) + font.info.ascender))
+                # if switching from roman <> italic, we need to update the selection indicator skew
+        if kwargs.get("updated_location"):
+            try: selection.removeTransformation("skew")
+            except: pass
+            if item.skewAngle: selection.addSublayerSkewTransformation((-item.skewAngle))
 
 
     def populateItems(self, reload:bool=False):
@@ -1353,6 +1428,10 @@ class Spaceport(Subscriber, ezui.WindowController):
         self._cache_ = self.glyphs
         self.collectionView.set(items)
 
+        items = self.w.getItemValue("collectionView")
+        for item in items:
+            self.beamController(item)
+            
         self.w.matrix.set(_glyphRecords)
 
 
@@ -1367,7 +1446,7 @@ class Spaceport(Subscriber, ezui.WindowController):
 
         with beamIndicatorLayer.propertyGroup():
             try:
-                next_glyph = self.glyphs[item.index+1]
+                next_glyph = [ii for ii in self.collectionView.get() if item.font == ii.font][item.index+1].glyph
             except IndexError:
                 next_glyph = None
 
@@ -1430,16 +1509,16 @@ class Spaceport(Subscriber, ezui.WindowController):
                 strokeWidth=1,
                 )
             if next_glyph:
-                if font.lib.get("descriptor") == "instance":
-                    mathGlyph = self.operator.makeOneGlyph(next_glyph, font.lib.get("location"), decomposeComponents=True)
-                    if mathGlyph is not None:
-                        glyph = internalFontClasses.createGlyphObject()
-                        mathGlyph.extractGlyph(glyph)
-                        next = RGlyph(glyph)
-                else:
-                    next = font[next_glyph]
+                # if font.lib.get("descriptor") == "instance":
+                #     mathGlyph = self.operator.makeOneGlyph(next_glyph, item.location, decomposeComponents=True)
+                #     if mathGlyph is not None:
+                #         glyph = internalFontClasses.createGlyphObject()
+                #         mathGlyph.extractGlyph(glyph)
+                #         next = RGlyph(glyph)
+                # else:
+                #     next = font[next_glyph]
 
-                other_left = next.getRayLeftMargin(self.beamPosition, font.info.italicAngle) or 0
+                other_left = next_glyph.getRayLeftMargin(self.beamPosition, font.info.italicAngle) or 0
 
                 beamIndicatorLayer.appendLineSublayer(
                     startPoint=((glyph.width - right)+tp, self.beamPosition),
