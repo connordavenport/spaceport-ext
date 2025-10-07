@@ -1282,8 +1282,9 @@ class Spaceport(Subscriber, ezui.WindowController):
                 with loc_layer.propertyGroup():
                     loc_layer.clearSublayers()
                     if item.index == 0:
+                        formatted = [f"{axis}:{round(value,3)}" for axis,value in loc.items()]
                         loc_layer.appendTextLineSublayer(
-                            text=f" 􀤒 {" ".join([f"{axis}:{round(value,3)}" for axis,value in loc.items()])}",
+                            text=f" 􀤒 {' '.join(formatted)}",
                             font="SFMono-Regular",
                             pointSize=8,
                             position=(-50,-200*item.scaler),
