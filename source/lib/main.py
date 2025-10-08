@@ -59,10 +59,6 @@ KERN_HEIGHT = 100
 POS_KERN_COLOR = (0,0,1)
 NEG_KERN_COLOR = (1,0,0)
 
-SOURCE_ICON = "􀀨"
-INSTANCE_ICON = "􀀔"
-STATIC_ICON = ""
-
 
 class MerzCollectionViewRGlyphItem(merz.collectionView.MerzCollectionViewItem):
 
@@ -262,7 +258,8 @@ class Spaceport(Subscriber, ezui.WindowController):
         self.sources   = []
         self.instances = []
 
-        self.beamPosition = int(self.font.info.xHeight / 2)
+        self.beamPosition = int(getattr(getattr(self.font, "info", None), "xHeight", 500) / 2)
+        self.upm = int(getattr(getattr(self.font, "info", None), "unitsPerEm", 1000))
 
         toolbar = dict(
             autosaveName="demoToolbar",
@@ -375,8 +372,8 @@ class Spaceport(Subscriber, ezui.WindowController):
             ),
             beamPositionSlider=dict(
                 minValue=0,
-                maxValue=self.font.info.unitsPerEm,
-                value=int(self.font.info.xHeight/2)
+                maxValue=self.upm,
+                value=self.beamPosition
             ),
             showKerningButton=dict(
                 # hide=False,
@@ -419,7 +416,7 @@ class Spaceport(Subscriber, ezui.WindowController):
         description_data = dict(
             textField=dict(
                 width="fill",
-                font=self.font
+                font=self.font or internalFontClasses.createFontObject(),
             ),
             pointSizeField=dict(
                 textFieldWidth=numberFieldWidth,
@@ -472,7 +469,10 @@ class Spaceport(Subscriber, ezui.WindowController):
         self.showMetricsButtonCallback(None)
         #self.showKerningButtonCallback(None)
         self.textFieldCallback(None)
-        
+
+        if not self.fonts and not self.designspaces:
+            window = self.build_objects_sheet()
+            window.open()
 
     def started(self):
         self.w.open()
@@ -553,6 +553,7 @@ class Spaceport(Subscriber, ezui.WindowController):
         > * Box                                                            @fontBox = HorizontalStack
         >> ( Refresh Order )                                               @refreshOrderButton
         >> ( Add All Open Fonts )                                          @openAllFontsButton
+        >> [X] Open Font Interface                                         @openFontWithUIButton
         > |-files----|                                                     @fontTable
         > |          |  
         > |----------|  
@@ -576,7 +577,6 @@ class Spaceport(Subscriber, ezui.WindowController):
                 allowCustomization=True,
                 toolbarStyle="preference"
             ),
-
             fontTab=dict(
                 identifier="fontTab",
                 image=symbolImage(symbolName="dot.square", color=(1,1,1,1), weight="regular"),
@@ -589,8 +589,6 @@ class Spaceport(Subscriber, ezui.WindowController):
                 text="Designspaces",
                 template=True,
             ),
-
-
             fontBox=dict(
                 height=50
             ),
@@ -664,7 +662,6 @@ class Spaceport(Subscriber, ezui.WindowController):
             parent=self.w,
             controller=self
         )
-        # self.cleanUpUI()
 
         indexes = [ii for ii,(i,obj) in enumerate(self.fonts.items()) if obj[0]]
         self.w.objw.getItem("fontTable").setSelectedIndexes(indexes)
@@ -677,30 +674,14 @@ class Spaceport(Subscriber, ezui.WindowController):
                     selection_index = ii
         if selection_index != None:
             table.setSelectedIndexes([selection_index])
+        return self.w.objw
 
-    def cleanUpUI(self):
-        """
-        update UI after building
-        """
-        font = AppKit.NSFont.monospacedSystemFontOfSize_weight_(11, 0)
-        for item in self.w.objw.getItems():
-            ii = self.w.objw.getItem(item)
-            if isinstance(ii, ezui.items.label.Label):
-                ii.getNSTextField().setFont_(font)
-            elif isinstance(ii, (ezui.items.checkbox.Checkbox, ezui.items.pushButton.PushButton)):
-                ii.getNSButton().setFont_(font)
-            elif isinstance(ii, ezui.items.segmentButton.SegmentButton):
-                ii.getNSSegmentedButton().setFont_(font)
-
-
-
+        
     def designspaceSettingsChanged(self, **kwargs):
         obj = kwargs.get("object", self.operator)
-
         if obj:
             sources = kwargs.get("sources", obj.getFonts())
             instances = kwargs.get("instances", obj.instances)
-
             # remove designspace items
             fonts_dict = list(self.fonts.items())
             for _path, (_view, _font) in fonts_dict:
@@ -721,13 +702,6 @@ class Spaceport(Subscriber, ezui.WindowController):
                     lib = libMutator.makeInstance(temp.lib["location"])
                     temp.lib["com.typemytype.robofont.italicSlantOffset"] = lib.get("com.typemytype.robofont.italicSlantOffset", 0)
 
-                # cont, disc = obj.splitLocation(temp.lib["location"])
-                # if disc:
-                #     ss = [s for s,l in obj.getFonts() if set(disc.items()).issubset(l.items())]
-                #     if ss:
-                #         temp.lib["com.typemytype.robofont.italicSlantOffset"] = ss[0].lib.get("com.typemytype.robofont.italicSlantOffset", 0)
-                # else:
-                #     temp.lib["com.typemytype.robofont.italicSlantOffset"] = obj.getFonts()[0][0].lib.get("com.typemytype.robofont.italicSlantOffset", 0)
                 items = list(self.fonts.items())
                 items.insert(0, ('Preview Location', (False, temp)))
                 self.fonts = dict(items)
@@ -750,14 +724,11 @@ class Spaceport(Subscriber, ezui.WindowController):
                         lib = libMutator.makeInstance(instance.designLocation)
                         inst.lib["com.typemytype.robofont.italicSlantOffset"] = lib.get("com.typemytype.robofont.italicSlantOffset", 0)
 
-                    # cont, disc = obj.splitLocation(instance.designLocation)
-                    # if disc:
-                    #     ss = [s for s,l in obj.getFonts() if set(disc.items()).issubset(l.items())]
-                    #     if ss:
-                    #         inst.lib["com.typemytype.robofont.italicSlantOffset"] = ss[0].lib.get("com.typemytype.robofont.italicSlantOffset", 0)
-                    # else:
-                    #     inst.lib["com.typemytype.robofont.italicSlantOffset"] = obj.getFonts()[0][0].lib.get("com.typemytype.robofont.italicSlantOffset", 0)
                     self.fonts[instance.path] = (True,inst)
+                    
+            if not self.font and self.fonts:
+                self.setMainFont()
+                
             self.populateItems()
 
 
@@ -772,6 +743,18 @@ class Spaceport(Subscriber, ezui.WindowController):
 
         self.designspaces[path] = ([item["use"] for item in sender.get() if item["path"] == path][0], obj)
         self.designspaceSettingsChanged(object=obj, sources=self.sources, instances=self.instances)
+        self.textFieldCallback(None)
+        self.w.objw.getItem("fontTable").set(dict(use=use,path=path) for (path, (use, font)) in self.fonts.items())
+        self.populateItems()
+
+
+    def setMainFont(self, operator=None, setText=False):
+        if operator:
+            self.font = operator.getFonts()[0][0]
+        else:
+            self.font = list(self.fonts.values())[1][-1]
+        self.upm = self.font.info.unitsPerEm
+        if setText: self.te.getItem("textField").setFont(self.font)
 
 
     def designspaceTableCreateItemsForDroppedPathsCallback(self, sender, paths):
@@ -785,6 +768,8 @@ class Spaceport(Subscriber, ezui.WindowController):
                 path=path,
             )
             operators.append(item)
+            
+        self.setMainFont(operator, True)
         return operators
 
 
@@ -811,18 +796,23 @@ class Spaceport(Subscriber, ezui.WindowController):
         path  = list(self.fonts.keys())[index]
         use,font = self.fonts[path]
         self.fonts[path] = (new, font)
-        self.populateItems()
+        #self.populateItems()
+        self.textFieldCallback(None)
+
 
 
     def fontTableCreateItemsForDroppedPathsCallback(self, sender, paths):
         fonts = []
+        _temp = list(self.fonts.keys())
         for path in paths:
-            opened = OpenFont(path)
-            self.fonts[path] = (True, opened)
+            opened = OpenFont(path, self.w.objw.getItemValue("openFontWithUIButton"))
+            self.fonts[path] = (False, opened)
             item = dict(
+                use=False,
                 path=path,
             )
             fonts.append(item)
+        self.setMainFont()
         return fonts
 
 
@@ -937,13 +927,14 @@ class Spaceport(Subscriber, ezui.WindowController):
         glyphNames = self.te.getItemValue("textField")
         font = self.font
         holding = []
-        for name in glyphNames:
-            if name in font.keys():
-                holding.append(name)
+        if font:
+            for name in glyphNames:
+                if name in font.keys():
+                    holding.append(name)
 
-            elif name == CURRENTGLYPH_CHAR:
-                if CurrentGlyph() is not None:
-                    holding.append(CurrentGlyph().name)
+                elif name == CURRENTGLYPH_CHAR:
+                    if CurrentGlyph() is not None:
+                        holding.append(CurrentGlyph().name)
 
         self.glyphs = holding
         self.subscribeToGlyphs()
@@ -961,8 +952,8 @@ class Spaceport(Subscriber, ezui.WindowController):
         pointSize = values["pointSizeField"]
         lineHeight = values["lineHeightField"]
         alignment = ("left", "center", "right")[al_vals["alignmentSegmentButton"]]
-        scale = pointSize / self.font.info.unitsPerEm
-        lineHeight = self.font.info.unitsPerEm * lineHeight * scale
+        scale = pointSize / self.upm
+        lineHeight = self.upm * lineHeight * scale
         inset = pointSize * 0.2
         minInset = 10
         maxInset = 30
@@ -1102,11 +1093,11 @@ class Spaceport(Subscriber, ezui.WindowController):
             onDisk=onDisk,
             skewAngle=skewAngle,
             italicOffset=off,
-            scaler=(font.info.unitsPerEm/1000),
+            scaler=(self.upm/1000),
             location=location,
         )
 
-        item.setHeight(font.info.unitsPerEm)
+        item.setHeight(self.upm)
         item.getCALayer().setGeometryFlipped_(True) # XXX Ugh. Yell at Tal about this.
         glyphContainer = merz.Base()
         item.appendLayer("glyphContainer", glyphContainer)
@@ -1170,7 +1161,7 @@ class Spaceport(Subscriber, ezui.WindowController):
 
         with item.propertyGroup():
             item.setWidth(glyph.width)
-            item.setHeight(font.info.unitsPerEm)
+            item.setHeight(self.upm)
 
             glyphContainer = item.getLayer("glyphContainer")
             glyphContainer.addTranslationTransformation(
@@ -1654,8 +1645,8 @@ class Spaceport(Subscriber, ezui.WindowController):
         else:
             factor = 1.15
         pointSize *= factor
-        scale = pointSize / self.font.info.unitsPerEm
-        lineHeight = self.font.info.unitsPerEm * lineHeight * scale
+        scale = pointSize / self.upm
+        lineHeight = self.upm * lineHeight * scale
 
         self.te.setItemValue("pointSizeField", pointSize)
         self.collectionView.setLayoutProperties(
@@ -1918,7 +1909,6 @@ class Spaceport(Subscriber, ezui.WindowController):
 
 #registerCurrentGlyphSubscriber(Spaceport)
 if __name__ == "__main__":
-    if CurrentFont():
-        Spaceport()
+    Spaceport()
 
 
