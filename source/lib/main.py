@@ -28,6 +28,13 @@ from pprint import pprint
 from designspaceEditor.ui import DesignspaceEditorController
 from designspaceEditor.locationPreview import PreviewLocationFinder
 
+import yaml
+
+INFO_YAML = os.path.abspath(os.path.join( __file__, "../../../", "info.yaml"))
+with open(INFO_YAML, mode="r") as file:
+    info = yaml.safe_load(file)
+EXTENSION_VERSION = info.get("version", "0.0.0")
+
 # ---------
 # Interface
 # ---------
@@ -246,6 +253,8 @@ class Spaceport(Subscriber, ezui.WindowController):
         self.fonts  = dict()
         self.glyphs = []
 
+        self._fontFolder = {}
+
 
         for f in AllFonts():
             f.lib["descriptor"] = ""
@@ -329,7 +338,7 @@ class Spaceport(Subscriber, ezui.WindowController):
             )
         )
         self.w = ezui.EZWindow(
-            title="Spaceport",
+            title=f"Spaceport v{EXTENSION_VERSION}",
             toolbar=toolbar,
             content=content,
             descriptionData=description_data,
@@ -676,60 +685,77 @@ class Spaceport(Subscriber, ezui.WindowController):
             table.setSelectedIndexes([selection_index])
         return self.w.objw
 
+    def openAllFontsButtonCallback(self, sender):
+        current = self.fonts.keys()
+        for f in AllFonts():
+            if f.path not in current:
+                self.fonts[f.path] = (False, f)
+        self.fonts = {path:(True,font) for path,(view,font) in self.fonts.items()}
+        self.w.objw.getItem("fontTable").set(dict(use=use,path=path) for (path, (use, font)) in self.fonts.items())                
+        self.populateItems()
+
         
     def designspaceSettingsChanged(self, **kwargs):
         obj = kwargs.get("object", self.operator)
-        if obj:
-            sources = kwargs.get("sources", obj.getFonts())
-            instances = kwargs.get("instances", obj.instances)
-            # remove designspace items
-            fonts_dict = list(self.fonts.items())
-            for _path, (_view, _font) in fonts_dict:
-                if _view: 
-                    if _font.lib.get("descriptor") in ["instance", "source"]:
+        reset = kwargs.get("reset", False)
+        if reset:
+            self.fonts = self._fontFolder
+        else:
+            if obj:
+                sources = kwargs.get("sources", obj.getFonts())
+                instances = kwargs.get("instances", obj.instances)
+                # remove designspace items
+                fonts_dict = list(self.fonts.items())
+                for _path, (_view, _font) in fonts_dict:
+                    # if _view:    
+
+                    if _path in [p.path for (p,_) in self.sources]:
                         del self.fonts[_path]
+                        self._fontFolder[_path] = (_view, _font)
 
-            if "Preview Location" not in self.fonts.keys():
-                # create a temporary instance that we can interpolate on if no fonts are selected
-                temp = internalFontClasses.createFontObject()
-                temp.info.familyName = "Preview Location"
-                temp.lib["descriptor"] = "instance"
-                temp.lib["location"]   = obj.findDefault().designLocation
-                obj.makeOneInfo(temp.lib["location"]).extractInfo(temp.info)
+                if "Preview Location" not in self.fonts.keys():
+                    # create a temporary instance that we can interpolate on if no fonts are selected
+                    temp = internalFontClasses.createFontObject()
+                    temp.info.familyName = "Preview Location"
+                    temp.lib["descriptor"] = "instance"
+                    temp.lib["location"]   = obj.findDefault().designLocation
+                    obj.makeOneInfo(temp.lib["location"]).extractInfo(temp.info)
 
-                libMutator = obj.getLibEntryMutator(obj.getLocationType(temp.lib["location"])[2])
-                if libMutator:
-                    lib = libMutator.makeInstance(temp.lib["location"])
-                    temp.lib["com.typemytype.robofont.italicSlantOffset"] = lib.get("com.typemytype.robofont.italicSlantOffset", 0)
-
-                items = list(self.fonts.items())
-                items.insert(0, ('Preview Location', (False, temp)))
-                self.fonts = dict(items)
-
-            if self.viewSources:
-                for source,loc_data in sources:
-                    source.lib["descriptor"] = "source"
-                    source.lib["location"]   = loc_data                    
-                    self.fonts[source.path]  = (True,source)
-
-            if self.viewInstances:    
-                for instance in instances:
-                    inst = internalFontClasses.createFontObject()
-                    inst.lib["descriptor"] = "instance"
-                    inst.lib["location"]   = instance.designLocation
-                    obj.makeOneInfo(instance.designLocation).extractInfo(inst.info)
-
-                    libMutator = obj.getLibEntryMutator(obj.getLocationType(instance.designLocation)[2])
+                    libMutator = obj.getLibEntryMutator(obj.getLocationType(temp.lib["location"])[2])
                     if libMutator:
-                        lib = libMutator.makeInstance(instance.designLocation)
-                        inst.lib["com.typemytype.robofont.italicSlantOffset"] = lib.get("com.typemytype.robofont.italicSlantOffset", 0)
+                        lib = libMutator.makeInstance(temp.lib["location"])
+                        temp.lib["com.typemytype.robofont.italicSlantOffset"] = lib.get("com.typemytype.robofont.italicSlantOffset", 0)
 
-                    self.fonts[instance.path] = (True,inst)
-                    
-            if not self.font and self.fonts:
-                self.setMainFont()
-                
-            self.populateItems()
+                    items = list(self.fonts.items())
+                    items.insert(0, ('Preview Location', (False, temp)))
+                    self.fonts = dict(items)
+
+                if self.viewSources:
+                    for source,loc_data in sources:
+                        source.lib["descriptor"] = "source"
+                        source.lib["location"]   = loc_data                    
+                        self.fonts[source.path]  = (True,source)
+
+                if self.viewInstances:    
+                    for instance in instances:
+                        inst = internalFontClasses.createFontObject()
+                        inst.lib["descriptor"] = "instance"
+                        inst.lib["location"]   = instance.designLocation
+                        obj.makeOneInfo(instance.designLocation).extractInfo(inst.info)
+
+                        libMutator = obj.getLibEntryMutator(obj.getLocationType(instance.designLocation)[2])
+                        if libMutator:
+                            lib = libMutator.makeInstance(instance.designLocation)
+                            inst.lib["com.typemytype.robofont.italicSlantOffset"] = lib.get("com.typemytype.robofont.italicSlantOffset", 0)
+
+                        self.fonts[instance.path] = (True,inst)
+                        
+        if not self.font and self.fonts:
+            self.setMainFont()
+
+        self.w.objw.getItem("fontTable").set(dict(use=use,path=path) for (path, (use, font)) in self.fonts.items())                
+        self.populateItems()
+
 
 
     def designspaceTableEditCallback(self, sender):
@@ -740,11 +766,18 @@ class Spaceport(Subscriber, ezui.WindowController):
 
         self.sources = obj.getFonts()
         self.instances = obj.instances
+        view = [item["use"] for item in sender.get() if item["path"] == path][0]
 
-        self.designspaces[path] = ([item["use"] for item in sender.get() if item["path"] == path][0], obj)
-        self.designspaceSettingsChanged(object=obj, sources=self.sources, instances=self.instances)
+        self.designspaces[path] = (view, obj)
+        self.designspaceSettingsChanged(
+                                        object=obj,
+                                        sources=self.sources,
+                                        instances=self.instances,
+                                        reset=False if view else True
+        )
+
         self.textFieldCallback(None)
-        self.w.objw.getItem("fontTable").set(dict(use=use,path=path) for (path, (use, font)) in self.fonts.items())
+        #self.w.objw.getItem("fontTable").set(dict(use=use,path=path) for (path, (use, font)) in self.fonts.items())
         self.populateItems()
 
 
