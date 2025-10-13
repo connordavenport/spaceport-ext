@@ -609,7 +609,7 @@ class Spaceport(Subscriber, ezui.WindowController):
                     dict(use=use,path=path) for (path, (use, font)) in self.fonts.items()
                 ],
                 itemType="dict",
-                acceptedDropFileTypes=[".ufo", ".ufoz"],
+                acceptedDropFileTypes=[".ufo", ".ufoz", ".ufox"],
                 allowsDropBetweenRows=True,
                 allowsInternalDropReordering=True,
                 showColumnTitles=True,
@@ -850,7 +850,7 @@ class Spaceport(Subscriber, ezui.WindowController):
 
 
     def fontTableButtonsAddCallback(self, sender):
-        file = GetFile(fileTypes=["ufoz", "ufo"])
+        file = GetFile(fileTypes=["ufoz", "ufo", "ufox"])
         if file:
             opened = OpenFont(file)
             self.fonts[file] = (True, opened)
@@ -1029,11 +1029,12 @@ class Spaceport(Subscriber, ezui.WindowController):
             glyphStrokeLayer.setVisible(self.showStroke)
             glyphPointsLayer = glyphContainer.getSublayer("glyphPoints")
 
-            for symbol in glyphPointsLayer.getSublayers():
-                location = symbol.getPosition()
-                settings = symbol.getImageSettings()
-                settings["fillColor"] = foreground_color
-                symbol.setImageSettings(settings)
+            for point in glyphPointsLayer.getSublayers():
+                #location = point.getPosition()
+                #settings = point.getImageSettings()
+                #settings["fillColor"] = foreground_color
+                #point.setImageSettings(settings)
+                point.setFillColor(foreground_color)
             glyphPointsLayer.setVisible(self.showPoints)
         self.foreground = foreground_color
         self.background = background_color
@@ -1688,6 +1689,26 @@ class Spaceport(Subscriber, ezui.WindowController):
         )
 
 
+    def zoom(self, direction="out"):
+        values = self.te.getItemValues()
+        pointSize = values["pointSizeField"]
+        lineHeight = values["lineHeightField"]
+
+        if direction == "out":
+            factor = -10
+        else:
+            factor = 10
+        pointSize += factor
+        scale = pointSize / self.upm
+        lineHeight = self.upm * lineHeight * scale
+
+        self.te.setItemValue("pointSizeField", pointSize)
+        self.collectionView.setLayoutProperties(
+            scale=scale,
+            lineHeight=lineHeight
+        )
+
+
     def destroy(self):
         setExtensionDefault(EXTENSION_KEY + ".main_prefs", self.w.getItemValues())
         setExtensionDefault(EXTENSION_KEY + ".view_prefs", self.v.getItemValues())
@@ -1884,6 +1905,15 @@ class Spaceport(Subscriber, ezui.WindowController):
                         manager.undo()
                 elif char.lower() == "t":
                     self.te.open()
+
+                elif char == "=":
+                    # zoom in 
+                    self.zoom(direction="in")
+                elif char == "-":
+                    # zoom out
+                    self.zoom(direction="out")
+                    
+
 
             if mods == []:
                 if char.lower() == "b":
