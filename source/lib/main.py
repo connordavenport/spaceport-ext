@@ -16,7 +16,7 @@ from fontParts.world import CurrentGlyph, CurrentLayer, CurrentFont
 from mojo.roboFont import internalFontClasses
 import ezui
 import merz
-from mojo.subscriber import Subscriber, registerCurrentGlyphSubscriber, unregisterCurrentGlyphSubscriber, registerSubscriberEvent, getRegisteredSubscriberEvents
+from mojo.subscriber import Subscriber, registerCurrentGlyphSubscriber, unregisterCurrentGlyphSubscriber, registerSubscriberEvent, getRegisteredSubscriberEvents, Coalescer
 from vanilla.vanillaBase import osVersionCurrent, osVersion12_0
 from glyphNameFormatter.reader import n2u
 import os
@@ -27,7 +27,7 @@ import math
 from pprint import pprint
 from designspaceEditor.ui import DesignspaceEditorController
 from designspaceEditor.locationPreview import PreviewLocationFinder
-
+from merz.tools.typesetter import HorizontalTypesetter
 import yaml
 
 INFO_YAML = os.path.abspath(os.path.join( __file__, "../../../", "info.yaml"))
@@ -42,29 +42,32 @@ AXES = [
         "Weight",
         "Width",
         "Slant"
-       ]
+]
 
 
-EXTENSION_KEY = "com.connordavenport.spaceport"
+EXTENSION_KEY:str = "com.connordavenport.spaceport"
 
-CURRENTGLYPH_CHAR = "/?"
-NEWLINE_CHAR = "\\n"
+CURRENTGLYPH_CHAR:str = "/?"
+NEWLINE_CHAR:str = "\\n"
 
-EDIT_TEXT = "character.cursor.ibeam"
-ADD_FONT = "document.badge.gearshape"
-ADD_DESIGNSPACE = "squareshape.split.3x3"
-SPACING = "arrow.left.and.right.text.vertical"
-KERNING = "arrowtriangle.right.and.line.vertical.and.arrowtriangle.left"
-INTERPOLATE = "squareshape.split.2x2.dotted"
-VIEW_OPTIONS = "eye"
-SHOW_METRICS = "character.magnify"
-OPENTYPE = "textformat.alt"
-BEAM = "ruler"
+EDIT_TEXT:str = "character.cursor.ibeam"
+ADD_FONT:str = "document.badge.gearshape"
+ADD_DESIGNSPACE:str = "squareshape.split.3x3"
+SPACING:str = "arrow.left.and.right.text.vertical"
+KERNING:str = "arrowtriangle.right.and.line.vertical.and.arrowtriangle.left"
+INTERPOLATE:str = "squareshape.split.2x2.dotted"
+VIEW_OPTIONS:str = "eye"
+SHOW_METRICS:str = "character.magnify"
+OPENTYPE:str = "textformat.alt"
+BEAM:str = "ruler"
 
-KERN_HEIGHT = 100
+KERN_HEIGHT:int = 100
 
-POS_KERN_COLOR = (0,0,1)
-NEG_KERN_COLOR = (1,0,0)
+POS_KERN_COLOR:tuple = (0,0,1)
+NEG_KERN_COLOR:tuple = (1,0,0)
+
+ZOOM_IN_FACTOR:float = getDefault("zoomInFactor",.85)
+ZOOM_OUT_FACTOR:float = getDefault("zoomOutFactor",1.15)
 
 
 class MerzCollectionViewRGlyphItem(merz.collectionView.MerzCollectionViewItem):
@@ -266,6 +269,25 @@ class Spaceport(Subscriber, ezui.WindowController):
 
         self.sources   = []
         self.instances = []
+
+        self.pointSize = 30
+        self.scale = 1
+        self.lineHeight = round(30 * 1.2)
+
+        self.zoomCoalescer = Coalescer(
+            callback=self.zoomEnded,
+            delay=.1,
+            subscriptionKey=None,
+            coalescerKey=None,
+        )
+
+        self.typingCoalescer = Coalescer(
+            callback=self.subscribeToGlyphs,
+            delay=.5,
+            subscriptionKey=None,
+            coalescerKey=None,
+        )
+
 
         self.beamPosition = int(getattr(getattr(self.font, "info", None), "xHeight", 500) / 2)
         self.upm = int(getattr(getattr(self.font, "info", None), "unitsPerEm", 1000))
@@ -956,6 +978,7 @@ class Spaceport(Subscriber, ezui.WindowController):
 
 
     def textFieldCallback(self, sender):
+        self.typingCoalescer.restart()
         self.unsubscribeFromGlyphs()
         glyphNames = self.te.getItemValue("textField")
         font = self.font
@@ -970,7 +993,6 @@ class Spaceport(Subscriber, ezui.WindowController):
                         holding.append(CurrentGlyph().name)
 
         self.glyphs = holding
-        self.subscribeToGlyphs()
         self.populateItems()
 
 
@@ -1667,45 +1689,43 @@ class Spaceport(Subscriber, ezui.WindowController):
         # necessary for tracking mouse movement
         return True
 
-    def magnifyWithEvent(self, sender, event):
+    # def magnifyWithEvent(self, sender, event):
+    #     self.zoomCoalescer.restart()
+    #     self.zoom(delta=event.magnification())
+
+    def zoom(self, direction="out", delta=None):
         values = self.te.getItemValues()
         pointSize = values["pointSizeField"]
         lineHeight = values["lineHeightField"]
-        minScale = 0.1
-        maxScale = 3.0
-        magnificationDelta = event.magnification()
-        if magnificationDelta < 0:
-            factor = 0.85
+        setend = False
+
+        if delta:
+            if delta < 0:
+                factor = ZOOM_IN_FACTOR
+            else:
+                factor = ZOOM_OUT_FACTOR
+            pointSize *= factor
         else:
-            factor = 1.15
-        pointSize *= factor
-        scale = pointSize / self.upm
-        lineHeight = self.upm * lineHeight * scale
+            setend = True
+            if direction == "in":
+                factor = 15
+            else:
+                factor = -15
+            pointSize += factor
 
-        self.te.setItemValue("pointSizeField", pointSize)
+        self.pointSize = max(pointSize, 10)
+        self.scale = pointSize / self.upm
+        self.lineHeight = self.upm * lineHeight * self.scale
+
+        self.te.setItemValue("pointSizeField", self.pointSize)
+        # self.collectionView.getMerzContainer().setContainerScale(self.scale)
+        if setend: self.zoomEnded(None)
+
+
+    def zoomEnded(self, coalescer):
         self.collectionView.setLayoutProperties(
-            scale=scale,
-            lineHeight=lineHeight
-        )
-
-
-    def zoom(self, direction="out"):
-        values = self.te.getItemValues()
-        pointSize = values["pointSizeField"]
-        lineHeight = values["lineHeightField"]
-
-        if direction == "out":
-            factor = -10
-        else:
-            factor = 10
-        pointSize += factor
-        scale = pointSize / self.upm
-        lineHeight = self.upm * lineHeight * scale
-
-        self.te.setItemValue("pointSizeField", pointSize)
-        self.collectionView.setLayoutProperties(
-            scale=scale,
-            lineHeight=lineHeight
+            scale=self.scale,
+            lineHeight=self.lineHeight
         )
 
 
@@ -1716,6 +1736,8 @@ class Spaceport(Subscriber, ezui.WindowController):
         input_dict['textField'] = ''.join([chr(n2u(glyph)) for glyph in input_dict['textField']])
         setExtensionDefault(EXTENSION_KEY + ".input_prefs", input_dict)
         self.clearObservedAdjunctObjects()
+        self.zoomCoalescer.stop()
+        self.typingCoalescer.stop()
 
 
     def _getItemAtEvent(self, position:tuple=(0,0)) -> MerzCollectionViewRGlyphItem:
@@ -1926,6 +1948,14 @@ class Spaceport(Subscriber, ezui.WindowController):
                     for item in items:
                         self.beamController(item)
 
+                elif char == getDefault("glyphViewZoomInKey", "z"):
+                    # zoom in 
+                    self.zoom(direction="in")
+                elif char == getDefault("glyphViewZoomOutKey", "x"):
+                    # zoom out
+                    self.zoom(direction="out")
+                    
+
 
     def mouseMoved(self, view, event):
         pass
@@ -1937,7 +1967,7 @@ class Spaceport(Subscriber, ezui.WindowController):
         # print("debug::mouseUp")
 
 
-    def subscribeToGlyphs(self):
+    def subscribeToGlyphs(self, coalescer):
         glyphs = []
         for (__, obj) in self.fonts.values():
             try:
