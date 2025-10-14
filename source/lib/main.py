@@ -527,6 +527,7 @@ class Spaceport(Subscriber, ezui.WindowController):
                 if item.font == selectedFonts[0]:
                     self.updateItem(item, updated_location=notification["location"])
         self.collectionView.set(self.w.getItemValue("collectionView")) # i think that this is the only external-way to reload the view
+        self.collectionView._documentView.set(self.w.getItemValue("collectionView"))
 
 
     def designspaceEditorInstancesDidChangeSelection(self, notification):
@@ -730,10 +731,14 @@ class Spaceport(Subscriber, ezui.WindowController):
                 fonts_dict = list(self.fonts.items())
                 for _path, (_view, _font) in fonts_dict:
                     # if _view:    
-
                     if _path in [p.path for (p,_) in self.sources]:
                         del self.fonts[_path]
                         self._fontFolder[_path] = (_view, _font)
+
+
+                # temporarily disable font previews when changing sources
+                for path, (view, font) in self.fonts.items():
+                    self.fonts[path] = (False, font)
 
                 if "Preview Location" not in self.fonts.keys():
                     # create a temporary instance that we can interpolate on if no fonts are selected
@@ -775,7 +780,10 @@ class Spaceport(Subscriber, ezui.WindowController):
         if not self.font and self.fonts:
             self.setMainFont()
 
-        self.w.objw.getItem("fontTable").set(dict(use=use,path=path) for (path, (use, font)) in self.fonts.items())                
+        try:
+            self.w.objw.getItem("fontTable").set(dict(use=use,path=path) for (path, (use, font)) in self.fonts.items())                
+        except AttributeError:
+            pass
         self.populateItems()
 
 
@@ -1689,11 +1697,15 @@ class Spaceport(Subscriber, ezui.WindowController):
         # necessary for tracking mouse movement
         return True
 
-    # def magnifyWithEvent(self, sender, event):
-    #     self.zoomCoalescer.restart()
-    #     self.zoom(delta=event.magnification())
+    def magnifyWithEvent(self, sender, event):
+        self.zoomCoalescer.restart()
+        self.zoom(delta=event.magnification())
+
+    # def windowDidResize(self, sender):
+    #     print(self.collectionView._documentView._view.enclosingScrollView())
 
     def zoom(self, direction="out", delta=None):
+
         values = self.te.getItemValues()
         pointSize = values["pointSizeField"]
         lineHeight = values["lineHeightField"]
@@ -1718,7 +1730,46 @@ class Spaceport(Subscriber, ezui.WindowController):
         self.lineHeight = self.upm * lineHeight * self.scale
 
         self.te.setItemValue("pointSizeField", self.pointSize)
-        # self.collectionView.getMerzContainer().setContainerScale(self.scale)
+
+        typesetter = self.collectionView._documentView._typesetter
+
+        ### thanks tal, you're the BEST
+        self.collectionView.getMerzContainer().setContainerScale(self.scale)
+        typesetterScale = 1 / self.scale
+        x, y = self.collectionView._documentView._inset
+        x *= typesetterScale
+        y *= typesetterScale
+        typesetter.setPosition((x, y))
+        typesetter.setLineHeight(self.lineHeight * typesetterScale)
+
+        origin, (width, height) = self.collectionView._documentView._view.frame()
+        insetX, insetY = typesetter.getPosition()
+
+        (documentX, documentY), (documentWidth, documentHeight) = self.collectionView._documentView._view.visibleRect()
+        typesetterX = documentX * typesetterScale
+        typesetterY = documentY * typesetterScale
+        typesetterWidth = documentWidth * typesetterScale
+        typesetterHeight = documentHeight * typesetterScale
+        indexes = typesetter.getItemIndexesInRect((
+            typesetterX,
+            typesetterY,
+            typesetterWidth,
+            typesetterHeight
+        ))
+        items = []
+        maxLineWidth = width * typesetterScale
+        maxLineWidth -= insetX * 2
+        typesetter.setMaxLineWidth(maxLineWidth)
+        typesetter.breakLines()
+
+        for index in indexes:
+            try:
+                ira = typesetter[index]
+                ira.setPosition(typesetter.getItemPosition(index))
+            except:
+                pass
+        ###
+
         if setend: self.zoomEnded(None)
 
 
