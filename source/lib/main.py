@@ -30,6 +30,7 @@ from designspaceEditor.locationPreview import PreviewLocationFinder
 from merz.tools.typesetter import HorizontalTypesetter
 import yaml
 
+import time
 from drawBot.context.tools.drawBotbuiltins import remap
 
 INFO_YAML = os.path.abspath(os.path.join( __file__, "../../../", "info.yaml"))
@@ -72,6 +73,8 @@ ZOOM_IN_FACTOR:float = getDefault("zoomInFactor",.85)
 ZOOM_OUT_FACTOR:float = getDefault("zoomOutFactor",1.15)
 
 DESIGNSPACE_WIDTH = 300
+
+MATRIX_POS:tuple[int,int,int,int] = (0, -48, 0, 48)
 
 
 class MerzCollectionViewRGlyphItem(merz.collectionView.MerzCollectionViewItem):
@@ -356,7 +359,12 @@ class Spaceport(Subscriber, ezui.WindowController):
             ]
         )
 
-        content = """
+        content = ""
+        for i in range(4):
+            content += f"""
+            --------            @line{i}
+        """
+        content += """
         * MerzCollectionView    @collectionView
         """
         numberFieldWidth = 40
@@ -379,6 +387,10 @@ class Spaceport(Subscriber, ezui.WindowController):
             minSize=(400, 200),
         )
 
+        for i in range(4):
+            item = f"line{i}"
+            self.w.getItem(item).show(False)
+
         self.collectionView = self.w.getItem("collectionView")
         self.container = self.collectionView.getMerzContainer()
         self.marqueeLayer = self.container.appendRectangleSublayer()
@@ -386,7 +398,9 @@ class Spaceport(Subscriber, ezui.WindowController):
         self.collectionView.setBackgroundColor(AppKit.NSColor.whiteColor())
         # self.designspaceNav.setBackgroundColor(AppKit.NSColor.whiteColor())
         self.marqueeLayer = self.container.appendBaseSublayer()
+        
         self.w.matrix = spaceInput.SpaceInputScrollView((0, -48, 0, 48))
+        self.matrixPosition = 0
 
 
         content = """
@@ -397,7 +411,11 @@ class Spaceport(Subscriber, ezui.WindowController):
         [X] Multiline                                                 @multilineButton
         [ ] Show Kerning                                              @showKerningButton
         [X] Show Metrics                                              @showMetricsButton
+        -----
         [X] Show Space Matrix                                         @showSpaceMatrixButton
+        * HorizontalStack
+        > ({arrow.up.arrow.down})                                     @moveSpaceMatrixButton
+        > Move Matrix Position
         -----
         Invert Colors:
         ( {circle.dashed} | {circle.fill} )                           @invertColorsButton
@@ -430,6 +448,10 @@ class Spaceport(Subscriber, ezui.WindowController):
             ),
             showSpaceMatrixButton=dict(
                 value=True,
+            ),
+            moveSpaceMatrixButton=dict(
+                height=20,
+                width=13,
             ),
         )
 
@@ -485,7 +507,7 @@ class Spaceport(Subscriber, ezui.WindowController):
             parentAlignment="bottom",
             controller=self
         )
-        self.te.setItemValue("textField", "SPACEPORT")
+        self.te.setItemValue("textField", "SPACEPORT") 
         #contentViewController
         self.v.getItem("invertColorsButton").set(0)
         self.invertColorsButtonCallback(self.v.getItem("invertColorsButton"))
@@ -511,13 +533,12 @@ class Spaceport(Subscriber, ezui.WindowController):
         #self.showKerningButtonCallback(None)
         self.textFieldCallback(None)
 
-        if not self.fonts and not self.designspaces:
+        if not self.fonts:
             window = self.build_objects_sheet()
             window.open()
 
     def started(self) -> None:
         self.w.open()
-
 
     # designspace editor notifcations
     designspaceEditorPreviewLocationDidChangeDelay = 0.01
@@ -581,8 +602,29 @@ class Spaceport(Subscriber, ezui.WindowController):
         
 
     def showSpaceMatrixButtonCallback(self, sender) -> None:
+        if self.matrixPosition == 1:
+            for i in range(4):
+                item = f"line{i}"
+                self.w.getItem(item).show(sender.get())
         self.w.matrix.show(sender.get())
+
         
+    def moveSpaceMatrixButtonCallback(self, sender) -> None:
+        if self.w.matrix.isVisible():
+            if self.matrixPosition == 0:
+                self.matrixPosition = 1
+                x,y,w,h = MATRIX_POS
+                pos = (x,0,w,h)
+                show = True
+            else:
+                self.matrixPosition = 0
+                pos = MATRIX_POS
+                show = False
+
+            self.w.matrix.setPosSize(pos, False)
+            for i in range(4):
+                item = f"line{i}"
+                self.w.getItem(item).show(show)
 
     def build_objects_sheet(self) -> None:
 
