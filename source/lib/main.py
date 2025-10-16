@@ -512,9 +512,9 @@ class Spaceport(Subscriber, ezui.WindowController):
         self.v.getItem("invertColorsButton").set(0)
         self.invertColorsButtonCallback(self.v.getItem("invertColorsButton"))
         
-        # main_prefs = getExtensionDefault(EXTENSION_KEY + ".main_prefs", fallback=self.w.getItemValues())
-        # try: self.w.setItemValues(main_prefs)
-        # except (AttributeError, KeyError): pass
+        main_prefs = getExtensionDefault(EXTENSION_KEY + ".main_prefs", fallback=self.w.getItemValues())
+        try: self.w.setItemValues(main_prefs)
+        except (AttributeError, KeyError): pass
 
         view_prefs = getExtensionDefault(EXTENSION_KEY + ".view_prefs", fallback=self.v.getItemValues())
         try: self.v.setItemValues(view_prefs)
@@ -787,8 +787,9 @@ class Spaceport(Subscriber, ezui.WindowController):
                         del self.fonts[_path]
                         self._fontFolder[_path] = (_view, _font)
 
-
                 # temporarily disable font previews when changing sources
+
+                preview = self.fonts.get("Preview Location")
                 for path, (view, font) in self.fonts.items():
                     self.fonts[path] = (False, font)
 
@@ -828,10 +829,13 @@ class Spaceport(Subscriber, ezui.WindowController):
                             inst.lib["com.typemytype.robofont.italicSlantOffset"] = lib.get("com.typemytype.robofont.italicSlantOffset", 0)
 
                         self.fonts[instance.path] = (True,inst)
-                        
+
+                if preview:
+                    self.fonts["Preview Location"] = preview
+
+
         if not self.font and self.fonts:
             self.setMainFont(obj, True)
-
         try:
             self.w.objw.getItem("fontTable").set(dict(use=use,path=path) for (path, (use, font)) in self.fonts.items())                
         except AttributeError:
@@ -2000,6 +2004,8 @@ class Spaceport(Subscriber, ezui.WindowController):
     def mouseDragged(self, view, event) -> None:
 
         if isinstance(view, ezui.views.merzView.MerzView):
+
+            self.internalPreview = True
             self.hoverItem = None
             self.wasDragging = True
             container = view.getMerzContainer()
