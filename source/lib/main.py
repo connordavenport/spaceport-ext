@@ -275,8 +275,8 @@ class Spaceport(Subscriber, ezui.WindowController):
         self.designspaces = dict()
         self.operator = None
 
-        self.xAxis = None
-        self.yAxis = None
+        self.xAxis = self.yAxis = None
+        self.x = self.y = 0
 
         self.sources   = []
         self.instances = []
@@ -978,9 +978,7 @@ class Spaceport(Subscriber, ezui.WindowController):
         axes = "x"
         interpolatable = []
         if self.operator:
-            content = """
-            * TwoColumnForm
-            """
+            content = "*VerticalStack @axesSelectorStack"
             descriptionData = dict(
                 designspaceNav=dict(
                     height=300,
@@ -994,9 +992,9 @@ class Spaceport(Subscriber, ezui.WindowController):
                 value = axisDescriptor.default
                 if hasattr(axisDescriptor, "values"):
                     # discrete axis
-                    content += f"""
-                    > : {axisDescriptor.name}:
-                    > ( ...)         @{axisDescriptor.name}"""
+                    content += f""" *HorizontalStack
+                    > {axisDescriptor.name}:
+                    > ( ...)    @{axisDescriptor.name}"""
                     descriptionData[axisDescriptor.name] = dict(
                         items=[str(value) for value in axisDescriptor.values]
                     )
@@ -1004,20 +1002,21 @@ class Spaceport(Subscriber, ezui.WindowController):
                     interpolatable.append(axisDescriptor.name)
 
             content += f"""
-            * HorizontalStack  @axisSelectors
+            * HorizontalStack   @axisSelectors
             """
             content += f"""
             > x-axis:
-            > ( ...)         @xAxisSelection"""
-
+            > ( ...)            @xAxisSelection
+            """
             if len(interpolatable) > 1:
                 axes += "y"
                 content += f"""
                 > y-axis:
-                > ( ...)         @yAxisSelection"""
+                > ( ...)        @yAxisSelection
+            """
 
             content += f"""
-            * MerzView     @designspaceNav
+            * MerzView          @designspaceNav
             """
 
             for i,a in enumerate(axes):
@@ -1046,14 +1045,27 @@ class Spaceport(Subscriber, ezui.WindowController):
             self.vp.open()
 
 
+
     def viewOptionsCallback(self,sender) -> None:
         self.v.open()
 
     def yAxisSelectionCallback(self, sender) -> None:
         self.yAxis = self.interpolatable[sender.get()]
+        self._convertViewLocationToDesignspaceLocation((self.x,self.y))
 
     def xAxisSelectionCallback(self, sender) -> None:
         self.xAxis = self.interpolatable[sender.get()]
+        self._convertViewLocationToDesignspaceLocation((self.x,self.y))
+
+    def contentCallback(self, sender) -> None:
+        """
+        this is linked as several callbacks so we have to 
+        make sure its only running for the designspace navigation
+        popover and adjust then. 
+        """ 
+        if isinstance(sender.get(), dict):
+            if "xAxisSelection" in sender.get().keys():
+                self._convertViewLocationToDesignspaceLocation((self.x,self.y))
 
     @property
     def interpolatable(self) -> list:
@@ -2019,27 +2031,27 @@ class Spaceport(Subscriber, ezui.WindowController):
                 strokeWidth=1,
             )
 
-            """
-            we need to optomize this for speed
-            reformat the x,y coords into a designspace location
-            """
-            location = {}
+            self._convertViewLocationToDesignspaceLocation((x,y))
+            self.x = x
+            self.y = y
 
+    def _convertViewLocationToDesignspaceLocation(self, position:tuple[float, float]):
+            x,y = position
+            location = {}
             desc = [a for a in self.operator.axes if a.name == self.xAxis][0]
             minimum, default, maximum = self.operator.getAxisExtremes(desc)
             nx = remap(x, 0, 300, minimum, maximum, True)
             location[self.xAxis] = nx
-            
             if self.yAxis:
                 desc = [a for a in self.operator.axes if a.name == self.yAxis][0]
                 minimum, default, maximum = self.operator.getAxisExtremes(desc)
                 ny = remap(y, 0, 300, minimum, maximum, True)
                 location[self.yAxis] = ny
-                
-            for aaa in self.operator.axes:
-                if hasattr(aaa, "values"):
-                    location[aaa.name] = aaa.values[0]
-                    
+            # get all the discrete axis values that are set right now
+            discrete = {aa:ll for aa,ll in self.vp.get().items() if "AxisSelection" not in aa}
+            for ax,lo in discrete.items():
+                if ax in [a.name for a in self.operator.axes]:
+                    location[ax] = lo
             self.designspaceEditorPreviewLocationDidChange(dict(location=location))
 
 
