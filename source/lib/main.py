@@ -1,37 +1,46 @@
 import AppKit
 from defcon import Font
-from lib.UI.spaceCenter.glyphSequenceEditText import splitText,\
-    currentGlyphKey, currentSelectionKey, newLineKey, groupsKey
+from designspaceEditor.ui import DesignspaceEditorController
+from designspaceEditor.locationPreview import PreviewLocationFinder
+from drawBot.context.tools.drawBotbuiltins import remap
+import ezui
+from fontParts.world import (CurrentGlyph,
+                            CurrentLayer,
+                            CurrentFont)
+from fontTools.misc import transform
+from fontTools.designspaceLib import (DesignSpaceDocument,
+                                     AxisDescriptor,
+                                     SourceDescriptor,
+                                     InstanceDescriptor)
+from glyphNameFormatter.reader import n2u
 from lib.fontObjects.doodleFont import DoodleFont
 from lib.fontObjects.doodleLayer import DoodleLayer
 from lib.fontObjects.doodleGlyph import DoodleGlyph
-
 from lib.UI.spaceCenter import spaceInputScrollView as spaceInput
 from lib.UI.spaceCenter.lineViewGlyphWrappers import  GlyphRecord
-
+from lib.UI.spaceCenter.glyphSequenceEditText import (splitText,
+                                                     currentGlyphKey,
+                                                     currentSelectionKey,
+                                                     newLineKey,
+                                                     groupsKey)
+import math
 from mojo import events
 from mojo.UI import *
 from mojo.extensions import getExtensionDefault, setExtensionDefault
-from fontParts.world import CurrentGlyph, CurrentLayer, CurrentFont
 from mojo.roboFont import internalFontClasses
-import ezui
+from mojo.subscriber import (Subscriber,
+                            registerCurrentGlyphSubscriber,
+                            unregisterCurrentGlyphSubscriber,
+                            registerSubscriberEvent,
+                            getRegisteredSubscriberEvents,
+                            Coalescer)
 import merz
-from mojo.subscriber import Subscriber, registerCurrentGlyphSubscriber, unregisterCurrentGlyphSubscriber, registerSubscriberEvent, getRegisteredSubscriberEvents, Coalescer
-from vanilla.vanillaBase import osVersionCurrent, osVersion12_0
-from glyphNameFormatter.reader import n2u
-import os
-from fontTools.misc import transform
-from fontTools.designspaceLib import (DesignSpaceDocument, AxisDescriptor,
-                                      SourceDescriptor, InstanceDescriptor)
-import math
-from pprint import pprint
-from designspaceEditor.ui import DesignspaceEditorController
-from designspaceEditor.locationPreview import PreviewLocationFinder
 from merz.tools.typesetter import HorizontalTypesetter
+import os
+import time
+from vanilla.vanillaBase import osVersionCurrent, osVersion12_0
 import yaml
 
-import time
-from drawBot.context.tools.drawBotbuiltins import remap
 
 INFO_YAML = os.path.abspath(os.path.join( __file__, "../../../", "info.yaml"))
 with open(INFO_YAML, mode="r") as file:
@@ -251,12 +260,14 @@ class Spaceport(Subscriber, ezui.WindowController):
         self.background     = (1, 1, 1, 1)
 
         self.showKerning = False
+        self.showMetrics = False
         self.multiline = True
         self.openSources = False
         self.viewSources = False # for testing its false
         self.viewInstances = False
         self.showBeam = True
         self.designspaceController = True
+
 
         self.viewDesignspace = False
 
@@ -265,7 +276,6 @@ class Spaceport(Subscriber, ezui.WindowController):
         self.glyphs = []
 
         self._fontFolder = {}
-
 
         for f in AllFonts():
             f.lib["descriptor"] = ""
@@ -552,7 +562,8 @@ class Spaceport(Subscriber, ezui.WindowController):
                 if not list(self.fonts.values())[0][0]:
                     self.fontTableEditCallback(None) # turn on preview location
                 # grab out dummy instance
-                selectedFonts = [list(self.fonts.values())[0][-1]]
+                # selectedFonts = [list(self.fonts.values())[0][-1]]
+                selectedFonts = [self.fonts.get("Preview Location")[-1]]
 
             for item in self.collectionView.get():
                 if item.font == selectedFonts[0]:
@@ -843,12 +854,12 @@ class Spaceport(Subscriber, ezui.WindowController):
         self.populateItems()
 
 
-
     def designspaceTableEditCallback(self, sender) -> None:
         index = sender.getEditedIndex()
         path  = list(self.designspaces.keys())[index]
         obj = self.designspaces[path][-1]
         self.operator = obj
+        print("setting global operator::", self.operator)
 
         self.sources = obj.getFonts()
         self.instances = obj.instances
@@ -906,15 +917,13 @@ class Spaceport(Subscriber, ezui.WindowController):
 
     def fontTableEditCallback(self, sender) -> None:
         if sender:
-            index = sender.getEditedIndex()
             new   = sender.getEditedItem()["use"]
+            path  = list(self.fonts.keys())[sender.getEditedIndex()]
         else:
-            index = 0
             new = True
-        path  = list(self.fonts.keys())[index]
+            path = "Preview Location"
         use,font = self.fonts[path]
         self.fonts[path] = (new, font)
-        #self.populateItems()
         self.textFieldCallback(None)
 
 
@@ -971,14 +980,12 @@ class Spaceport(Subscriber, ezui.WindowController):
     def interpolateCallback(self, sender) -> None:
         # pass
         # modified from DSE
-
-        self.viewDesignspace = not self.viewDesignspace
         #x,y,w,h = self.w.getPosSize()
         #ww = w+(DESIGNSPACE_WIDTH/2) if self.viewDesignspace else w-(DESIGNSPACE_WIDTH/2)
         #self.w.setPosSize((x,y,ww,h))
         #self.w.getItem("designspaceNav").show(self.viewDesignspace)
         # self.w.resizeToFitContent()
-
+        self.viewDesignspace = not self.viewDesignspace
         axes = "x"
         interpolatable = []
         if self.operator:
@@ -1049,17 +1056,19 @@ class Spaceport(Subscriber, ezui.WindowController):
             self.vp.open()
 
 
-
     def viewOptionsCallback(self,sender) -> None:
         self.v.open()
+
 
     def yAxisSelectionCallback(self, sender) -> None:
         self.yAxis = self.interpolatable[sender.get()]
         self._convertViewLocationToDesignspaceLocation((self.x,self.y))
 
+
     def xAxisSelectionCallback(self, sender) -> None:
         self.xAxis = self.interpolatable[sender.get()]
         self._convertViewLocationToDesignspaceLocation((self.x,self.y))
+
 
     def contentCallback(self, sender) -> None:
         """
@@ -1071,9 +1080,11 @@ class Spaceport(Subscriber, ezui.WindowController):
             if "xAxisSelection" in sender.get().keys():
                 self._convertViewLocationToDesignspaceLocation((self.x,self.y))
 
+
     @property
     def interpolatable(self) -> list:
         return [axisDescriptor.name for axisDescriptor in self.operator.axes if not hasattr(axisDescriptor, "values")]
+
 
     def editTextCallback(self, sender) -> None:
         self.te.open()
@@ -1717,7 +1728,6 @@ class Spaceport(Subscriber, ezui.WindowController):
             tp,_ = ot.transformPoint((0, self.beamPosition))
 
             if item.index == 0:
-
                 if self.multiline:
                     beamIndicatorLayer.appendOvalSublayer(
                         position=(-(beamIntersectSize*2), self.beamPosition),
@@ -1775,7 +1785,6 @@ class Spaceport(Subscriber, ezui.WindowController):
                     strokeColor=(1,.2,0,1),
                     strokeWidth=1,
                 )
-
                 if other_left:
                     beamIndicatorLayer.appendTextLineSublayer(
                         text=str(round(right + other_left)),
