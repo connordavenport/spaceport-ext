@@ -32,6 +32,8 @@ from mojo.roboFont import internalFontClasses
 from mojo.subscriber import (Subscriber,
                             registerCurrentGlyphSubscriber,
                             unregisterCurrentGlyphSubscriber,
+                            registerRoboFontSubscriber,
+                            unregisterRoboFontSubscriber,
                             registerSubscriberEvent,
                             getRegisteredSubscriberEvents,
                             Coalescer)
@@ -250,7 +252,7 @@ def symbolImage(symbolName:str, color:tuple[float, float, float, float]|AppKit.N
     return image
 
 
-class Spaceport1(Subscriber, ezui.WindowController):
+class Spaceport(Subscriber, ezui.WindowController):
 
     debug = True
 
@@ -1142,7 +1144,7 @@ class Spaceport1(Subscriber, ezui.WindowController):
         subwindow.makeFirstResponder_(self.te.getItem("textField").getNSTextField())
 
 
-    def currentGlyphDidSetGlyph(self, info) -> None:
+    def roboFontDidSwitchCurrentGlyph(self, info) -> None:
         self.textFieldCallback(None)
 
     def preTextFieldCallback(self, sender) -> None:
@@ -2349,6 +2351,6 @@ class Spaceport1(Subscriber, ezui.WindowController):
 
 
 if __name__ == "__main__":
-    registerCurrentGlyphSubscriber(Spaceport1)
+    registerRoboFontSubscriber(Spaceport)
 
 
