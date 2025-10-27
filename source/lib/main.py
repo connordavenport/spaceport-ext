@@ -378,7 +378,7 @@ class Spaceport(Subscriber, ezui.WindowController):
         * MerzCollectionView    @collectionView
         """
         numberFieldWidth = 40
-        description_data = dict(
+        descriptionData = dict(
             collectionView=dict(
                 height="fill",
                 width="fill",
@@ -390,7 +390,7 @@ class Spaceport(Subscriber, ezui.WindowController):
             title=f"Spaceport v{EXTENSION_VERSION}",
             toolbar=toolbar,
             content=content,
-            descriptionData=description_data,
+            descriptionData=descriptionData,
             controller=self,
             margins=0,
             size=(1000, 500),
@@ -435,7 +435,7 @@ class Spaceport(Subscriber, ezui.WindowController):
         ( {text.alignleft} | {text.aligncenter} | {text.alignright} ) @alignmentSegmentButton
         """
 
-        description_data = dict(
+        descriptionData = dict(
             showBeamButton=dict(
                 value=True,
             ),
@@ -470,7 +470,7 @@ class Spaceport(Subscriber, ezui.WindowController):
         self.v = ezui.EZPopover(
             size=(100,100),
             content=content,
-            descriptionData=description_data,
+            descriptionData=descriptionData,
             parent=self.w,
             behavior="transient",
             parentAlignment="right",
@@ -483,10 +483,20 @@ class Spaceport(Subscriber, ezui.WindowController):
         * HorizontalStack       @controlsStack
         > [__](±)               @pointSizeField
         > [__](±)               @lineHeightField
+        > *GlyphSequence        @preTextField
         > *GlyphSequence        @textField
+        > *GlyphSequence        @pstTextField
         """
 
-        description_data = dict(
+        descriptionData = dict(
+            preTextField=dict(
+                width=40,
+                font=self.font or internalFontClasses.createFontObject(),
+            ),
+            pstTextField=dict(
+                width=40,
+                font=self.font or internalFontClasses.createFontObject(),
+            ),
             textField=dict(
                 width="fill",
                 font=self.font or internalFontClasses.createFontObject(),
@@ -511,13 +521,16 @@ class Spaceport(Subscriber, ezui.WindowController):
         self.te = ezui.EZPopover(
             size=(self.w.getPosSize()[2], 40),
             content=content,
-            descriptionData=description_data,
+            descriptionData=descriptionData,
             parent=self.w,
             behavior="transient",
             parentAlignment="bottom",
             controller=self
         )
         self.te.setItemValue("textField", "SPACEPORT") 
+        self.te.setItemValue("preTextField", "") 
+        self.te.setItemValue("pstTextField", "") 
+
         #contentViewController
         self.v.getItem("invertColorsButton").set(0)
         self.invertColorsButtonCallback(self.v.getItem("invertColorsButton"))
@@ -530,12 +543,12 @@ class Spaceport(Subscriber, ezui.WindowController):
         try: self.v.setItemValues(view_prefs)
         except (AttributeError, KeyError): pass
 
-        __ = self.te.getItemValues()
-        if isinstance(__["textField"], list): __["textField"] = ''.join([chr(n2u(glyph)) for glyph in __['textField']])
+        # __ = self.te.getItemValues()
+        # if isinstance(__["textField"], list): __["textField"] = ''.join([chr(n2u(glyph)) for glyph in __['textField']])
         
-        input_prefs = getExtensionDefault(EXTENSION_KEY + ".input_prefs", fallback=__)
-        try: self.te.setItemValues(input_prefs)
-        except (AttributeError, KeyError): pass
+        # input_prefs = getExtensionDefault(EXTENSION_KEY + ".input_prefs", fallback=__)
+        # try: self.te.setItemValues(input_prefs)
+        # except (AttributeError, KeyError): pass
 
         self.controlsStackCallback(None)
         self.displaySettingsButtonCallback(None)
@@ -666,7 +679,7 @@ class Spaceport(Subscriber, ezui.WindowController):
         > |----------|
         """
 
-        description_data = dict(
+        descriptionData = dict(
             contents=dict(
                 displayMode="text",
                 allowCustomization=True,
@@ -753,7 +766,7 @@ class Spaceport(Subscriber, ezui.WindowController):
             autosaveName="objectController",
             size=(500,500),
             content=content,
-            descriptionData=description_data,
+            descriptionData=descriptionData,
             parent=self.w,
             controller=self
         )
@@ -884,7 +897,10 @@ class Spaceport(Subscriber, ezui.WindowController):
         else:
             self.font = list(self.fonts.values())[1][-1]
         self.upm = self.font.info.unitsPerEm
-        if setText: self.te.getItem("textField").setFont(self.font)
+        if setText:
+            for name,item in self.te.get().items():
+                if "textfield" in name.lower():
+                    item.setFont(self.font)
 
 
     def designspaceTableCreateItemsForDroppedPathsCallback(self, sender, paths) -> None:
@@ -1095,6 +1111,12 @@ class Spaceport(Subscriber, ezui.WindowController):
     def currentGlyphDidSetGlyph(self, info) -> None:
         self.textFieldCallback(None)
 
+    def preTextFieldCallback(self, sender) -> None:
+        self.textFieldCallback(None)
+
+    def pstTextFieldCallback(self, sender) -> None:
+        self.textFieldCallback(None)
+
 
     def textFieldCallback(self, sender) -> None:
         self.typingCoalescer.restart()
@@ -1102,14 +1124,21 @@ class Spaceport(Subscriber, ezui.WindowController):
         glyphNames = self.te.getItemValue("textField")
         font = self.font
         holding = []
+        pre = [g for g in self.te.getItemValue("preTextField") if g in font.keys()]
+        pst = [g for g in self.te.getItemValue("pstTextField") if g in font.keys()]
+
         if font:
             for name in glyphNames:
                 if name in font.keys():
+                    holding.extend(pre)
                     holding.append(name)
+                    holding.extend(pst)
 
                 elif name == CURRENTGLYPH_CHAR:
                     if CurrentGlyph() is not None:
+                        holding.extend(pre)
                         holding.append(CurrentGlyph().name)
+                        holding.extend(pst)
 
         self.glyphs = holding
         self.populateItems()
@@ -1954,12 +1983,10 @@ class Spaceport(Subscriber, ezui.WindowController):
             if hit:
                 clickCount = event["clickCount"]
                 parsed = hit.glyph
-                if parsed and parsed.name != "IGNORE":
+                if parsed is not None and parsed.name != "IGNORE":
                     hit.selected = True
                     # selectedGlyph = self.getGlyphFromItem(hit)
                     selectedGlyph = parsed
-
-                if selectedGlyph:
 
                     if event["modifiers"] == ["command"]:
                         selectedFont = hit.font
