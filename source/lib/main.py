@@ -63,6 +63,9 @@ EXTENSION_KEY:str = "com.connordavenport.spaceport"
 CURRENTGLYPH_CHAR:str = "/?"
 NEWLINE_CHAR:str = "\\n"
 
+ZOOM_WIDTH:str = "arrow.left.and.right.square"
+ZOOM_HEIGHT:str = "arrow.up.and.down.square"
+
 EDIT_TEXT:str = "character.cursor.ibeam"
 ADD_FONT:str = "document.badge.gearshape"
 ADD_DESIGNSPACE:str = "squareshape.split.3x3"
@@ -247,7 +250,7 @@ def symbolImage(symbolName:str, color:tuple[float, float, float, float]|AppKit.N
     return image
 
 
-class Spaceport(Subscriber, ezui.WindowController):
+class Spaceport1(Subscriber, ezui.WindowController):
 
     debug = True
 
@@ -268,7 +271,6 @@ class Spaceport(Subscriber, ezui.WindowController):
         self.viewInstances = False
         self.showBeam = True
         self.designspaceController = True
-
 
         self.viewDesignspace = False
 
@@ -348,6 +350,20 @@ class Spaceport(Subscriber, ezui.WindowController):
                 #     text="Kerning",
                 #     template=True,
                 # ),
+
+                dict(
+                    identifier="zoomToWidth",
+                    image=symbolImage(symbolName=ZOOM_WIDTH, color=(1,1,1,1), weight="regular"),
+                    text="Fit Width",
+                    template=True,
+                ),
+                dict(
+                    identifier="zoomToHeight",
+                    image=symbolImage(symbolName=ZOOM_HEIGHT, color=(1,1,1,1), weight="regular"),
+                    text="Fit Height",
+                    template=True,
+                ),
+
                 dict(
                     identifier="opentype",
                     image=symbolImage(symbolName=OPENTYPE, color=(1,1,1,1), weight="regular"),
@@ -398,6 +414,7 @@ class Spaceport(Subscriber, ezui.WindowController):
             minSize=(400, 200),
         )
 
+
         for i in range(4):
             item = f"line{i}"
             self.w.getItem(item).show(False)
@@ -410,8 +427,10 @@ class Spaceport(Subscriber, ezui.WindowController):
         # self.designspaceNav.setBackgroundColor(AppKit.NSColor.whiteColor())
         self.marqueeLayer = self.container.appendBaseSublayer()
         
-        self.w.matrix = spaceInput.SpaceInputScrollView((0, -48, 0, 48))
+        self.w.matrix = spaceInput.SpaceInputScrollView(MATRIX_POS)
         self.matrixPosition = 0
+
+        self.extraHeights = (self.w.getPosSize()[-1] - 500)
 
 
         content = """
@@ -544,12 +563,25 @@ class Spaceport(Subscriber, ezui.WindowController):
         try: self.v.setItemValues(view_prefs)
         except (AttributeError, KeyError): pass
 
-        # __ = self.te.getItemValues()
+        __ = self.te.getItemValues()
+        
+        for name,field in __.items():
+            if name.lower().endswith("textfield"):
+                cleaned_input = []
+                for glyph in field:
+                    if glyph == CURRENTGLYPH_CHAR:
+                        cleaned_input.append("/?")
+                    else:
+                        try:
+                            cleaned_input.append(chr(n2u(glyph)))
+                        except:
+                            pass
+                __[name] = ''.join(cleaned_input)
         # if isinstance(__["textField"], list): __["textField"] = ''.join([chr(n2u(glyph)) for glyph in __['textField']])
         
-        # input_prefs = getExtensionDefault(EXTENSION_KEY + ".input_prefs", fallback=__)
-        # try: self.te.setItemValues(input_prefs)
-        # except (AttributeError, KeyError): pass
+        input_prefs = getExtensionDefault(EXTENSION_KEY + ".input_prefs", fallback=__)
+        try: self.te.setItemValues(input_prefs)
+        except (AttributeError, KeyError): pass
 
         self.controlsStackCallback(None)
         self.displaySettingsButtonCallback(None)
@@ -1119,6 +1151,15 @@ class Spaceport(Subscriber, ezui.WindowController):
     def pstTextFieldCallback(self, sender) -> None:
         self.textFieldCallback(None)
 
+    def validateGlyphName(self, glyphName:str) -> bool | str:
+        if glyphName in self.font.keys():
+            name = glyphName
+        elif glyphName == CURRENTGLYPH_CHAR:
+            name = CurrentGlyph().name
+        else:
+            name = None
+        return name
+
 
     def textFieldCallback(self, sender) -> None:
         self.typingCoalescer.restart()
@@ -1126,8 +1167,8 @@ class Spaceport(Subscriber, ezui.WindowController):
         glyphNames = self.te.getItemValue("textField")
         font = self.font
         holding = []
-        pre = [g for g in self.te.getItemValue("preTextField") if g in font.keys()]
-        pst = [g for g in self.te.getItemValue("pstTextField") if g in font.keys()]
+        pre = [self.validateGlyphName(g) for g in self.te.getItemValue("preTextField") if self.validateGlyphName(g)]
+        pst = [self.validateGlyphName(g) for g in self.te.getItemValue("pstTextField") if self.validateGlyphName(g)]
 
         if font:
             for name in glyphNames:
@@ -1219,6 +1260,8 @@ class Spaceport(Subscriber, ezui.WindowController):
 
     def multilineButtonCallback(self, sender) -> None:
         self.multiline = self.v.getItemValue("multilineButton")
+        self.w.getToolbarItems().get("zoomToWidth").setEnabled_(self.multiline)
+        # self.w.getItem("zoomToWidth").enable()
         self.displaySettingsButtonCallback(None)
         self.populateItems()
 
@@ -1843,36 +1886,41 @@ class Spaceport(Subscriber, ezui.WindowController):
         # necessary for tracking mouse movement
         return True
 
-    def magnifyWithEvent(self, sender, event) -> None:
+    def zoomCoalescerManager(self) -> None:
         self.zoomCoalescer.restart()
+
+    def magnifyWithEvent(self, sender, event) -> None:
+        self.zoomCoalescerManager()
         self.zoom(delta=event.magnification())
 
     # def windowDidResize(self, sender):
     #     print(self.collectionView._documentView._view.enclosingScrollView())
 
-    def zoom(self, direction:str="out", delta:float=None) -> None:
+    def zoom(self, direction:str="out", delta:float=None, scale:float=None) -> None:
 
         values = self.te.getItemValues()
         pointSize = values["pointSizeField"]
         lineHeight = values["lineHeightField"]
-        setend = False
-
-        if delta:
-            if delta < 0:
-                factor = ZOOM_IN_FACTOR
-            else:
-                factor = ZOOM_OUT_FACTOR
-            pointSize *= factor
+        if scale:
+            self.pointSize = self.upm * scale
+            self.scale = scale
         else:
-            setend = True
-            if direction == "in":
-                factor = 15
+            if delta:
+                if delta < 0:
+                    factor = ZOOM_IN_FACTOR
+                else:
+                    factor = ZOOM_OUT_FACTOR
+                pointSize *= factor
             else:
-                factor = -15
-            pointSize += factor
+                if direction == "in":
+                    factor = 15
+                else:
+                    factor = -15
+                pointSize += factor
 
-        self.pointSize = max(pointSize, 10)
-        self.scale = pointSize / self.upm
+            self.pointSize = max(pointSize, 10)
+            self.scale = pointSize / self.upm
+
         self.lineHeight = self.upm * lineHeight * self.scale
 
         self.te.setItemValue("pointSizeField", self.pointSize)
@@ -1915,8 +1963,7 @@ class Spaceport(Subscriber, ezui.WindowController):
             except:
                 pass
         ###
-
-        if setend: self.zoomEnded(None)
+        if scale: self.zoomEnded(None)
 
 
     def zoomEnded(self, coalescer:Coalescer) -> None:
@@ -1925,11 +1972,68 @@ class Spaceport(Subscriber, ezui.WindowController):
             lineHeight=self.lineHeight
         )
 
+    def zoomToWidthCallback(self, sender) -> None:
+        self.zoomCoalescerManager()
+        self._zoomToFit("width")
+
+    def zoomToHeightCallback(self, sender) -> None:
+        self.zoomCoalescerManager()
+        self._zoomToFit("height")
+
+    def _zoomToFit(self, direction:str) -> None:
+        if self.multiline:
+            collection = self.collectionView
+            typesetter = collection._documentView._typesetter
+
+            scrollView = collection.getNSScrollView()
+
+            container = collection.getMerzContainer()
+            zoomScale = container.getContainerScale()
+
+            (containerWidth, __) = collection._documentView.getSize()
+            extras = self.extraHeights
+            if self.w.matrix.isVisible():
+                extras += MATRIX_POS[-1]
+            containerHeight = self.w.getPosSize()[-1] - extras
+            availableHeight = len([1 for use, font in self.fonts.values() if use]) * typesetter.getLineHeight() * 1.1
+
+            mm = {}
+            for ii in self.collectionView.get():
+                v = mm.get(ii.font.path,0)
+                v += ii.glyph.width
+                mm[ii.font.path] = v
+            availableWidth = max(list(mm.values())) * 1.1
+
+            xScale = containerWidth/availableWidth 
+            yScale = containerHeight/availableHeight
+            if direction == "width":
+                scale = xScale
+            elif direction == "height":
+                scale = yScale
+
+            if scale == 1.0:
+                return
+            self.zoom(scale=scale)
+
+
     def destroy(self) -> None:
         setExtensionDefault(EXTENSION_KEY + ".main_prefs", self.w.getItemValues())
         setExtensionDefault(EXTENSION_KEY + ".view_prefs", self.v.getItemValues())
         input_dict = self.te.getItemValues()
-        input_dict['textField'] = ''.join([chr(n2u(glyph)) for glyph in input_dict['textField']])
+        for name,field in input_dict.items():
+            if name.lower().endswith("textfield"):
+                cleaned_input = []
+                for glyph in field:
+                    if glyph == CURRENTGLYPH_CHAR:
+                        cleaned_input.append("/?")
+                    else:
+                        try:
+                            cleaned_input.append(chr(n2u(glyph)))
+                        except:
+                            pass
+                input_dict[name] = ''.join(cleaned_input)
+
+        # input_dict['textField'] = ''.join(cleaned_input)
         setExtensionDefault(EXTENSION_KEY + ".input_prefs", input_dict)
         self.clearObservedAdjunctObjects()
         self.zoomCoalescer.stop()
@@ -2165,9 +2269,11 @@ class Spaceport(Subscriber, ezui.WindowController):
 
                 elif char == "=":
                     # zoom in 
+                    self.zoomCoalescerManager()
                     self.zoom(direction="in")
                 elif char == "-":
                     # zoom out
+                    self.zoomCoalescerManager()
                     self.zoom(direction="out")
                     
 
@@ -2185,9 +2291,11 @@ class Spaceport(Subscriber, ezui.WindowController):
 
                 elif char == getDefault("glyphViewZoomInKey", "z"):
                     # zoom in 
+                    self.zoomCoalescerManager()
                     self.zoom(direction="in")
                 elif char == getDefault("glyphViewZoomOutKey", "x"):
                     # zoom out
+                    self.zoomCoalescerManager()
                     self.zoom(direction="out")
                     
 
@@ -2217,7 +2325,10 @@ class Spaceport(Subscriber, ezui.WindowController):
 
 
     def adjunctGlyphDidChangeMetrics(self, info) -> None:
-        self.w.matrix._glyphWidthChanged(info)
+        # print(info["glyph"])
+        selectedMatrixItem = self.w.matrix._inputView.getSelected() or RGlyph()
+        if info["glyph"].name != selectedMatrixItem.name:
+            self.w.matrix._glyphWidthChanged(info)
         items = self.w.getItemValue("collectionView")
         for item in items:
             if item.glyph == info["glyph"]:
@@ -2226,7 +2337,9 @@ class Spaceport(Subscriber, ezui.WindowController):
 
 
     def adjunctGlyphDidChangeOutline(self, info) -> None:
-        self.w.matrix._glyphChanged(info)
+        selectedMatrixItem = self.w.matrix._inputView.getSelected() or RGlyph()
+        if info["glyph"].name != selectedMatrixItem.name:
+            self.w.matrix._glyphChanged(info)
         items = self.w.getItemValue("collectionView")
         for item in items:
             if item.glyph == info["glyph"]:
@@ -2235,8 +2348,7 @@ class Spaceport(Subscriber, ezui.WindowController):
 
 
 
-#registerCurrentGlyphSubscriber(Spaceport)
 if __name__ == "__main__":
-    Spaceport()
+    registerCurrentGlyphSubscriber(Spaceport1)
 
 
