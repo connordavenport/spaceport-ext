@@ -12,6 +12,7 @@ from fontTools.designspaceLib import (DesignSpaceDocument,
                                      AxisDescriptor,
                                      SourceDescriptor,
                                      InstanceDescriptor)
+import functools
 from glyphNameFormatter.reader import n2u
 from lib.fontObjects.doodleFont import DoodleFont
 from lib.fontObjects.doodleLayer import DoodleLayer
@@ -94,7 +95,7 @@ class MerzCollectionViewRGlyphItem(merz.collectionView.MerzCollectionViewItem):
         self._glyph = kwargs.get("glyph")
         self._index = kwargs.get("index")
         self._onDisk = kwargs.get("onDisk")
-        self._offset = kwargs.get("offset", 0)
+        self._offset = kwargs.get("italicOffset", 0)
         self._skewAngle = kwargs.get("skewAngle", 0)
         self._scaler = kwargs.get("scaler", 1)
         self._location = kwargs.get("location", {})
@@ -252,7 +253,7 @@ class Spaceport(Subscriber, ezui.WindowController):
 
     def build(self) -> None:
 
-        self._cache_ = []
+        self.__cache = []
 
         self.selectedItems = []
 
@@ -544,7 +545,7 @@ class Spaceport(Subscriber, ezui.WindowController):
         self.textFieldCallback(None)
 
         if not self.fonts:
-            window = self.build_objects_sheet()
+            window = self.buildObjectsSheet()
             window.open()
 
     def started(self) -> None:
@@ -605,7 +606,7 @@ class Spaceport(Subscriber, ezui.WindowController):
         self.openSources = sender.get()
 
 
-    def DSSettingsButtonCallback(self, sender) -> None:
+    def designspaceSettingsButtonCallback(self, sender) -> None:
         self.viewSources           = 0 in sender.get()
         self.viewInstances         = 1 in sender.get()
         self.designspaceController = 2 in sender.get()
@@ -637,7 +638,8 @@ class Spaceport(Subscriber, ezui.WindowController):
                 item = f"line{i}"
                 self.w.getItem(item).show(show)
 
-    def build_objects_sheet(self) -> None:
+
+    def buildObjectsSheet(self) -> None:
 
         if not self.designspaces:
             self.designspaces = {dsp.path:(False, dsp) for dsp in AllDesignspaces()}
@@ -654,7 +656,7 @@ class Spaceport(Subscriber, ezui.WindowController):
         > |----------|  
         * ToolbarTab:                                                      @designspaceTab
         > * Box                                                            @designspaceBox = HorizontalStack
-        >> (( View Sources | View Instances | DSE Controller ))            @DSSettingsButton
+        >> (( View Sources | View Instances | DSE Controller ))            @designspaceSettingsButton
         # >> [ ]                                                           @viewSourcesCheckbox
         # >> View Sources                                                  @viewSourcesText
         # >> [ ]                                                           @viewInstancesCheckbox
@@ -904,7 +906,7 @@ class Spaceport(Subscriber, ezui.WindowController):
 
 
     def addObjectsCallback(self, sender) -> None:
-        self.build_objects_sheet()
+        self.buildObjectsSheet()
         self.w.objw.open()
 
 
@@ -961,7 +963,7 @@ class Spaceport(Subscriber, ezui.WindowController):
 
 
     def addDesignspaceCallback(self, sender) -> None:
-        self.build_objects_sheet()
+        self.buildObjectsSheet()
         self.w.objw.open()
 
 
@@ -1249,6 +1251,7 @@ class Spaceport(Subscriber, ezui.WindowController):
                 glyphPointsLayer.setVisible(self.showPoints)
 
 
+    # @functools.cache
     def buildItem(self, **kwargs) -> MerzCollectionViewRGlyphItem:
         name = kwargs.get("name")
         glyph = kwargs.get("glyph")
@@ -1257,7 +1260,8 @@ class Spaceport(Subscriber, ezui.WindowController):
         onDisk = kwargs.get("onDisk")
         skewAngle = kwargs.get("skewAngle")
         off = kwargs.get("italicOffset")
-        location = kwargs.get("location", {})
+        location = kwargs.get("location", ())
+        location = {_l[0]:_l[1] for _l in location}
 
         item = MerzCollectionViewRGlyphItem(
             name=name,
@@ -1619,9 +1623,9 @@ class Spaceport(Subscriber, ezui.WindowController):
             if use:
                 for index, glyph in enumerate(self.glyphs):
                     item = None
-                    if self._cache_:
-                        if len(self._cache_) > index+1:
-                            hold = self._cache_[index]
+                    if self.__cache:
+                        if len(self.__cache) > index+1:
+                            hold = self.__cache[index]
                             if hold == glyph:
                                 item_holder = [_item
                                                for _item in self.w.getItemValue("collectionView")
@@ -1670,7 +1674,7 @@ class Spaceport(Subscriber, ezui.WindowController):
                                         onDisk=on_disk,
                                         skewAngle=skewAngle,
                                         italicOffset=off,
-                                        location=font.lib.get("location", {})
+                                        location=tuple(font.lib.get("location", {}))
                                 )
 
                     if font_index == 0:
@@ -1678,7 +1682,7 @@ class Spaceport(Subscriber, ezui.WindowController):
 
                     items.append(item)
 
-        self._cache_ = self.glyphs
+        self.__cache = self.glyphs
         self.collectionView.set(items)
 
         items = self.w.getItemValue("collectionView")
@@ -2128,6 +2132,9 @@ class Spaceport(Subscriber, ezui.WindowController):
                         manager.undo()
                 elif char.lower() == "t":
                     self.te.open()
+
+                elif char.lower() == "o":
+                    self.w.objw.open()
 
                 elif char == "=":
                     # zoom in 
