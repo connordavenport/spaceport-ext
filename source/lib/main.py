@@ -63,6 +63,7 @@ AXES = [
 EXTENSION_KEY:str = "com.connordavenport.spaceport"
 
 CURRENTGLYPH_CHAR:str = "/?"
+SELECTEDGLYPHS_CHAR:str = "/!"
 NEWLINE_CHAR:str = "\\n"
 
 ZOOM_WIDTH:str = "arrow.left.and.right.square"
@@ -571,8 +572,8 @@ class Spaceport(Subscriber, ezui.WindowController):
             if name.lower().endswith("textfield"):
                 cleaned_input = []
                 for glyph in field:
-                    if glyph == CURRENTGLYPH_CHAR:
-                        cleaned_input.append("/?")
+                    if glyph in [CURRENTGLYPH_CHAR, SELECTEDGLYPHS_CHAR]:
+                        cleaned_input.append(glyph)
                     else:
                         try:
                             cleaned_input.append(chr(n2u(glyph)))
@@ -607,7 +608,7 @@ class Spaceport(Subscriber, ezui.WindowController):
             if len(selectedFonts) == 1:
                 pass
             elif not selectedFonts:
-                if not list(self.fonts.values())[0][0]:
+                if not self.fonts.get("Preview Location")[0]:
                     self.fontTableEditCallback(None) # turn on preview location
                 # grab out dummy instance
                 # selectedFonts = [list(self.fonts.values())[0][-1]]
@@ -908,8 +909,6 @@ class Spaceport(Subscriber, ezui.WindowController):
         path  = list(self.designspaces.keys())[index]
         obj = self.designspaces[path][-1]
         self.operator = obj
-        print("setting global operator::", self.operator)
-
         self.sources = obj.getFonts()
         self.instances = obj.instances
         view = [item["use"] for item in sender.get() if item["path"] == path][0]
@@ -936,7 +935,7 @@ class Spaceport(Subscriber, ezui.WindowController):
         if setText:
             for name,item in self.te.get().items():
                 if "textfield" in name.lower():
-                    item.setFont(self.font)
+                    self.te.getItem(name).setFont(self.font)
 
 
     def designspaceTableCreateItemsForDroppedPathsCallback(self, sender, paths) -> None:
@@ -1055,11 +1054,13 @@ class Spaceport(Subscriber, ezui.WindowController):
                 value = axisDescriptor.default
                 if hasattr(axisDescriptor, "values"):
                     # discrete axis
-                    content += f""" *HorizontalStack
+                    content += f"""
+                    *HorizontalStack
                     > {axisDescriptor.name}:
-                    > ( ...)    @{axisDescriptor.name}"""
+                    > ( ...)    @{axisDescriptor.name}
+                    """
                     descriptionData[axisDescriptor.name] = dict(
-                        items=[str(value) for value in axisDescriptor.values]
+                        items=[str(value) for value in axisDescriptor.values],
                     )
                 else:
                     interpolatable.append(axisDescriptor.name)
@@ -1147,43 +1148,50 @@ class Spaceport(Subscriber, ezui.WindowController):
     def roboFontDidSwitchCurrentGlyph(self, info) -> None:
         self.textFieldCallback(None)
 
+
     def preTextFieldCallback(self, sender) -> None:
         self.textFieldCallback(None)
+
 
     def pstTextFieldCallback(self, sender) -> None:
         self.textFieldCallback(None)
 
-    def validateGlyphName(self, glyphName:str) -> bool | str:
-        if glyphName in self.font.keys():
-            name = glyphName
-        elif glyphName == CURRENTGLYPH_CHAR:
-            name = CurrentGlyph().name
-        else:
-            name = None
-        return name
+
+    def validateGlyphNames(self, glyphNames:list[str]) -> list[str | None]:
+        validated = []
+        for gname in glyphNames:
+            selected = CurrentFont().selectedGlyphNames
+            if gname == SELECTEDGLYPHS_CHAR:
+                if selected:
+                    validated.extend(selected)
+            else:
+                if gname in self.font.keys():
+                    name = gname
+                elif gname == CURRENTGLYPH_CHAR:
+                    if CurrentGlyph() is not None:
+                        name = CurrentGlyph().name
+                    else:
+                        if CurrentFont().selectedGlyphNames:
+                            name = CurrentFont().selectedGlyphNames[-1]
+
+                validated.append(name)
+        return validated
 
 
     def textFieldCallback(self, sender) -> None:
         self.typingCoalescer.restart()
         self.unsubscribeFromGlyphs()
-        glyphNames = self.te.getItemValue("textField")
+        glyphNames = self.validateGlyphNames(self.te.getItemValue("textField"))
         font = self.font
         holding = []
-        pre = [self.validateGlyphName(g) for g in self.te.getItemValue("preTextField") if self.validateGlyphName(g)]
-        pst = [self.validateGlyphName(g) for g in self.te.getItemValue("pstTextField") if self.validateGlyphName(g)]
-
+        pre = self.validateGlyphNames(self.te.getItemValue("preTextField"))
+        pst = self.validateGlyphNames(self.te.getItemValue("pstTextField"))
         if font:
-            for name in glyphNames:
+            for index,name in enumerate(glyphNames):
                 if name in font.keys():
                     holding.extend(pre)
                     holding.append(name)
                     holding.extend(pst)
-
-                elif name == CURRENTGLYPH_CHAR:
-                    if CurrentGlyph() is not None:
-                        holding.extend(pre)
-                        holding.append(CurrentGlyph().name)
-                        holding.extend(pst)
 
         self.glyphs = holding
         self.populateItems()
@@ -1585,11 +1593,14 @@ class Spaceport(Subscriber, ezui.WindowController):
         glyph = item.glyph
         font = item.font
         loc = kwargs.get("updated_location")
+
+        # print(self.operator, loc)
         if loc:
             item.location = loc
-            infoMutator = self.operator.makeOneInfo(loc)
-            item.skewAngle = infoMutator.italicAngle
+            # infoMutator = self.operator.makeOneInfo(loc)
+            # item.skewAngle = infoMutator.italicAngle
             item.font.info.italicAngle = item.skewAngle
+            item.font.lib["location"] = loc
 
             libMutator = self.operator.getLibEntryMutator(self.operator.getLocationType(loc)[2])
             if libMutator:
@@ -1695,10 +1706,11 @@ class Spaceport(Subscriber, ezui.WindowController):
         
         for font_index, (path,(use,font)) in enumerate(self.fonts.items()):
             if use:
+                scaler = font.info.unitsPerEm/1000
                 for index, glyph in enumerate(self.glyphs):
                     item = None
                     if self.__cache:
-                        if len(self.__cache) > index+1:
+                        if len(self.__cache) >= index+1:
                             hold = self.__cache[index]
                             if hold == glyph:
                                 item_holder = [_item
@@ -1723,7 +1735,8 @@ class Spaceport(Subscriber, ezui.WindowController):
                         off = font.lib.get("com.typemytype.robofont.italicSlantOffset", 0)
                         if font.lib.get("descriptor") == "instance":
                             _temp = glyph
-                            mathGlyph = self.operator.makeOneGlyph(glyph, font.lib.get("location"), decomposeComponents=True)
+                            location = font.lib.get("location")
+                            mathGlyph = self.operator.makeOneGlyph(glyph, location, decomposeComponents=True)
                             if mathGlyph is not None:
                                 glyph = internalFontClasses.createGlyphObject()
                                 # glyph.font = font
@@ -1736,6 +1749,9 @@ class Spaceport(Subscriber, ezui.WindowController):
                         if isinstance(glyph, str):
                             glyph = RGlyph()
                             glyph.readGlyphFromString('<?xml version="1.0" encoding="UTF-8"?><glyph name="IGNORE" format="2"><advance width="893"/><outline><contour><point x="117" y="703" type="curve" smooth="yes"/><point x="79" y="664"/><point x="70" y="612"/><point x="70" y="542" type="curve" smooth="yes"/><point x="70" y="535" type="line"/><point x="127" y="535" type="line"/><point x="127" y="544" type="line" smooth="yes"/><point x="127" y="592"/><point x="133" y="636"/><point x="158" y="661" type="curve" smooth="yes"/><point x="183" y="687"/><point x="228" y="694"/><point x="276" y="694" type="curve" smooth="yes"/><point x="287" y="694" type="line"/><point x="287" y="750" type="line"/><point x="278" y="750" type="line" smooth="yes"/><point x="209" y="750"/><point x="156" y="741"/></contour><contour><point x="338" y="694" type="line"/><point x="554" y="694" type="line"/><point x="554" y="750" type="line"/><point x="338" y="750" type="line"/></contour><contour><point x="776" y="703" type="curve" smooth="yes"/><point x="737" y="742"/><point x="684" y="750"/><point x="613" y="750" type="curve" smooth="yes"/><point x="606" y="750" type="line"/><point x="606" y="694" type="line"/><point x="618" y="694" type="line" smooth="yes"/><point x="665" y="694"/><point x="709" y="686"/><point x="734" y="661" type="curve" smooth="yes"/><point x="760" y="636"/><point x="766" y="593"/><point x="766" y="546" type="curve" smooth="yes"/><point x="766" y="535" type="line"/><point x="823" y="535" type="line"/><point x="823" y="540" type="line" smooth="yes"/><point x="823" y="612"/><point x="814" y="665"/></contour><contour><point x="766" y="266" type="line"/><point x="823" y="266" type="line"/><point x="823" y="483" type="line"/><point x="766" y="483" type="line"/></contour><contour><point x="776" y="47" type="curve" smooth="yes"/><point x="814" y="86"/><point x="823" y="138"/><point x="823" y="210" type="curve" smooth="yes"/><point x="823" y="215" type="line"/><point x="766" y="215" type="line"/><point x="766" y="204" type="line" smooth="yes"/><point x="766" y="158"/><point x="759" y="114"/><point x="734" y="89" type="curve" smooth="yes"/><point x="709" y="64"/><point x="665" y="57"/><point x="618" y="57" type="curve" smooth="yes"/><point x="606" y="57" type="line"/><point x="606" y="0" type="line"/><point x="613" y="0" type="line" smooth="yes"/><point x="684" y="0"/><point x="737" y="9"/></contour><contour><point x="338" y="0" type="line"/><point x="554" y="0" type="line"/><point x="554" y="57" type="line"/><point x="338" y="57" type="line"/></contour><contour><point x="117" y="47" type="curve" smooth="yes"/><point x="156" y="9"/><point x="209" y="0"/><point x="280" y="0" type="curve" smooth="yes"/><point x="287" y="0" type="line"/><point x="287" y="57" type="line"/><point x="274" y="57" type="line" smooth="yes"/><point x="228" y="57"/><point x="184" y="64"/><point x="158" y="89" type="curve" smooth="yes"/><point x="133" y="114"/><point x="127" y="158"/><point x="127" y="204" type="curve" smooth="yes"/><point x="127" y="215" type="line"/><point x="70" y="215" type="line"/><point x="70" y="210" type="line" smooth="yes"/><point x="70" y="138"/><point x="78" y="86"/></contour><contour><point x="70" y="266" type="line"/><point x="127" y="266" type="line"/><point x="127" y="483" type="line"/><point x="70" y="483" type="line"/></contour><contour><point x="438" y="291" type="curve" smooth="yes"/><point x="456" y="291"/><point x="467" y="302"/><point x="467" y="316" type="curve" smooth="yes"/><point x="467" y="319"/><point x="467" y="321"/><point x="467" y="323" type="curve" smooth="yes"/><point x="467" y="347"/><point x="480" y="362"/><point x="510" y="382" type="curve" smooth="yes"/><point x="550" y="410"/><point x="577" y="434"/><point x="577" y="480" type="curve" smooth="yes"/><point x="577" y="546"/><point x="519" y="583"/><point x="450" y="583" type="curve" smooth="yes"/><point x="381" y="583"/><point x="335" y="548"/><point x="325" y="509" type="curve" smooth="yes"/><point x="324" y="503"/><point x="323" y="495"/><point x="323" y="489" type="curve" smooth="yes"/><point x="323" y="473"/><point x="335" y="464"/><point x="347" y="464" type="curve" smooth="yes"/><point x="360" y="464"/><point x="368" y="470"/><point x="373" y="479" type="curve" smooth="yes"/><point x="379" y="488" type="line"/><point x="391" y="515"/><point x="415" y="534"/><point x="448" y="534" type="curve" smooth="yes"/><point x="489" y="534"/><point x="515" y="512"/><point x="515" y="478" type="curve" smooth="yes"/><point x="515" y="449"/><point x="498" y="435"/><point x="461" y="409" type="curve" smooth="yes"/><point x="430" y="387"/><point x="410" y="365"/><point x="410" y="327" type="curve" smooth="yes"/><point x="410" y="324"/><point x="410" y="321"/><point x="410" y="319" type="curve" smooth="yes"/><point x="410" y="300"/><point x="420" y="291"/></contour><contour><point x="437" y="170" type="curve" smooth="yes"/><point x="459" y="170"/><point x="478" y="188"/><point x="478" y="210" type="curve" smooth="yes"/><point x="478" y="232"/><point x="460" y="249"/><point x="437" y="249" type="curve" smooth="yes"/><point x="415" y="249"/><point x="397" y="232"/><point x="397" y="210" type="curve" smooth="yes"/><point x="397" y="188"/><point x="415" y="170"/></contour></outline></glyph>')
+                            glyph.scaleBy(scaler)
+                            glyph.width *= scaler
+
 
                         if not isinstance(glyph, RGlyph):
                             glyph = RGlyph(glyph)
@@ -1748,7 +1764,8 @@ class Spaceport(Subscriber, ezui.WindowController):
                                         onDisk=on_disk,
                                         skewAngle=skewAngle,
                                         italicOffset=off,
-                                        location=tuple(font.lib.get("location", {}))
+                                        location=tuple(font.lib.get("location", {})),
+                                        scaler=scaler,
                                 )
 
                     if font_index == 0:
@@ -1772,112 +1789,131 @@ class Spaceport(Subscriber, ezui.WindowController):
         font = item.font
         beamIndicatorLayer = item.getLayer("glyphContainer").getSublayer("beamIndicator")
         beamIndicatorLayer.clearSublayers()
-        # beamIndicatorLayer.addTranslationTransformation(value=(-off,0))
-        beamIntersectSize = 30 * item.scaler
 
-        with beamIndicatorLayer.propertyGroup():
-            try:
-                next_glyph = [ii for ii in self.collectionView.get() if item.font == ii.font][item.index+1].glyph
-            except IndexError:
-                next_glyph = None
+        if self.collectionView.get():
+            # beamIndicatorLayer.addTranslationTransformation(value=(-off,0))
+            beamIntersectSize = 30 * item.scaler
 
-            right = glyph.getRayRightMargin(self.beamPosition, item.skewAngle) or 0
-            left = glyph.getRayLeftMargin(self.beamPosition, item.skewAngle) or 0
+            with beamIndicatorLayer.propertyGroup():
+                try:
+                    next = [ii for ii in self.collectionView.get() if item.font == ii.font][item.index+1].glyph
+                except IndexError:
+                    next = None
 
-            if font.info.familyName == "Preview Location":
-                right += item.offset
-                left -= item.offset
+                previous = None
+                try:
+                    previous = [ii for ii in self.collectionView.get() if item.font == ii.font][item.index-1].glyph
+                except IndexError:
+                    previous = None
 
-            aa = item.skewAngle
-            if aa:
-                aa *= -1
-            else:
-                aa = 0
-            x = y = math.radians(aa)
-            matrix = transform.Identity.skew(x=x, y=y)
-            t = transform.Transform()
-            oX, oY = (0,0)
-            t = t.translate( oX,  oY)
-            t = t.transform(matrix)
-            t = t.translate(-oX, -oY)
-            trans = tuple(t)
-            ot = transform.Transform(*trans)
-            
-            tp,_ = ot.transformPoint((0, self.beamPosition))
+                right = glyph.getRayRightMargin(self.beamPosition, item.skewAngle) or 0
+                left = glyph.getRayLeftMargin(self.beamPosition, item.skewAngle) or 0
 
-            if item.index == 0:
-                if self.multiline:
-                    beamIndicatorLayer.appendOvalSublayer(
-                        position=(-(beamIntersectSize*2), self.beamPosition),
-                        size=(beamIntersectSize*2,beamIntersectSize*2),
-                        anchor=(.5,.5),
-                        fillColor=(1,.2,0,1),
-                        horizontalAlignment="right",
-                        acceptsHit=True,
-                    )
-                beamIndicatorLayer.appendLineSublayer(
-                    startPoint=(-beamIntersectSize*2, self.beamPosition),
-                    endPoint=(left+tp, self.beamPosition),
-                    strokeColor=(1,.2,0,.4),
-                    strokeWidth=1,
-                )
-
-            beamIndicatorLayer.appendOvalSublayer(
-                position=(left+tp, self.beamPosition),
-                size=(beamIntersectSize,beamIntersectSize),
-                anchor=(.5,.5),
-                fillColor=(1,.2,0,1)
-            )
-
-            beamIndicatorLayer.appendOvalSublayer(
-                position=((glyph.width - right)+tp, self.beamPosition),
-                size=(beamIntersectSize,beamIntersectSize),
-                anchor=(.5,.5),
-                fillColor=(1,.2,0,1)
-            )
-
-            beamIndicatorLayer.appendLineSublayer(
-                startPoint=(left+tp, self.beamPosition),
-                endPoint=((glyph.width - right)+tp, self.beamPosition),
-                strokeColor=(1,.2,0,.4),
-                strokeWidth=1,
-                )
-            if next_glyph:
-                # if font.lib.get("descriptor") == "instance":
-                #     mathGlyph = self.operator.makeOneGlyph(next_glyph, item.location, decomposeComponents=True)
-                #     if mathGlyph is not None:
-                #         glyph = internalFontClasses.createGlyphObject()
-                #         mathGlyph.extractGlyph(glyph)
-                #         next = RGlyph(glyph)
-                # else:
-                #     next = font[next_glyph]
-
-                other_left = next_glyph.getRayLeftMargin(self.beamPosition, item.skewAngle) or 0
+                is_empty = not glyph.contours and not glyph.components
 
                 if font.info.familyName == "Preview Location":
-                    other_left -= item.offset
+                    right += item.offset
+                    left -= item.offset
 
-                beamIndicatorLayer.appendLineSublayer(
-                    startPoint=((glyph.width - right)+tp, self.beamPosition),
-                    endPoint=((glyph.width + other_left)+tp, self.beamPosition),
-                    strokeColor=(1,.2,0,1),
-                    strokeWidth=1,
-                )
-                if other_left:
-                    beamIndicatorLayer.appendTextLineSublayer(
-                        text=str(round(right + other_left)),
-                        font="SFMono-Regular",
-                        position=((glyph.width - right) + ((right + other_left)/2)+tp, self.beamPosition),
-                        fillColor=(1,.2,0,1),
-                        pointSize=10,
-                        backgroundColor=(1,.2,0,.2),
-                        cornerRadius=5,
-                        horizontalAlignment="center",
-                        verticalAlignment="bottom",
-                        padding=(3,1),
+                aa = item.skewAngle
+                if aa:
+                    aa *= -1
+                else:
+                    aa = 0
+                x = y = math.radians(aa)
+                matrix = transform.Identity.skew(x=x, y=y)
+                t = transform.Transform()
+                oX, oY = (0,0)
+                t = t.translate( oX,  oY)
+                t = t.transform(matrix)
+                t = t.translate(-oX, -oY)
+                tt = tuple(t)
+                ot = transform.Transform(*tt)
+                transformed,_ = ot.transformPoint((0, self.beamPosition))
+
+                if item.index == 0:
+                    if self.multiline:
+                        beamIndicatorLayer.appendOvalSublayer(
+                            position=(-(beamIntersectSize*2), self.beamPosition),
+                            size=(beamIntersectSize*2,beamIntersectSize*2),
+                            anchor=(.5,.5),
+                            fillColor=(1,.2,0,1),
+                            horizontalAlignment="right",
+                            acceptsHit=True,
+                        )
+                    beamIndicatorLayer.appendLineSublayer(
+                        startPoint=(-beamIntersectSize*2, self.beamPosition),
+                        endPoint=(left+transformed, self.beamPosition),
+                        strokeColor=(1,.2,0,.4),
+                        strokeWidth=1,
                     )
 
-            beamIndicatorLayer.setVisible(self.showBeam)
+                if not is_empty:
+                    # left side
+                    beamIndicatorLayer.appendOvalSublayer(
+                        position=(left+transformed, self.beamPosition),
+                        size=(beamIntersectSize,beamIntersectSize),
+                        anchor=(.5,.5),
+                        fillColor=(1,.2,0,1)
+                    )
+
+                    # right side
+                    beamIndicatorLayer.appendOvalSublayer(
+                        position=((glyph.width - right)+transformed, self.beamPosition),
+                        size=(beamIntersectSize,beamIntersectSize),
+                        anchor=(.5,.5),
+                        fillColor=(1,.2,0,1)
+                    )
+
+                # through glyph line
+
+                if is_empty and previous:
+                    left = previous.getRayLeftMargin(self.beamPosition, item.skewAngle) or 0
+                    left -= previous.width
+
+                beamIndicatorLayer.appendLineSublayer(
+                    startPoint=(left+transformed, self.beamPosition),
+                    endPoint=((glyph.width - right)+transformed, self.beamPosition),
+                    strokeColor=(1,.2,0,.4),
+                    strokeWidth=1,
+                    )
+
+                if next is not None:
+                    if next.contours or next.components:
+                        other_left = next.getRayLeftMargin(self.beamPosition, item.skewAngle) or 0
+                        if font.info.familyName == "Preview Location":
+                            other_left -= item.offset
+
+                        if not is_empty:
+                            beamIndicatorLayer.appendLineSublayer(
+                                startPoint=((glyph.width - right)+transformed, self.beamPosition),
+                                endPoint=((glyph.width + other_left)+transformed, self.beamPosition),
+                                strokeColor=(1,.2,0,1),
+                                strokeWidth=1,
+                            )
+                            if other_left:
+                                beamIndicatorLayer.appendTextLineSublayer(
+                                    text=str(round(right + other_left)),
+                                    font="SFMono-Regular",
+                                    position=((glyph.width - right) + ((right + other_left)/2)+transformed, self.beamPosition),
+                                    fillColor=(1,.2,0,1),
+                                    pointSize=10,
+                                    backgroundColor=(1,.2,0,.2),
+                                    cornerRadius=5,
+                                    horizontalAlignment="center",
+                                    verticalAlignment="bottom",
+                                    padding=(3,1),
+                                )
+
+                        else:
+                            beamIndicatorLayer.appendLineSublayer(
+                                startPoint=((glyph.width - right)+transformed, self.beamPosition),
+                                endPoint=((glyph.width + other_left)+transformed, self.beamPosition),
+                                strokeColor=(1,.2,0,.4),
+                                strokeWidth=1,
+                            )
+
+                beamIndicatorLayer.setVisible(self.showBeam)
 
 
     def acceptsFirstResponder(self, sender) -> bool:
@@ -2028,6 +2064,8 @@ class Spaceport(Subscriber, ezui.WindowController):
                 for glyph in field:
                     if glyph == CURRENTGLYPH_CHAR:
                         cleaned_input.append("/?")
+                    elif glyph == SELECTEDGLYPHS_CHAR:
+                        cleaned_input.append("/!")
                     else:
                         try:
                             cleaned_input.append(chr(n2u(glyph)))
@@ -2187,24 +2225,34 @@ class Spaceport(Subscriber, ezui.WindowController):
             self.x = x
             self.y = y
 
+
+    @property
+    def currentLocation(self) -> dict[str,float]:
+        location = self.vp.getItemValues()
+
+        if "xAxisSelection" in location.keys():
+            del location["xAxisSelection"]
+
+        for axisDescriptor in self.operator.axes:
+            if hasattr(axisDescriptor, "values"):
+                index = location[axisDescriptor.name]
+                location[axisDescriptor.name] = axisDescriptor.values[index]
+        return location
+
+
     def _convertViewLocationToDesignspaceLocation(self, position:tuple[float, float]):
-            x,y = position
-            location = {}
-            desc = [a for a in self.operator.axes if a.name == self.xAxis][0]
+        x,y = position
+        location = self.currentLocation
+        desc = [a for a in self.operator.axes if a.name == self.xAxis][0]
+        minimum, default, maximum = self.operator.getAxisExtremes(desc)
+        nx = remap(x, 0, 300, minimum, maximum, True)
+        location[self.xAxis] = nx
+        if self.yAxis:
+            desc = [a for a in self.operator.axes if a.name == self.yAxis][0]
             minimum, default, maximum = self.operator.getAxisExtremes(desc)
-            nx = remap(x, 0, 300, minimum, maximum, True)
-            location[self.xAxis] = nx
-            if self.yAxis:
-                desc = [a for a in self.operator.axes if a.name == self.yAxis][0]
-                minimum, default, maximum = self.operator.getAxisExtremes(desc)
-                ny = remap(y, 0, 300, minimum, maximum, True)
-                location[self.yAxis] = ny
-            # get all the discrete axis values that are set right now
-            discrete = {aa:ll for aa,ll in self.vp.get().items() if "AxisSelection" not in aa}
-            for ax,lo in discrete.items():
-                if ax in [a.name for a in self.operator.axes]:
-                    location[ax] = lo
-            self.designspaceEditorPreviewLocationDidChange(dict(location=location))
+            ny = remap(y, 0, 300, minimum, maximum, True)
+            location[self.yAxis] = ny        
+        self.designspaceEditorPreviewLocationDidChange(dict(location=location))
 
 
     def keyDown(self, view, event) -> None:
