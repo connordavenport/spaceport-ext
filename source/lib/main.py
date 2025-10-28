@@ -2316,8 +2316,8 @@ class Spaceport(Subscriber, ezui.WindowController):
                 elif char.lower() == "t":
                     self.te.open()
 
-                elif char.lower() == "o":
-                    self.w.objw.open()
+                elif char == ";":
+                    self.addObjectsCallback(None)
 
                 elif char == "=":
                     # zoom in 
