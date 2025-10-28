@@ -11,6 +11,9 @@ Developed by Connor Davenport
 
 Designed and Sponsored by Vincent Chan
 
+![UI Image](./images/ui_screenshot.png)
+
+
 ## Key Controls
 
 ### Spacing
