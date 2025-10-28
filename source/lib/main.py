@@ -1342,8 +1342,8 @@ class Spaceport(Subscriber, ezui.WindowController):
         onDisk = kwargs.get("onDisk")
         skewAngle = kwargs.get("skewAngle")
         off = kwargs.get("italicOffset")
-        location = kwargs.get("location", ())
-        location = {_l[0]:_l[1] for _l in location}
+        location = kwargs.get("location", {})
+        # location = {_l[0]:_l[1] for _l in location}
 
         item = MerzCollectionViewRGlyphItem(
             name=name,
@@ -1766,7 +1766,7 @@ class Spaceport(Subscriber, ezui.WindowController):
                                         onDisk=on_disk,
                                         skewAngle=skewAngle,
                                         italicOffset=off,
-                                        location=tuple(font.lib.get("location", {})),
+                                        location=font.lib.get("location", {}),
                                         scaler=scaler,
                                 )
 
