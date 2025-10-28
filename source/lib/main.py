@@ -1728,6 +1728,8 @@ class Spaceport(Subscriber, ezui.WindowController):
                                             item.setForceBreakAfter(True)
                                         else:
                                             item.setForceBreakAfter(False)
+                                    else:
+                                        item.setForceBreakAfter(False)
 
                     if not item:
                         on_disk = True
