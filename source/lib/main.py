@@ -1145,7 +1145,8 @@ class Spaceport(Subscriber, ezui.WindowController):
 
 
     def roboFontDidSwitchCurrentGlyph(self, info) -> None:
-        self.textFieldCallback(None)
+        if info["glyph"].name != CurrentGlyph().name:
+            self.textFieldCallback(None)
 
 
     def preTextFieldCallback(self, sender) -> None:
