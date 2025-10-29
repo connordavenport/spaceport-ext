@@ -93,6 +93,17 @@ DESIGNSPACE_WIDTH = 300
 MATRIX_POS:tuple[int,int,int,int] = (0, -48, 0, 48)
 
 
+size = 30
+image = AppKit.NSCursor.IBeamCursor().image()
+image = image.resizeTo_(size)
+
+TYPING_CURSOR = CreateCursor(
+    image,
+    hotSpot=(size/2, size/2)
+)
+ARROW_CURSOR = AppKit.NSCursor.arrowCursor()
+
+
 class MerzCollectionViewRGlyphItem(merz.collectionView.MerzCollectionViewItem):
 
     def __init__(self, *args, **kwargs) -> None:
@@ -276,6 +287,8 @@ class Spaceport(Subscriber, ezui.WindowController):
         self.designspaceController = True
 
         self.viewDesignspace = False
+
+        self.typing = False
 
         self.font   = CurrentFont()
         self.fonts  = dict()
@@ -2057,6 +2070,7 @@ class Spaceport(Subscriber, ezui.WindowController):
 
 
     def destroy(self) -> None:
+        TYPING_CURSOR.pop()
         setExtensionDefault(EXTENSION_KEY + ".main_prefs", self.w.getItemValues())
         setExtensionDefault(EXTENSION_KEY + ".view_prefs", self.v.getItemValues())
         input_dict = self.te.getItemValues()
@@ -2314,7 +2328,8 @@ class Spaceport(Subscriber, ezui.WindowController):
                         manager = AppKit.NSApp().getUndoManagerForGlyph_(glyph.asDefcon())
                         manager.undo()
                 elif char.lower() == "t":
-                    self.te.open()
+                    #self.te.open()
+                    self.toggleTypingState()
 
                 elif char == ";":
                     self.addObjectsCallback(None)
@@ -2350,7 +2365,18 @@ class Spaceport(Subscriber, ezui.WindowController):
                     self.zoomCoalescerManager()
                     self.zoom(direction="out")
                     
+    def toggleTypingState(self):
+        # self.mouseEntered(None, None)
+        self.typing = not self.typing
 
+        if self.typing:
+            cursor = TYPING_CURSOR
+        else:
+            cursor = ARROW_CURSOR
+        scrollView = self.collectionView.getNSScrollView()
+        scrollView.setDocumentCursor_(
+            cursor
+        )
 
     def mouseMoved(self, view, event) -> None:
         pass
