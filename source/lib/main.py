@@ -429,7 +429,6 @@ class Spaceport(Subscriber, ezui.WindowController):
         self.collectionView.setBackgroundColor(AppKit.NSColor.whiteColor())
         # self.designspaceNav.setBackgroundColor(AppKit.NSColor.whiteColor())
         self.marqueeLayer = self.container.appendBaseSublayer()
-        
         self.w.matrix = spaceInput.SpaceInputScrollView(MATRIX_POS)
         self.matrixPosition = 0
 
@@ -1160,7 +1159,7 @@ class Spaceport(Subscriber, ezui.WindowController):
     def validateGlyphNames(self, glyphNames:list[str]) -> list[str | None]:
         validated = []
         for gname in glyphNames:
-            selected = CurrentFont().selectedGlyphNames
+            selected = CurrentFont().selectedGlyphNames if CurrentFont() else  []
             if gname == SELECTEDGLYPHS_CHAR:
                 if selected:
                     validated.extend(selected)
@@ -1171,9 +1170,8 @@ class Spaceport(Subscriber, ezui.WindowController):
                     if CurrentGlyph() is not None:
                         name = CurrentGlyph().name
                     else:
-                        if CurrentFont().selectedGlyphNames:
-                            name = CurrentFont().selectedGlyphNames[-1]
-
+                        if selected:
+                            name = selected[0]
                 validated.append(name)
         return validated
 
