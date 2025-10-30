@@ -45,40 +45,51 @@ from vanilla.vanillaBase import osVersionCurrent, osVersion12_0
 import yaml
 
 
-INFO_YAML = os.path.abspath(os.path.join( __file__, "../../../", "info.yaml"))
-with open(INFO_YAML, mode="r") as file:
-    info = yaml.safe_load(file)
-EXTENSION_VERSION = info.get("version", "0.0.0")
+"""
+versioning
+adds alpha to anything less than 0.1.0
+adds beta to anything less than 1.0.0
+"""
+FALLBACK_VERSION = "0.0.0"
+INFO_YAML = os.path.abspath(os.path.join(__file__, "../../../", "info.yaml"))
+if os.path.exists(INFO_YAML):
+    with open(INFO_YAML, mode="r") as file:
+        info = yaml.safe_load(file)
+else:
+    info = dict(version=FALLBACK_VERSION)
+EXTENSION_VERSION = info.get("version", FALLBACK_VERSION)
+if int(EXTENSION_VERSION.split(".")[0]) < 1:
+    if int(EXTENSION_VERSION.split(".")[1]) < 1:
+        EXTENSION_VERSION += "ɑ"
+    else:
+        EXTENSION_VERSION += "β"
 
-# ---------
-# Interface
-# ---------
-AXES = [
-        "Weight",
-        "Width",
-        "Slant"
-]
+
+BASE_DIR = os.path.dirname(__file__)
+RESOURCES_PATH = os.path.join(BASE_DIR, "resources")
 
 
-EXTENSION_KEY:str = "com.connordavenport.spaceport"
+EXTENSION_KEY:str       = "com.connordavenport.spaceport"
 
-CURRENTGLYPH_CHAR:str = "/?"
+CURRENTGLYPH_CHAR:str   = "/?"
 SELECTEDGLYPHS_CHAR:str = "/!"
-NEWLINE_CHAR:str = "\\n"
+NEWLINE_CHAR:str        = "\\n"
 
-ZOOM_WIDTH:str = "arrow.left.and.right.square"
-ZOOM_HEIGHT:str = "arrow.up.and.down.square"
+ZOOM_WIDTH:str          = "arrow.left.and.right.square"
+ZOOM_HEIGHT:str         = "arrow.up.and.down.square"
 
-EDIT_TEXT:str = "character.cursor.ibeam"
-ADD_FONT:str = "document.badge.gearshape"
-ADD_DESIGNSPACE:str = "squareshape.split.3x3"
-SPACING:str = "arrow.left.and.right.text.vertical"
-KERNING:str = "arrowtriangle.right.and.line.vertical.and.arrowtriangle.left"
-INTERPOLATE:str = "squareshape.split.2x2.dotted"
-VIEW_OPTIONS:str = "eye"
-SHOW_METRICS:str = "character.magnify"
-OPENTYPE:str = "textformat.alt"
-BEAM:str = "ruler"
+EDIT_TEXT:str           = "character.cursor.ibeam"
+ADD_FONT:str            = "document.badge.gearshape"
+ADD_DESIGNSPACE:str     = "squareshape.split.3x3"
+SPACING:str             = "arrow.left.and.right.text.vertical"
+KERNING:str             = "arrowtriangle.right.and.line.vertical.and.arrowtriangle.left"
+INTERPOLATE:str         = "squareshape.split.2x2.dotted"
+VIEW_OPTIONS:str        = "eye"
+SHOW_METRICS:str        = "character.magnify"
+OPENTYPE:str            = "textformat.alt"
+BEAM:str                = "ruler"
+FONT_TAB:str            = "dot.square"
+DESIGNSPACE_TAB:str     = "arrow.up.left.and.down.right.and.arrow.up.right.and.down.left"
 
 KERN_HEIGHT:int = 100
 
@@ -91,7 +102,6 @@ ZOOM_OUT_FACTOR:float = getDefault("zoomOutFactor",1.15)
 DESIGNSPACE_WIDTH = 300
 
 MATRIX_POS:tuple[int,int,int,int] = (0, -48, 0, 48)
-
 
 class MerzCollectionViewRGlyphItem(merz.collectionView.MerzCollectionViewItem):
 
@@ -315,7 +325,6 @@ class Spaceport(Subscriber, ezui.WindowController):
             coalescerKey=None,
         )
 
-
         self.beamPosition = int(getattr(getattr(self.font, "info", None), "xHeight", 500) / 2)
         self.upm = int(getattr(getattr(self.font, "info", None), "unitsPerEm", 1000))
 
@@ -325,64 +334,64 @@ class Spaceport(Subscriber, ezui.WindowController):
             contents=[
                 dict(
                     identifier="editText",
-                    image=symbolImage(symbolName=EDIT_TEXT, color=(1,1,1,1), weight="regular"),
+                    image=ezui.makeImage(symbolName=EDIT_TEXT, imagePath=os.path.join(RESOURCES_PATH, f"{EDIT_TEXT}.svg"), template=True),
                     text="Edit Text",
                     template=True,
                 ),
                 dict(
                     identifier="addObjects",
-                    image=symbolImage(symbolName=ADD_FONT, color=(1,1,1,1), weight="regular"),
+                    image=ezui.makeImage(symbolName=ADD_FONT, imagePath=os.path.join(RESOURCES_PATH, f"{ADD_FONT}.svg"), template=True),
                     text="Objects",
                     template=True,
                 ),
                 # dict(
                 #     identifier="addDesignspace",
-                #     image=symbolImage(symbolName=ADD_DESIGNSPACE, color=(1,1,1,1), weight="light"),
+                #     image=ezui.makeImage(symbolName=ADD_DESIGNSPACE, imagePath=os.path.join(RESOURCES_PATH, f"{ADD_DESIGNSPACE}.svg"), template=True),
                 #     text="Designspace",
                 #     template=True,
                 # ),
                 # dict(
                 #     identifier="spacing",
-                #     image=symbolImage(symbolName=SPACING, color=(1,1,1,1), weight="regular"),
+                #     image=ezui.makeImage(symbolName=SPACING, imagePath=os.path.join(RESOURCES_f"{PATH, SPACING}.svg"), template=True),
                 #     text="Spacing",
                 #     template=True,
                 # ),
                 # dict(
                 #     identifier="kerning",
-                #     image=symbolImage(symbolName=KERNING, color=(1,1,1,1), weight="regular"),
+                #     image=ezui.makeImage(symbolName=KERNING, imagePath=os.path.join(RESOURCES_f"{PATH, KERNING}.svg"), template=True),
                 #     text="Kerning",
                 #     template=True,
                 # ),
 
                 dict(
                     identifier="zoomToWidth",
-                    image=symbolImage(symbolName=ZOOM_WIDTH, color=(1,1,1,1), weight="regular"),
+                    image=ezui.makeImage(symbolName=ZOOM_WIDTH, imagePath=os.path.join(RESOURCES_PATH, f"{ZOOM_WIDTH}.svg"), template=True),
                     text="Fit Width",
                     template=True,
                 ),
                 dict(
                     identifier="zoomToHeight",
-                    image=symbolImage(symbolName=ZOOM_HEIGHT, color=(1,1,1,1), weight="regular"),
+                    image=ezui.makeImage(symbolName=ZOOM_HEIGHT, imagePath=os.path.join(RESOURCES_PATH, f"{ZOOM_HEIGHT}.svg"), template=True),
                     text="Fit Height",
                     template=True,
                 ),
 
                 dict(
                     identifier="opentype",
-                    image=symbolImage(symbolName=OPENTYPE, color=(1,1,1,1), weight="regular"),
+                    image=ezui.makeImage(symbolName=OPENTYPE, imagePath=os.path.join(RESOURCES_PATH, f"{OPENTYPE}.svg"), template=True),
                     text="OpenType",
                     template=True,
                 ),
                 dict(
                     identifier="interpolate",
-                    image=symbolImage(symbolName=INTERPOLATE, color=(1,1,1,1), weight="regular"),
+                    image=ezui.makeImage(symbolName=INTERPOLATE, imagePath=os.path.join(RESOURCES_PATH, f"{INTERPOLATE}.svg"), template=True),
                     text="Interpolate",
                     template=True,
                 ), 
 
                 dict(
                     identifier="viewOptions",
-                    image=symbolImage(symbolName=VIEW_OPTIONS, color=(1,1,1,1), weight="regular"),
+                    image=ezui.makeImage(symbolName=VIEW_OPTIONS, imagePath=os.path.join(RESOURCES_PATH, f"{VIEW_OPTIONS}.svg"), template=True),
                     text="View Options",
                     template=True,
                 ),
@@ -502,12 +511,13 @@ class Spaceport(Subscriber, ezui.WindowController):
         self.v.getItem("showKerningButton").show(False)
 
         content = """
-        * HorizontalStack       @controlsStack
-        > [__](±)               @pointSizeField
-        > [__](±)               @lineHeightField
-        > *GlyphSequence        @preTextField
-        > *GlyphSequence        @textField
-        > *GlyphSequence        @pstTextField
+        * HorizontalStack          @controlsStack
+        > [__](±)                  @pointSizeField
+        > [__](±)                  @lineHeightField
+        > *GlyphSequence           @preTextField
+        > *GlyphSequence           @textField
+        > *GlyphSequence           @pstTextField
+        > ( {distribute.vertical.top} | {distribute.vertical} | {distribute.vertical.bottom} ) @verticalDistButton
         """
 
         descriptionData = dict(
@@ -537,6 +547,9 @@ class Spaceport(Subscriber, ezui.WindowController):
                 value=1.0,
                 maxValue=2.0,
                 valueIncrement=0.1
+            ),
+            verticalDistButton=dict(
+                #
             ),
         )
 
@@ -600,6 +613,31 @@ class Spaceport(Subscriber, ezui.WindowController):
 
     # designspace editor notifcations
     designspaceEditorPreviewLocationDidChangeDelay = 0.01
+
+    def verticalDistButtonCallback(self, sender):
+        m = "top center bottom".split(" ")
+        print(f"{m[sender.get()]} distribution not implimented")
+        if sender.get() == "RUN": # this is impossible, leave for testing
+            collection = self.collectionView
+            typesetter = collection._documentView._typesetter
+            firstYPos = typesetter.getItemPosition(0)[1]
+            lineHeight = self.te.getItemValues()["lineHeightField"]
+            pointSize = self.te.getItemValues()["pointSizeField"]
+
+            extras = self.extraHeights
+            if self.w.matrix.isVisible():
+                extras += MATRIX_POS[-1]
+            containerHeight = self.w.getPosSize()[-1] - extras
+            availableHeight = len([1 for use, font in self.fonts.values() if use]) * lineHeight * pointSize * 1.1
+
+            if availableHeight < containerHeight:
+                offset = self.upm + (containerHeight - availableHeight / 2)
+                for i, item in enumerate(collection.get()):
+                    if typesetter.getItemPosition(i)[1] == firstYPos:
+                        item.setHeight(offset)
+                    else:
+                        item.setHeight(offset*lineHeight)
+
 
     def designspaceEditorPreviewLocationDidChange(self, notification) -> None:
         if self.designspaceController or self.internalPreview:
@@ -723,13 +761,13 @@ class Spaceport(Subscriber, ezui.WindowController):
             ),
             fontTab=dict(
                 identifier="fontTab",
-                image=symbolImage(symbolName="dot.square", color=(1,1,1,1), weight="regular"),
+                image=ezui.makeImage(symbolName=FONT_TAB, imagePath=os.path.join(RESOURCES_PATH, f"{FONT_TAB}.svg"), template=True),
                 text="Fonts",
                 template=True,
             ),
             designspaceTab=dict(
                 identifier="designspaceTab",
-                image=symbolImage(symbolName="arrow.up.left.and.down.right.and.arrow.up.right.and.down.left", color=(1,1,1,1), weight="regular"),
+                image=ezui.makeImage(symbolName=DESIGNSPACE_TAB, imagePath=os.path.join(RESOURCES_PATH, f"{DESIGNSPACE_TAB}.svg"), template=True),
                 text="Designspaces",
                 template=True,
             ),
@@ -1180,20 +1218,21 @@ class Spaceport(Subscriber, ezui.WindowController):
     def textFieldCallback(self, sender) -> None:
         self.typingCoalescer.restart()
         self.unsubscribeFromGlyphs()
-        glyphNames = self.validateGlyphNames(self.te.getItemValue("textField"))
-        font = self.font
-        holding = []
-        pre = self.validateGlyphNames(self.te.getItemValue("preTextField"))
-        pst = self.validateGlyphNames(self.te.getItemValue("pstTextField"))
-        if font:
-            for index,name in enumerate(glyphNames):
-                if name in font.keys():
-                    holding.extend(pre)
-                    holding.append(name)
-                    holding.extend(pst)
+        if self.font:
+            glyphNames = self.validateGlyphNames(self.te.getItemValue("textField"))
+            font = self.font
+            holding = []
+            pre = self.validateGlyphNames(self.te.getItemValue("preTextField"))
+            pst = self.validateGlyphNames(self.te.getItemValue("pstTextField"))
+            if font:
+                for index,name in enumerate(glyphNames):
+                    if name in font.keys():
+                        holding.extend(pre)
+                        holding.append(name)
+                        holding.extend(pst)
 
-        self.glyphs = holding
-        self.populateItems()
+            self.glyphs = holding
+            self.populateItems()
 
 
     def alignmentSegmentButtonCallback(self, sender) -> None:
@@ -2023,12 +2062,6 @@ class Spaceport(Subscriber, ezui.WindowController):
         if self.multiline:
             collection = self.collectionView
             typesetter = collection._documentView._typesetter
-
-            scrollView = collection.getNSScrollView()
-
-            container = collection.getMerzContainer()
-            zoomScale = container.getContainerScale()
-
             (containerWidth, __) = collection._documentView.getSize()
             extras = self.extraHeights
             if self.w.matrix.isVisible():
@@ -2052,6 +2085,7 @@ class Spaceport(Subscriber, ezui.WindowController):
 
             if scale == 1.0:
                 return
+
             self.zoom(scale=scale)
 
 
