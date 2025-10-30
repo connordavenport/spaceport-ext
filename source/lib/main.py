@@ -101,7 +101,11 @@ ZOOM_OUT_FACTOR:float = getDefault("zoomOutFactor",1.15)
 
 DESIGNSPACE_WIDTH = 300
 
+DETACH_DATA:dict[str:int] = dict(width="fill",height=20, gravity="trailing")
+DETACH_STACK:str          = "*HorizontalStack    @detachStack"
+
 MATRIX_POS:tuple[int,int,int,int] = (0, -48, 0, 48)
+
 
 class MerzCollectionViewRGlyphItem(merz.collectionView.MerzCollectionViewItem):
 
@@ -212,57 +216,6 @@ class MerzCollectionViewRGlyphItem(merz.collectionView.MerzCollectionViewItem):
     location = property(getLocation, setLocation)
 
 
-
-def symbolImage(symbolName:str, color:tuple[float, float, float, float]|AppKit.NSColor=(1,1,1,1), flipped:bool=False, pointSize:float=18.0, weight:str="light", scale:str="medium") -> AppKit.NSImage:
-    '''
-    taken from designspace editor
-    '''
-    image = None
-    if osVersionCurrent >= osVersion12_0:
-        image = AppKit.NSImage.imageWithSystemSymbolName_accessibilityDescription_(symbolName, "")
-        # not all SF symbols are available on older systems
-        if image is not None:
-            if isinstance(color, tuple):
-                color = AppKit.NSColor.colorWithCalibratedRed_green_blue_alpha_(*color)
-            else:
-                color = symbolColorMap[color]()
-
-            pointSize = float(pointSize)
-
-            scales = {
-                "small": AppKit.NSImageSymbolScaleSmall,
-                "medium": AppKit.NSImageSymbolScaleMedium,
-                "large": AppKit.NSImageSymbolScaleLarge,
-            }
-            scale = scales.get(scale.lower(), AppKit.NSImageSymbolScaleMedium)
-
-            weights = {
-                "ultraLight": AppKit.NSFontWeightUltraLight,
-                "thin":       AppKit.NSFontWeightThin,
-                "light":      AppKit.NSFontWeightLight,
-                "regular":    AppKit.NSFontWeightRegular,
-                "medium":     AppKit.NSFontWeightMedium,
-                "semibold":   AppKit.NSFontWeightSemibold,
-                "bold":       AppKit.NSFontWeightBold,
-                "heavy":      AppKit.NSFontWeightHeavy,
-                "black":      AppKit.NSFontWeightBlack,
-            }
-            weight = weights.get(weight.lower(), AppKit.NSFontWeightRegular)
-
-            # baseConfig = AppKit.NSImageSymbolConfiguration.configurationWithHierarchicalColor_(color)
-            newConfig = AppKit.NSImageSymbolConfiguration.configurationWithPointSize_weight_scale_(
-                pointSize,
-                weight,
-                scale
-            )
-            # newConfig = AppKit.NSImageSymbolConfiguration.configurationWithScale_(scale)
-            # configuration = baseConfig.configurationByApplyingConfiguration_(newConfig)
-            image = image.imageWithSymbolConfiguration_(newConfig)
-    if flipped and image:
-        image.setFlipped_(True)
-    return image
-
-
 class Spaceport(Subscriber, ezui.WindowController):
 
     debug = True
@@ -344,18 +297,7 @@ class Spaceport(Subscriber, ezui.WindowController):
                     text="Objects",
                     template=True,
                 ),
-                # dict(
-                #     identifier="addDesignspace",
-                #     image=ezui.makeImage(symbolName=ADD_DESIGNSPACE, imagePath=os.path.join(RESOURCES_PATH, f"{ADD_DESIGNSPACE}.svg"), template=True),
-                #     text="Designspace",
-                #     template=True,
-                # ),
-                # dict(
-                #     identifier="spacing",
-                #     image=ezui.makeImage(symbolName=SPACING, imagePath=os.path.join(RESOURCES_f"{PATH, SPACING}.svg"), template=True),
-                #     text="Spacing",
-                #     template=True,
-                # ),
+
                 # dict(
                 #     identifier="kerning",
                 #     image=ezui.makeImage(symbolName=KERNING, imagePath=os.path.join(RESOURCES_f"{PATH, KERNING}.svg"), template=True),
@@ -426,7 +368,6 @@ class Spaceport(Subscriber, ezui.WindowController):
             minSize=(400, 200),
         )
 
-
         for i in range(4):
             item = f"line{i}"
             self.w.getItem(item).show(False)
@@ -443,72 +384,7 @@ class Spaceport(Subscriber, ezui.WindowController):
 
         self.extraHeights = (self.w.getPosSize()[-1] - 500)
 
-
-        content = """
-        Beam:
-        * HorizontalStack
-        > [X]                                                         @showBeamButton
-        > --X------                                                   @beamPositionSlider
-        [X] Multiline                                                 @multilineButton
-        [ ] Show Kerning                                              @showKerningButton
-        [X] Show Metrics                                              @showMetricsButton
-        -----
-        [X] Show Space Matrix                                         @showSpaceMatrixButton
-        * HorizontalStack
-        > ({arrow.up.arrow.down})                                     @moveSpaceMatrixButton
-        > Move Matrix Position
-        -----
-        Invert Colors:
-        ( {circle.dashed} | {circle.fill} )                           @invertColorsButton
-        Fill Options:
-        (( {circle.fill} | {circle} | {circle.hexagonpath} ))         @displaySettingsButton
-        Text Alignment:
-        ( {text.alignleft} | {text.aligncenter} | {text.alignright} ) @alignmentSegmentButton
-        """
-
-        descriptionData = dict(
-            showBeamButton=dict(
-                value=True,
-            ),
-            beamPositionSlider=dict(
-                minValue=0,
-                maxValue=self.upm,
-                value=self.beamPosition
-            ),
-            showKerningButton=dict(
-                # hide=False,
-            ),
-            showMetricsButton=dict(
-                value=True
-            ),
-            displaySettingsButton=dict(
-                selected=[0]
-            ),
-            alignmentSegmentButton=dict(
-                selected=0
-            ),
-            showSpaceMatrixButton=dict(
-                value=True,
-            ),
-            moveSpaceMatrixButton=dict(
-                height=20,
-                width=13,
-            ),
-        )
-
-        self.glyphMap = {}
-
-        self.v = ezui.EZPopover(
-            size=(100,100),
-            content=content,
-            descriptionData=descriptionData,
-            parent=self.w,
-            behavior="transient",
-            parentAlignment="right",
-            controller=self
-        )
-
-        self.v.getItem("showKerningButton").show(False)
+        self.buildSettingsPopover()
 
         content = """
         * HorizontalStack          @controlsStack
@@ -611,33 +487,80 @@ class Spaceport(Subscriber, ezui.WindowController):
     def started(self) -> None:
         self.w.open()
 
+
+    def buildSettingsPopover(self, open:bool=False) -> None:
+        content = DETACH_STACK
+        content += """
+        > ({arrow.up.right.circle})                                   @detachSettingsButton
+        Beam:
+        * HorizontalStack
+        > [X]                                                         @showBeamButton
+        > --X------                                                   @beamPositionSlider
+        [X] Multiline                                                 @multilineButton
+        [ ] Show Kerning                                              @showKerningButton
+        [X] Show Metrics                                              @showMetricsButton
+        -----
+        [X] Show Space Matrix                                         @showSpaceMatrixButton
+        * HorizontalStack
+        > ({arrow.up.arrow.down})                                     @moveSpaceMatrixButton
+        > Move Matrix Position
+        -----
+        Invert Colors:
+        ( {circle.dashed} | {circle.fill} )                           @invertColorsButton
+        Fill Options:
+        (( {circle.fill} | {circle} | {circle.hexagonpath} ))         @displaySettingsButton
+        Text Alignment:
+        ( {text.alignleft} | {text.aligncenter} | {text.alignright} ) @alignmentSegmentButton
+        """
+        descriptionData = dict(
+            detachSettingsButton=DETACH_DATA,
+            showBeamButton=dict(
+                value=True,
+            ),
+            beamPositionSlider=dict(
+                minValue=0,
+                maxValue=self.upm,
+                value=self.beamPosition
+            ),
+            showKerningButton=dict(
+                # hide=False,
+            ),
+            showMetricsButton=dict(
+                value=True
+            ),
+            displaySettingsButton=dict(
+                selected=[0]
+            ),
+            alignmentSegmentButton=dict(
+                selected=0
+            ),
+            showSpaceMatrixButton=dict(
+                value=True,
+            ),
+            moveSpaceMatrixButton=dict(
+                height=20,
+                width=13,
+            ),
+        )
+
+        self.glyphMap = {}
+
+        self.v = ezui.EZPopover(
+            size=(100,100),
+            content=content,
+            descriptionData=descriptionData,
+            parent=self.w,
+            behavior="transient",
+            parentAlignment="right",
+            controller=self
+        )
+        self.v.getItem("showKerningButton").show(False)
+
+        if open: self.v.open()
+
+
     # designspace editor notifcations
     designspaceEditorPreviewLocationDidChangeDelay = 0.01
-
-    def verticalDistButtonCallback(self, sender):
-        m = "top center bottom".split(" ")
-        print(f"{m[sender.get()]} distribution not implimented")
-        if sender.get() == "RUN": # this is impossible, leave for testing
-            collection = self.collectionView
-            typesetter = collection._documentView._typesetter
-            firstYPos = typesetter.getItemPosition(0)[1]
-            lineHeight = self.te.getItemValues()["lineHeightField"]
-            pointSize = self.te.getItemValues()["pointSizeField"]
-
-            extras = self.extraHeights
-            if self.w.matrix.isVisible():
-                extras += MATRIX_POS[-1]
-            containerHeight = self.w.getPosSize()[-1] - extras
-            availableHeight = len([1 for use, font in self.fonts.values() if use]) * lineHeight * pointSize * 1.1
-
-            if availableHeight < containerHeight:
-                offset = self.upm + (containerHeight - availableHeight / 2)
-                for i, item in enumerate(collection.get()):
-                    if typesetter.getItemPosition(i)[1] == firstYPos:
-                        item.setHeight(offset)
-                    else:
-                        item.setHeight(offset*lineHeight)
-
 
     def designspaceEditorPreviewLocationDidChange(self, notification) -> None:
         if self.designspaceController or self.internalPreview:
@@ -697,6 +620,31 @@ class Spaceport(Subscriber, ezui.WindowController):
         self.designspaceController = 2 in sender.get()
         self.designspaceSettingsChanged()
         
+
+    def verticalDistButtonCallback(self, sender):
+        m = "top center bottom".split(" ")
+        print(f"{m[sender.get()]} distribution not implimented")
+        if sender.get() == "RUN": # this is impossible, leave for testing
+            collection = self.collectionView
+            typesetter = collection._documentView._typesetter
+            firstYPos = typesetter.getItemPosition(0)[1]
+            lineHeight = self.te.getItemValues()["lineHeightField"]
+            pointSize = self.te.getItemValues()["pointSizeField"]
+
+            extras = self.extraHeights
+            if self.w.matrix.isVisible():
+                extras += MATRIX_POS[-1]
+            containerHeight = self.w.getPosSize()[-1] - extras
+            availableHeight = len([1 for use, font in self.fonts.values() if use]) * lineHeight * pointSize * 1.1
+
+            if availableHeight < containerHeight:
+                offset = self.upm + (containerHeight - availableHeight / 2)
+                for i, item in enumerate(collection.get()):
+                    if typesetter.getItemPosition(i)[1] == firstYPos:
+                        item.setHeight(offset)
+                    else:
+                        item.setHeight(offset*lineHeight)
+
 
     def showSpaceMatrixButtonCallback(self, sender) -> None:
         if self.matrixPosition == 1:
@@ -1077,8 +1025,13 @@ class Spaceport(Subscriber, ezui.WindowController):
         axes = "x"
         interpolatable = []
         if self.operator:
-            content = "*VerticalStack @axesSelectorStack"
+            content = DETACH_STACK
+            content += """
+            > ({arrow.up.right.circle})      @detachInterpolationButton
+            *VerticalStack                   @axesSelectorStack
+            """
             descriptionData = dict(
+                detachInterpolationButton=DETACH_DATA,
                 designspaceNav=dict(
                     height=300,
                     width=300,
@@ -1146,8 +1099,18 @@ class Spaceport(Subscriber, ezui.WindowController):
             self.vp.open()
 
 
+    def detachSettingsButtonCallback(self, sender) -> None:
+        self.v.getNSPopover().detach()
+        self.v.getItem("detachSettingsButton").show(False)
+
+
+    def detachInterpolationButtonCallback(self, sender) -> None:
+        self.vp.getNSPopover().detach()
+        self.vp.getItem("detachInterpolationButton").show(False)
+
+
     def viewOptionsCallback(self,sender) -> None:
-        self.v.open()
+        self.buildSettingsPopover(open=True)
 
 
     def yAxisSelectionCallback(self, sender) -> None:
@@ -1683,16 +1646,18 @@ class Spaceport(Subscriber, ezui.WindowController):
                 val = round(getattr(glyph, f"angled{side.title()}Margin"))
                 if val:
                     margin = glyphMetricsLayer.getSublayer(f"glyph{side.title()}MetricsValueSublayer")
-                    margin.setText(str(val))
-                    margin.setPosition((start[0],round(depth/2)))
+                    if margin:
+                        margin.setText(str(val))
+                        margin.setPosition((start[0],round(depth/2)))
 
                 line = glyphMetricsLayer.getSublayer(f"glyphMetrics{side.title()}LinesSublayer")
                 line.setStartPoint(start)
                 line.setEndPoint(end)
 
             wd = glyphMetricsLayer.getSublayer("glyphWidthSublayer")
-            wd.setText(str(glyph.width))
-            wd.setPosition((round(glyph.width/2),round(depth/2)))
+            if wd:
+                wd.setText(str(glyph.width))
+                wd.setPosition((round(glyph.width/2),round(depth/2)))
 
         glyphFillLayer = glyphContainer.getSublayer("glyphFill")
         #with glyphFillLayer.propertyGroup():    # for some reason this wont work inside a property group
