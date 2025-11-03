@@ -124,8 +124,11 @@ class EZSequenceCombo(GlyphSequenceEditComboBox, ezui.tools.ParserMixIn):
         )
         super().__init__("auto", *args, callback=callback, **kwargs)
 
-#ezui.tools.classes.registerClass("SequenceCombo", EZSequenceCombo)
-
+# we should move this to the __init__.py once we make one
+try:
+    ezui.tools.classes.registerClass("SequenceCombo", EZSequenceCombo)
+except:
+    pass
 
 class MerzCollectionViewRGlyphItem(merz.collectionView.MerzCollectionViewItem):
 
@@ -357,24 +360,28 @@ class Spaceport(Subscriber, ezui.WindowController):
         >* MerzCollectionView               @collectionView
         """
         numberFieldWidth = 40
+
+        fontToLoad = self.font or internalFontClasses.createFontObject()
+        if isinstance(fontToLoad, RFont):
+            fontToLoad = fontToLoad.naked()
+
         descriptionData = dict(
             collectionView=dict(
                 height="fill",
                 width="fill",
                 delegate=self,
             ),
-
             preTextField=dict(
                 width=40,
-                font=self.font.naked() or internalFontClasses.createFontObject(),
+                font=fontToLoad,
             ),
             pstTextField=dict(
                 width=40,
-                font=self.font.naked() or internalFontClasses.createFontObject(),
+                font=fontToLoad,
             ),
             textField=dict(
                 width="fill",
-                font=self.font.naked() or internalFontClasses.createFontObject(),
+                font=fontToLoad,
                 items=getDefault('spaceCenterInputSamples', []),
             ),
             controlsStack=dict(
@@ -458,8 +465,6 @@ class Spaceport(Subscriber, ezui.WindowController):
         except (AttributeError, KeyError): pass
 
         windowSettings = self.w.getItemValues()
-        del windowSettings["collectionView"]
-
         for name,field in windowSettings.items():
             if name.lower().endswith("textfield"):
                 cleanedInput = []
@@ -707,6 +712,7 @@ class Spaceport(Subscriber, ezui.WindowController):
         >> |-files----|                                                    @fontTable
         >> |          |  
         >> |----------|  
+        >> (+-)                                                            @fontTableAddRemoveButton
 
         > * Box                                                            @designspaceBox = VerticalStack
         >> !!!Designspaces
@@ -714,6 +720,7 @@ class Spaceport(Subscriber, ezui.WindowController):
         >> |-files----|                                                    @designspaceTable
         >> |          |
         >> |----------|
+        >> (+-)                                                            @designspaceTableAddRemoveButton
         """
 
         descriptionData = dict(
@@ -799,7 +806,6 @@ class Spaceport(Subscriber, ezui.WindowController):
         )
 
         self.styleWindowButtons(self.w.objw)
-
         # get current values
         vs = 0 if self.viewSources else None
         vi = 1 if self.viewInstances else None
@@ -829,7 +835,46 @@ class Spaceport(Subscriber, ezui.WindowController):
         self.w.objw.getItem("fontTable").set(dict(use=use,path=path) for (path, (use, font)) in self.fonts.items())                
         self.populateItems()
 
-        
+
+    def fontTableAddRemoveButtonAddCallback(self, sender):
+        table = self.w.objw.getItem("fontTable")
+        files = GetFile(allowsMultipleSelection=True, fileTypes=["ufo", "ufoz"])
+        if files:
+            for file in files:
+                item = table.makeItem(
+                    use=True,
+                    path=file
+                )
+                table.appendItems([item])
+                obj = OpenFont(file,True)
+                self.fonts[file] = (True, obj)
+
+
+    def fontTableAddRemoveButtonRemoveCallback(self, sender):
+        table = self.w.objw.getItem("fontTable")
+        table.removeSelectedItems()
+
+
+    def designspaceTableAddRemoveButtonAddCallback(self, sender):
+        table = self.w.objw.getItem("designspaceTable")
+        files = GetFile(allowsMultipleSelection=True, fileTypes=["designspace"])
+        if files:
+            for file in files:
+                item = table.makeItem(
+                    use=False,
+                    path=file
+                )
+                table.appendItems([item])
+                obj = DesignspaceEditorController(file)
+                operator = obj.operator
+                self.designspaces[file] = (False,operator)
+
+
+    def designspaceTableAddRemoveButtonRemoveCallback(self, sender):
+        table = self.w.objw.getItem("designspaceTable")
+        table.removeSelectedItems()
+
+
     def designspaceSettingsChanged(self, **kwargs) -> None:
         obj = kwargs.get("object", self.operator)
         reset = kwargs.get("reset", False)
@@ -954,8 +999,8 @@ class Spaceport(Subscriber, ezui.WindowController):
 
 
     def addObjectsCallback(self, sender) -> None:
-        self.buildObjectsSheet()
-        self.w.objw.open()
+        window = self.buildObjectsSheet()
+        window.open()
 
 
     def addAndReorderButtonCallback(self, sender) -> None:
@@ -1018,8 +1063,8 @@ class Spaceport(Subscriber, ezui.WindowController):
 
 
     def addDesignspaceCallback(self, sender) -> None:
-        self.buildObjectsSheet()
-        self.w.objw.open()
+        window = self.buildObjectsSheet()
+        window.open()
 
 
     def spacingCallback(self, sender) -> None:
@@ -2076,7 +2121,7 @@ class Spaceport(Subscriber, ezui.WindowController):
 
 
     def destroy(self) -> None:
-        setExtensionDefault(EXTENSION_KEY + ".main_prefs", self.w.getItemValues())
+        #setExtensionDefault(EXTENSION_KEY + ".main_prefs", self.w.getItemValues())
         setExtensionDefault(EXTENSION_KEY + ".view_prefs", self.v.getItemValues())
         windowSettings = self.w.getItemValues()
         for name,field in windowSettings.items():
@@ -2094,7 +2139,8 @@ class Spaceport(Subscriber, ezui.WindowController):
                             pass
                 windowSettings[name] = ''.join(cleanedInput)
 
-        # windowSettings['textField'] = ''.join(cleanedInput)
+        if "collectionView" in windowSettings.keys(): del windowSettings['collectionView']
+
         setExtensionDefault(EXTENSION_KEY + ".main_prefs", windowSettings)
         self.clearObservedAdjunctObjects()
         self.zoomCoalescer.stop()
