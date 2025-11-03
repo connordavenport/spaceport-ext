@@ -131,6 +131,58 @@ try:
 except:
     pass
 
+
+class InterpolateWarning(ezui.WindowController):
+
+    def build(self, parent, relative):
+
+        self.relative = relative
+
+        content = """
+
+        * HorizontalStack                           @stack
+        > * Image                                   @warningImage
+        You must add a designspace file first!      @label
+        ----------
+        ( Manage Objects )                          @openDesignspaceButton
+        """
+
+        descriptionData = dict(
+            stack=dict(
+                distribution="fillEqually"
+            ),
+            label=dict(
+                alignment="center",
+            ),
+            warningImage=dict(
+                image=ezui.makeImage(
+                    symbolName="exclamationmark.triangle",
+                ),
+                symbolConfiguration=dict(
+                    scale="large",
+                ),
+            ),
+            openDesignspaceButton=dict(
+                width="fill"
+            ),
+        )
+        self.w = ezui.EZPopUp(
+            size=(200, 150),
+            descriptionData=descriptionData,
+            content=content,
+            parent=parent,
+            controller=self
+        )
+
+    def openDesignspaceButtonCallback(self, sender):
+        window = self.relative.buildObjectsSheet()
+        window.open()
+
+    def started(self):
+        self.w.open()
+
+
+
 class MerzCollectionViewRGlyphItem(merz.collectionView.MerzCollectionViewItem):
 
     def __init__(self, *args, **kwargs) -> None:
@@ -708,7 +760,6 @@ class Spaceport(Subscriber, ezui.WindowController):
             if isinstance(item, ezui.items.segmentButton.SegmentButton):
                 item.getNSSegmentedButton().setSegmentStyle_(AppKit.NSSegmentStyleRoundRect)
 
-
     def buildObjectsSheet(self) -> None:
 
         if not self.designspaces:
@@ -1175,6 +1226,8 @@ class Spaceport(Subscriber, ezui.WindowController):
                 controller=self
             )
             self.vp.open()
+        else:
+            InterpolateWarning(self.w, self)
 
 
     def detachSettingsButtonCallback(self, sender) -> None:
