@@ -13,7 +13,7 @@ from fontTools.designspaceLib import (DesignSpaceDocument,
                                      SourceDescriptor,
                                      InstanceDescriptor)
 import functools
-from glyphNameFormatter.reader import n2u
+from glyphNameFormatter.reader import n2u, n2N, N2n
 from lib.fontObjects.doodleFont import DoodleFont
 from lib.fontObjects.doodleLayer import DoodleLayer
 from lib.fontObjects.doodleGlyph import DoodleGlyph
@@ -98,6 +98,7 @@ DETACH_STACK:str          = "*HorizontalStack    @detachStack"
 
 MATRIX_POS:tuple[int,int,int,int] = (0, -48, 0, 48)
 
+CASES:list[str] = ["lower", "title", "upper", "default"]
 
 class EZSequenceCombo(GlyphSequenceEditComboBox, ezui.tools.ParserMixIn):
     # https://github.com/typemytype/basicShapingRoboFontExtension/blob/47698796e1b45b074e6489b49c8b7b7ab7493bce/BasicShaping.roboFontExt/lib/CoreTextShaping.py#L167
@@ -249,6 +250,8 @@ class Spaceport(Subscriber, ezui.WindowController):
 
         self.selectedItems = []
 
+        self.case = "default"
+
         self.foreground     = (0, 0, 0, 1)
         self.background     = (1, 1, 1, 1)
 
@@ -262,6 +265,8 @@ class Spaceport(Subscriber, ezui.WindowController):
         self.designspaceController = True
 
         self.viewDesignspace = False
+
+        self.detached = False
 
         self.currentGlyph = CurrentGlyph()
         self.font         = CurrentFont()
@@ -488,11 +493,6 @@ class Spaceport(Subscriber, ezui.WindowController):
         #self.showKerningButtonCallback(None)
         self.textFieldCallback(None)
 
-        # inputSamples = getDefault('spaceCenterInputSamples', [])
-
-        # help(self.w.getItem("textField"))
-        # self.w.getItem("textField").setItems(inputSamples)
-
         if not self.fonts:
             window = self.buildObjectsSheet()
             window.open()
@@ -501,8 +501,8 @@ class Spaceport(Subscriber, ezui.WindowController):
     def started(self) -> None:
         self.w.open()
 
-
     def buildSettingsPopover(self, open:bool=False) -> None:
+        self.detached = False
         content = DETACH_STACK
         content += """
         > ({arrow.up.right.circle})                                   @detachSettingsButton
@@ -519,6 +519,9 @@ class Spaceport(Subscriber, ezui.WindowController):
         > ({arrow.up.arrow.down})                                     @moveSpaceMatrixButton
         > Move Matrix Position
         -----
+        Text Formatting:
+        ( {characters.lowercase} | {textformat.characters} | {characters.uppercase} | {circle.and.line.horizontal} ) @textFormattingButton
+        -----
         Invert Colors:
         ( {circle.dashed} | {circle.fill} )                           @invertColorsButton
         Glyph Drawing Options:
@@ -530,6 +533,9 @@ class Spaceport(Subscriber, ezui.WindowController):
         """
 
         descriptionData = dict(
+            textFormattingButton=dict(
+                selected=CASES.index(self.case)
+            ),
             detachSettingsButton=DETACH_DATA,
             showBeamButton=dict(
                 value=True,
@@ -664,6 +670,11 @@ class Spaceport(Subscriber, ezui.WindowController):
                         item.setHeight(offset)
                     else:
                         item.setHeight(offset*lineHeight)
+
+
+    def textFormattingButtonCallback(self, sender) -> None:
+        self.case = CASES[sender.get()]
+        self.textFieldCallback(None)
 
 
     def showSpaceMatrixButtonCallback(self, sender) -> None:
@@ -1087,17 +1098,18 @@ class Spaceport(Subscriber, ezui.WindowController):
         #self.w.setPosSize((x,y,ww,h))
         #self.w.getItem("designspaceNav").show(self.viewDesignspace)
         # self.w.resizeToFitContent()
+
+        try:
+            if not self.detatched:
+                self.v.close()
+        except: pass
+
         self.viewDesignspace = not self.viewDesignspace
         axes = "x"
         interpolatable = []
         if self.operator:
-            content = DETACH_STACK
-            content += """
-            > ({arrow.up.right.circle})      @detachInterpolationButton
-            *VerticalStack                   @axesSelectorStack
-            """
+            content = ""
             descriptionData = dict(
-                detachInterpolationButton=DETACH_DATA,
                 designspaceNav=dict(
                     height=300,
                     width=300,
@@ -1168,14 +1180,13 @@ class Spaceport(Subscriber, ezui.WindowController):
     def detachSettingsButtonCallback(self, sender) -> None:
         self.v.getNSPopover().detach()
         self.v.getItem("detachSettingsButton").show(False)
-
-
-    def detachInterpolationButtonCallback(self, sender) -> None:
-        self.vp.getNSPopover().detach()
-        self.vp.getItem("detachInterpolationButton").show(False)
+        self.detached = True
 
 
     def viewOptionsCallback(self,sender) -> None:
+        self.v.close()
+        try: self.vp.close()
+        except: pass
         self.buildSettingsPopover(open=True)
 
 
@@ -1205,16 +1216,14 @@ class Spaceport(Subscriber, ezui.WindowController):
         return [axisDescriptor.name for axisDescriptor in self.operator.axes if not hasattr(axisDescriptor, "values")]
 
 
-    # def editTextCallback(self, sender) -> None:
-    #     # self.te.open()
-    #     subwindow = self.te.getNSWindow().contentViewController().view().window()
-    #     subwindow.makeFirstResponder_(self.te.getItem("textField").getNSTextField())
-
     def roboFontDidSwitchCurrentGlyph(self, info) -> None:
         # print(info["glyph"].name, CurrentGlyph().name)
-        if info["glyph"].name != self.currentGlyph.name:
-            self.textFieldCallback(None)
+        infoGlyph = info["glyph"]
+        if infoGlyph:
+            if infoGlyph.name != self.currentGlyph.name:
+                self.textFieldCallback(None)
         self.currentGlyph = CurrentGlyph()
+
 
     def preTextFieldCallback(self, sender) -> None:
         self.textFieldCallback(None)
@@ -1226,21 +1235,36 @@ class Spaceport(Subscriber, ezui.WindowController):
 
     def validateGlyphNames(self, glyphNames:list[str]) -> list[str | None]:
         validated = []
-        for gname in glyphNames:
+        previous = None
+        for index, glyphName in enumerate(glyphNames):
             selected = CurrentFont().selectedGlyphNames if CurrentFont() else  []
-            if gname == SELECTEDGLYPHS_CHAR:
+            if glyphName == SELECTEDGLYPHS_CHAR:
                 if selected:
                     validated.extend(selected)
             else:
-                if gname in self.font.keys():
-                    name = gname
-                elif gname == CURRENTGLYPH_CHAR:
+                if glyphName in self.font.keys():
+                    name = glyphName
+                elif glyphName == CURRENTGLYPH_CHAR:
                     if CurrentGlyph() is not None:
                         name = CurrentGlyph().name
                     else:
                         if selected:
                             name = selected[0]
+                # modify case
+                if self.case == "upper":
+                    name = n2N(name)
+                elif self.case == "lower":
+                    name = N2n(name)
+                elif self.case == "title":
+                    if previous in "space period comma semicolon".split(" ") or index == 0:
+                        name = n2N(name)
+                    else:
+                        name = N2n(name)
+                else:
+                    name = name
+
                 validated.append(name)
+            previous = name
         return validated
 
 
@@ -2138,8 +2162,10 @@ class Spaceport(Subscriber, ezui.WindowController):
                         except:
                             pass
                 windowSettings[name] = ''.join(cleanedInput)
-
         if "collectionView" in windowSettings.keys(): del windowSettings['collectionView']
+
+        if self.detached:
+            self.v.close()
 
         setExtensionDefault(EXTENSION_KEY + ".main_prefs", windowSettings)
         self.clearObservedAdjunctObjects()
