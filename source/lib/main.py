@@ -299,18 +299,18 @@ class Spaceport(Subscriber, ezui.WindowController):
                 #     template=True,
                 # ),
 
-                dict(
-                    identifier="zoomToWidth",
-                    image=ezui.makeImage(symbolName=ZOOM_WIDTH, imagePath=os.path.join(RESOURCES_PATH, f"{ZOOM_WIDTH}.svg"), template=True),
-                    text="Fit Width",
-                    template=True,
-                ),
-                dict(
-                    identifier="zoomToHeight",
-                    image=ezui.makeImage(symbolName=ZOOM_HEIGHT, imagePath=os.path.join(RESOURCES_PATH, f"{ZOOM_HEIGHT}.svg"), template=True),
-                    text="Fit Height",
-                    template=True,
-                ),
+                # dict(
+                #     identifier="zoomToWidth",
+                #     image=ezui.makeImage(symbolName=ZOOM_WIDTH, imagePath=os.path.join(RESOURCES_PATH, f"{ZOOM_WIDTH}.svg"), template=True),
+                #     text="Fit Width",
+                #     template=True,
+                # ),
+                # dict(
+                #     identifier="zoomToHeight",
+                #     image=ezui.makeImage(symbolName=ZOOM_HEIGHT, imagePath=os.path.join(RESOURCES_PATH, f"{ZOOM_HEIGHT}.svg"), template=True),
+                #     text="Fit Height",
+                #     template=True,
+                # ),
 
                 dict(
                     identifier="opentype",
@@ -335,21 +335,26 @@ class Spaceport(Subscriber, ezui.WindowController):
         )
 
         content = ""
-        for i in range(4):
-            content += f"""
-            --------            @line{i}
-        """
+
         content += """
         * VerticalStack
         > --------------
-        > * HorizontalStack         @controlsStack
-        >> ---X--- [__](±)          @pointSizeInputField
-        >> [__](±)                  @lineHeightField
-        >> *GlyphSequence           @preTextField
-        >> *GlyphSequence           @textField
-        >> *GlyphSequence           @pstTextField
-        >> ({gearshape.fill})       @viewOptions
-        >* MerzCollectionView       @collectionView
+        > * HorizontalStack                 @controlsStack
+        >> ---X--- [__](±)                  @pointSizeInputField
+        >> [__](±)                          @lineHeightField
+        >> *GlyphSequence                   @preTextField
+        >> *GlyphSequence                   @textField
+        >> *GlyphSequence                   @pstTextField
+        >> ({arrow.left.and.right.square})  @zoomToWidth
+        >> ({arrow.up.and.down.square})     @zoomToHeight
+        >> ({gearshape.fill})               @viewOptions
+        """
+        for i in range(4):
+            content += f"""
+            > --------            @line{i}
+            """
+        content += """
+        >* MerzCollectionView               @collectionView
         """
         numberFieldWidth = 40
         descriptionData = dict(
@@ -390,6 +395,18 @@ class Spaceport(Subscriber, ezui.WindowController):
                 value=1.0,
                 maxValue=2.0,
                 valueIncrement=0.1
+            ),
+            zoomToWidth=dict(
+                image=ezui.makeImage(symbolName=ZOOM_WIDTH, imagePath=os.path.join(RESOURCES_PATH, f"{ZOOM_WIDTH}.svg"), template=True),
+                symbolConfiguration=dict(
+                    scale="large",
+                )
+            ),
+            zoomToHeight=dict(
+                image=ezui.makeImage(symbolName=ZOOM_HEIGHT, imagePath=os.path.join(RESOURCES_PATH, f"{ZOOM_HEIGHT}.svg"), template=True),
+                symbolConfiguration=dict(
+                    scale="large",
+                )
             ),
         )
 
@@ -651,7 +668,7 @@ class Spaceport(Subscriber, ezui.WindowController):
             if self.matrixPosition == 0:
                 self.matrixPosition = 1
                 x,y,w,h = MATRIX_POS
-                pos = (x,0,w,h)
+                pos = (x,40,w,h)
                 show = True
             else:
                 self.matrixPosition = 0
