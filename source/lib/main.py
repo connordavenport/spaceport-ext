@@ -306,13 +306,14 @@ class Spaceport(Subscriber, ezui.WindowController):
         self.foreground     = (0, 0, 0, 1)
         self.background     = (1, 1, 1, 1)
 
-        self.showKerning = False
-        self.showMetrics = False
-        self.multiline = True
-        self.openSources = False
-        self.viewSources = False # for testing its false
+        self.showKerning   = False
+        self.showMetrics   = False
+        self.showLabel     = True
+        self.multiline     = True
+        self.openSources   = False
+        self.viewSources   = False # for testing its false
         self.viewInstances = False
-        self.showBeam = True
+        self.showBeam      = True
         self.designspaceController = True
 
         self.viewDesignspace = False
@@ -557,6 +558,7 @@ class Spaceport(Subscriber, ezui.WindowController):
         > ({arrow.up.right.circle})                                   @detachSettingsButton
 
         [X] Multiline                                                 @multilineButton
+        [ ] Show Label                                                @showLabelButton
         [ ] Show Kerning                                              @showKerningButton
         [X] Show Metrics                                              @showMetricsButton
         [ ] Show Control Glyphs                                       @showControlGlyphsButton
@@ -604,6 +606,9 @@ class Spaceport(Subscriber, ezui.WindowController):
                 # hide=False,
             ),
             showMetricsButton=dict(
+                value=True
+            ),
+            showLabelButton=dict(
                 value=True
             ),
             displaySettingsButton=dict(
@@ -1420,6 +1425,11 @@ class Spaceport(Subscriber, ezui.WindowController):
         self.displaySettingsButtonCallback(None)
 
 
+    def showLabelButtonCallback(self, sender) -> None:
+        self.showLabel = self.v.getItemValue("showLabelButton")
+        self.displaySettingsButtonCallback(None)
+
+
     def multilineButtonCallback(self, sender) -> None:
         self.multiline = self.v.getItemValue("multilineButton")
         self.w.getToolbarItems().get("zoomToWidth").setEnabled_(self.multiline)
@@ -1465,6 +1475,9 @@ class Spaceport(Subscriber, ezui.WindowController):
 
                 glyphMetricsLayer = glyphContainer.getSublayer("glyphMetrics")
                 glyphMetricsLayer.setVisible(self.showMetrics)
+
+                labelLayer = glyphContainer.getSublayer("descriptorIndicator")
+                labelLayer.setVisible(self.showLabel)
 
                 kernIndicatorLayer = glyphContainer.getSublayer("kernIndicator")
                 kernIndicatorLayer.setVisible(self.showKerning)
@@ -1604,6 +1617,7 @@ class Spaceport(Subscriber, ezui.WindowController):
                         verticalAlignment="center",
                         anchor=(.5,.5)
                     )
+                descriptorIndicatorLayer.setVisible(self.showLabel)
 
             glyphMetricsLayer = glyphContainer.getSublayer("glyphMetrics")
 
