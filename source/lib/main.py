@@ -139,7 +139,6 @@ class InterpolateWarning(ezui.WindowController):
         self.relative = relative
 
         content = """
-
         * HorizontalStack                           @stack
         > * Image                                   @warningImage
         You must add a designspace file first!      @label
@@ -394,9 +393,7 @@ class Spaceport(Subscriber, ezui.WindowController):
             ]
         )
 
-        content = ""
-
-        content += """
+        content = """
         * VerticalStack
         > --------------
         > * HorizontalStack                 @controlsStack
@@ -407,7 +404,7 @@ class Spaceport(Subscriber, ezui.WindowController):
         >> *GlyphSequence                   @pstTextField
         >> ({arrow.left.and.right.square})  @zoomToWidth
         >> ({arrow.up.and.down.square})     @zoomToHeight
-        >> ({gearshape.fill})               @viewOptions
+        >> ({gearshape})                    @viewOptions
         """
         for i in range(4):
             content += f"""
@@ -558,26 +555,32 @@ class Spaceport(Subscriber, ezui.WindowController):
         content = DETACH_STACK
         content += """
         > ({arrow.up.right.circle})                                   @detachSettingsButton
+
+        [X] Multiline                                                 @multilineButton
+        [ ] Show Kerning                                              @showKerningButton
+        [X] Show Metrics                                              @showMetricsButton
+        [ ] Show Control Glyphs                                       @showControlGlyphsButton
+        -----
+        [X] Show Space Matrix                                         @showSpaceMatrixButton
+        * HorizontalStack
+        > ({arrow.trianglehead.swap})                                 @moveSpaceMatrixButton
+        > Matrix Position
         Beam:
         * HorizontalStack
         > [X]                                                         @showBeamButton
         > --X------                                                   @beamPositionSlider
-        [X] Multiline                                                 @multilineButton
-        [ ] Show Kerning                                              @showKerningButton
-        [X] Show Metrics                                              @showMetricsButton
-        -----
-        [X] Show Space Matrix                                         @showSpaceMatrixButton
-        * HorizontalStack
-        > ({arrow.up.arrow.down})                                     @moveSpaceMatrixButton
-        > Move Matrix Position
-        -----
-        Text Formatting:
-        ( {characters.lowercase} | {textformat.characters} | {characters.uppercase} | {circle.and.line.horizontal} ) @textFormattingButton
         -----
         Invert Colors:
         ( {circle.dashed} | {circle.fill} )                           @invertColorsButton
         Glyph Drawing Options:
         (( Fill | Stroke ))                                           @displaySettingsButton
+        -----
+        Sorting Order:
+        ( Fonts | Line | Glyph )                                      @sortingButton       
+        -----
+        Text Formatting:
+        ( {characters.lowercase} | {textformat.characters} | {characters.uppercase} | None ) @textFormattingButton
+        -----
         Horizontal Text Alignment:
         ( {text.alignleft} | {text.aligncenter} | {text.alignright} ) @horzAlignmentSegmentButton
         Vertical Text Alignment (BETA):
@@ -633,6 +636,11 @@ class Spaceport(Subscriber, ezui.WindowController):
             controller=self
         )
         self.v.getItem("showKerningButton").show(False)
+
+        # disable while we work on the functions
+        self.v.getItem("sortingButton").enable(False)
+        self.v.getItem("showControlGlyphsButton").enable(False)
+
         self.styleWindowButtons(self.v)
 
         if open: self.v.open()
