@@ -173,11 +173,11 @@ class InterpolateWarning(ezui.WindowController):
             controller=self
         )
 
-    def openDesignspaceButtonCallback(self, sender):
+    def openDesignspaceButtonCallback(self, sender) -> None:
         window = self.relative.buildObjectsSheet()
         window.open()
 
-    def started(self):
+    def started(self) -> None:
         self.w.open()
 
 
@@ -316,6 +316,9 @@ class Spaceport(Subscriber, ezui.WindowController):
         self.showBeam      = True
         self.designspaceController = True
 
+        self.sortingSettings = []
+        self.weightSort = self.widthSort = self.italicSort = 1
+
         self.viewDesignspace = False
 
         self.detached = False
@@ -399,7 +402,7 @@ class Spaceport(Subscriber, ezui.WindowController):
         > --------------
         > * HorizontalStack                 @controlsStack
         >> ---X--- [__](±)                  @pointSizeInputField
-        >> [__](±)                          @lineHeightField
+        >> ---X--- [__](±)                  @lineHeightField
         >> *GlyphSequence                   @preTextField
         >> *SequenceCombo                   @textField
         >> *GlyphSequence                   @pstTextField
@@ -457,7 +460,8 @@ class Spaceport(Subscriber, ezui.WindowController):
                 minValue=0.5,
                 value=1.0,
                 maxValue=2.0,
-                valueIncrement=0.1
+                valueIncrement=0.1,
+                width=140,
             ),
             zoomToWidth=dict(
                 image=ezui.makeImage(symbolName=ZOOM_WIDTH, imagePath=os.path.join(RESOURCES_PATH, f"{ZOOM_WIDTH}.svg"), template=True),
@@ -645,6 +649,7 @@ class Spaceport(Subscriber, ezui.WindowController):
         # disable while we work on the functions
         self.v.getItem("sortingButton").enable(False)
         self.v.getItem("showControlGlyphsButton").enable(False)
+        self.v.getItem("vertAlignmentSegmentButton").enable(False)
 
         self.styleWindowButtons(self.v)
 
@@ -712,29 +717,35 @@ class Spaceport(Subscriber, ezui.WindowController):
         self.designspaceSettingsChanged()
         
 
-    def vertAlignmentSegmentButton(self, sender):
+    def vertAlignmentSegmentButtonCallback(self, sender) -> None:
         m = "top center bottom".split(" ")
-        print(f"{m[sender.get()]} distribution not implimented")
-        if sender.get() == "RUN": # this is impossible, leave for testing
-            collection = self.collectionView
-            typesetter = collection._documentView._typesetter
-            firstYPos = typesetter.getItemPosition(0)[1]
-            lineHeight = self.w.getItemValues()["lineHeightField"]
-            pointSize = self.w.getItemValues()["pointSizeInputField"]
+        position = m[sender.get()]
+        collection = self.collectionView
+        typesetter = collection._documentView._typesetter
+        firstYPos = typesetter.getItemPosition(0)[1]
+        lineHeight = self.w.getItemValues()["lineHeightField"]
+        pointSize = self.w.getItemValues()["pointSizeInputField"]
 
-            extras = self.extraHeights
-            if self.w.matrix.isVisible():
-                extras += MATRIX_POS[-1]
-            containerHeight = self.w.getPosSize()[-1] - extras
-            availableHeight = len([1 for use, font in self.fonts.values() if use]) * lineHeight * pointSize * 1.1
+        __,(__,containerHeight) = collection.getNSScrollView().bounds()
+        availableHeight = (len(typesetter.getLines())-1) * (lineHeight * pointSize)
 
-            if availableHeight < containerHeight:
-                offset = self.upm + (containerHeight - availableHeight / 2)
-                for i, item in enumerate(collection.get()):
-                    if typesetter.getItemPosition(i)[1] == firstYPos:
-                        item.setHeight(offset)
-                    else:
-                        item.setHeight(offset*lineHeight)
+        # print(typesetter._lineHeight, (lineHeight * pointSize) * (1/self.scale))
+
+        if availableHeight < containerHeight:
+            if position == "top":
+                offset = 0
+            elif position == "center":
+                offset = ((containerHeight - availableHeight) / 2)
+            else:
+                offset = (containerHeight)
+
+            typesetterScale = 1 / self.scale
+            offset *= typesetterScale
+
+            for i, item in enumerate(collection.get()):
+                typeitem = typesetter[i]
+                x,y = typesetter.getItemPosition(i)
+                typeitem.setPosition((x,y+offset))
 
 
     def textFormattingButtonCallback(self, sender) -> None:
@@ -782,13 +793,14 @@ class Spaceport(Subscriber, ezui.WindowController):
         *HorizontalStack
         > * Box                                                            @fontBox = VerticalStack
         >> !!!Fonts
-        >> * HorizontalStack                                               
+        >> * HorizontalStack                                               @fontStack
         >>> ((( Refresh Order | Add All Open Fonts )))                     @addAndReorderButton   
+        >>> *Image                                                         @sortImage
+        >>> (( Weight | Width | Italic))                                   @smartReorderButton   
         >> |-files----|                                                    @fontTable
         >> |          |  
         >> |----------|  
         >> (+-)                                                            @fontTableAddRemoveButton
-
         > * Box                                                            @designspaceBox = VerticalStack
         >> !!!Designspaces
         >> (( View Sources | View Instances | DSE Controller ))            @designspaceSettingsButton
@@ -799,6 +811,9 @@ class Spaceport(Subscriber, ezui.WindowController):
         """
 
         descriptionData = dict(
+            fontStack=dict(
+                alignment="center",
+                ),
             contents=dict(
                 displayMode="text",
                 allowCustomization=True,
@@ -809,6 +824,28 @@ class Spaceport(Subscriber, ezui.WindowController):
             ),
             designspaceBox=dict(
                 width=400,
+            ),
+            sortImage=dict(
+                image=ezui.makeImage(
+                    symbolName="point.topright.arrow.triangle.backward.to.point.bottomleft.scurvepath.fill",
+                    template=True,
+                )
+            ),
+            smartReorderButton=dict(
+                segmentDescriptions=[
+                    dict(
+                        # text="Weight",
+                        image=ezui.makeImage(imagePath=os.path.join(RESOURCES_PATH, f"sort.weight.svg"), template=True),
+                    ),
+                    dict(
+                        # text="Width",
+                        image=ezui.makeImage(imagePath=os.path.join(RESOURCES_PATH, f"sort.width.svg"), template=True),
+                    ),
+                    dict(
+                        # text="Italic",
+                        image=ezui.makeImage(imagePath=os.path.join(RESOURCES_PATH, f"sort.italic.svg"), template=True),
+                    ),
+                ]
             ),
             fontTable=dict(
                 height=200,
@@ -880,6 +917,8 @@ class Spaceport(Subscriber, ezui.WindowController):
             controller=self
         )
 
+        
+
         self.styleWindowButtons(self.w.objw)
         # get current values
         vs = 0 if self.viewSources else None
@@ -887,6 +926,9 @@ class Spaceport(Subscriber, ezui.WindowController):
         dc = 2 if self.designspaceController else None
 
         self.w.objw.getItem("designspaceSettingsButton").set([vs,vi,dc])
+
+        self.w.objw.getItem("smartReorderButton").set(self.sortingSettings)
+
 
         indexes = [ii for ii,(i,obj) in enumerate(self.fonts.items()) if obj[0]]
         self.w.objw.getItem("fontTable").setSelectedIndexes(indexes)
@@ -911,7 +953,7 @@ class Spaceport(Subscriber, ezui.WindowController):
         self.populateItems()
 
 
-    def fontTableAddRemoveButtonAddCallback(self, sender):
+    def fontTableAddRemoveButtonAddCallback(self, sender) -> None:
         table = self.w.objw.getItem("fontTable")
         files = GetFile(allowsMultipleSelection=True, fileTypes=["ufo", "ufoz"])
         if files:
@@ -925,12 +967,12 @@ class Spaceport(Subscriber, ezui.WindowController):
                 self.fonts[file] = (True, obj)
 
 
-    def fontTableAddRemoveButtonRemoveCallback(self, sender):
+    def fontTableAddRemoveButtonRemoveCallback(self, sender) -> None:
         table = self.w.objw.getItem("fontTable")
         table.removeSelectedItems()
 
 
-    def designspaceTableAddRemoveButtonAddCallback(self, sender):
+    def designspaceTableAddRemoveButtonAddCallback(self, sender) -> None:
         table = self.w.objw.getItem("designspaceTable")
         files = GetFile(allowsMultipleSelection=True, fileTypes=["designspace"])
         if files:
@@ -945,7 +987,7 @@ class Spaceport(Subscriber, ezui.WindowController):
                 self.designspaces[file] = (False,operator)
 
 
-    def designspaceTableAddRemoveButtonRemoveCallback(self, sender):
+    def designspaceTableAddRemoveButtonRemoveCallback(self, sender) -> None:
         table = self.w.objw.getItem("designspaceTable")
         table.removeSelectedItems()
 
@@ -953,6 +995,8 @@ class Spaceport(Subscriber, ezui.WindowController):
     def designspaceSettingsChanged(self, **kwargs) -> None:
         obj = kwargs.get("object", self.operator)
         reset = kwargs.get("reset", False)
+
+        openFonts = {f.path:f for f in AllFonts()}
         if reset:
             self.fonts = self._fontFolder
         else:
@@ -992,6 +1036,10 @@ class Spaceport(Subscriber, ezui.WindowController):
 
                 if self.viewSources:
                     for source,locationData in sources:
+
+                        if source.path in openFonts.keys():
+                            source = openFonts.get(source.path)
+
                         source.lib["descriptor"] = "source"
                         source.lib["location"]   = locationData                    
                         self.fonts[source.path]  = (True,source)
@@ -1090,6 +1138,44 @@ class Spaceport(Subscriber, ezui.WindowController):
         if reordered != list(self.fonts.keys()):
             self.fonts = {item["path"]:(item["use"],self.fonts[item["path"]][1]) for item in self.w.objw.getItemValue("fontTable")}
             self.populateItems()
+
+
+    def smartReorderButtonCallback(self, sender) -> None:
+        """
+        allows you to sort all the fonts by weight, width, and italic states
+        holding shift when you select a new item will reverse its value in the 
+        overall list. e.g.
+        default:
+        light - dark
+        compressed - wide
+        roman - italic
+
+        with shift down:
+        dark -  light
+        etc.
+        """
+        sortKeys = "weight width italic".split(" ")
+        recentSender = list(set(sender.get()) - set(self.sortingSettings))
+
+        weight = 0 in sender.get()
+        width  = 1 in sender.get()
+        italic = 2 in sender.get()
+
+        if recentSender:
+            newIndex = recentSender[0]
+            newItem  = sortKeys[newIndex]
+            if AppKit.NSEvent.modifierFlags() & AppKit.NSShiftKeyMask:
+                holding = getattr(self, f"{newItem}Sort")
+                setattr(self, f"{newItem}Sort", -holding)
+
+        sortedFonts = sorted(self.fonts, key=lambda key: (-self.fonts[key][1].info.openTypeOS2WidthClass * self.widthSort if width else 5, -self.fonts[key][1].info.italicAngle * self.italicSort if italic else 0, self.fonts[key][1].info.openTypeOS2WeightClass * self.weightSort if weight else 400))
+        orderedDict = {path:self.fonts.get(path) for path in sortedFonts}
+
+        self.sortingSettings = sender.get()
+
+        self.fonts = orderedDict
+        self.w.objw.getItem("fontTable").set(dict(use=use,path=path) for (path, (use, font)) in self.fonts.items())
+        self.populateItems()
 
 
     def fontTableEditCallback(self, sender) -> None:
@@ -1285,7 +1371,7 @@ class Spaceport(Subscriber, ezui.WindowController):
     def roboFontDidSwitchCurrentGlyph(self, info) -> None:
         # print(info["glyph"].name, CurrentGlyph().name)
         infoGlyph = info["glyph"]
-        if infoGlyph:
+        if infoGlyph is not None and self.currentGlyph is not None:
             if infoGlyph.name != self.currentGlyph.name:
                 self.textFieldCallback(None)
         self.currentGlyph = CurrentGlyph()
@@ -1335,6 +1421,7 @@ class Spaceport(Subscriber, ezui.WindowController):
 
 
     def textFieldCallback(self, sender) -> None:
+
         self.typingCoalescer.restart()
         self.unsubscribeFromGlyphs()
         if self.font:
@@ -1352,6 +1439,8 @@ class Spaceport(Subscriber, ezui.WindowController):
 
             self.glyphs = holding
             self.populateItems()
+
+            self.scale = self.w.getItemValue("pointSizeInputField") / self.upm
 
 
     def horzAlignmentSegmentButtonCallback(self, sender) -> None:
@@ -1914,14 +2003,15 @@ class Spaceport(Subscriber, ezui.WindowController):
                                 glyph = font.insertGlyph(glyph, name=_temp)
                                 onDisk = False
                         else:
-                            glyph = font[glyph]
+                            if glyph in font.keys():
+                                glyph = font[glyph]
 
                         if isinstance(glyph, str):
+                            capScale = font.info.capHeight / 750
                             glyph = RGlyph()
                             glyph.readGlyphFromString('<?xml version="1.0" encoding="UTF-8"?><glyph name="IGNORE" format="2"><advance width="893"/><outline><contour><point x="117" y="703" type="curve" smooth="yes"/><point x="79" y="664"/><point x="70" y="612"/><point x="70" y="542" type="curve" smooth="yes"/><point x="70" y="535" type="line"/><point x="127" y="535" type="line"/><point x="127" y="544" type="line" smooth="yes"/><point x="127" y="592"/><point x="133" y="636"/><point x="158" y="661" type="curve" smooth="yes"/><point x="183" y="687"/><point x="228" y="694"/><point x="276" y="694" type="curve" smooth="yes"/><point x="287" y="694" type="line"/><point x="287" y="750" type="line"/><point x="278" y="750" type="line" smooth="yes"/><point x="209" y="750"/><point x="156" y="741"/></contour><contour><point x="338" y="694" type="line"/><point x="554" y="694" type="line"/><point x="554" y="750" type="line"/><point x="338" y="750" type="line"/></contour><contour><point x="776" y="703" type="curve" smooth="yes"/><point x="737" y="742"/><point x="684" y="750"/><point x="613" y="750" type="curve" smooth="yes"/><point x="606" y="750" type="line"/><point x="606" y="694" type="line"/><point x="618" y="694" type="line" smooth="yes"/><point x="665" y="694"/><point x="709" y="686"/><point x="734" y="661" type="curve" smooth="yes"/><point x="760" y="636"/><point x="766" y="593"/><point x="766" y="546" type="curve" smooth="yes"/><point x="766" y="535" type="line"/><point x="823" y="535" type="line"/><point x="823" y="540" type="line" smooth="yes"/><point x="823" y="612"/><point x="814" y="665"/></contour><contour><point x="766" y="266" type="line"/><point x="823" y="266" type="line"/><point x="823" y="483" type="line"/><point x="766" y="483" type="line"/></contour><contour><point x="776" y="47" type="curve" smooth="yes"/><point x="814" y="86"/><point x="823" y="138"/><point x="823" y="210" type="curve" smooth="yes"/><point x="823" y="215" type="line"/><point x="766" y="215" type="line"/><point x="766" y="204" type="line" smooth="yes"/><point x="766" y="158"/><point x="759" y="114"/><point x="734" y="89" type="curve" smooth="yes"/><point x="709" y="64"/><point x="665" y="57"/><point x="618" y="57" type="curve" smooth="yes"/><point x="606" y="57" type="line"/><point x="606" y="0" type="line"/><point x="613" y="0" type="line" smooth="yes"/><point x="684" y="0"/><point x="737" y="9"/></contour><contour><point x="338" y="0" type="line"/><point x="554" y="0" type="line"/><point x="554" y="57" type="line"/><point x="338" y="57" type="line"/></contour><contour><point x="117" y="47" type="curve" smooth="yes"/><point x="156" y="9"/><point x="209" y="0"/><point x="280" y="0" type="curve" smooth="yes"/><point x="287" y="0" type="line"/><point x="287" y="57" type="line"/><point x="274" y="57" type="line" smooth="yes"/><point x="228" y="57"/><point x="184" y="64"/><point x="158" y="89" type="curve" smooth="yes"/><point x="133" y="114"/><point x="127" y="158"/><point x="127" y="204" type="curve" smooth="yes"/><point x="127" y="215" type="line"/><point x="70" y="215" type="line"/><point x="70" y="210" type="line" smooth="yes"/><point x="70" y="138"/><point x="78" y="86"/></contour><contour><point x="70" y="266" type="line"/><point x="127" y="266" type="line"/><point x="127" y="483" type="line"/><point x="70" y="483" type="line"/></contour><contour><point x="438" y="291" type="curve" smooth="yes"/><point x="456" y="291"/><point x="467" y="302"/><point x="467" y="316" type="curve" smooth="yes"/><point x="467" y="319"/><point x="467" y="321"/><point x="467" y="323" type="curve" smooth="yes"/><point x="467" y="347"/><point x="480" y="362"/><point x="510" y="382" type="curve" smooth="yes"/><point x="550" y="410"/><point x="577" y="434"/><point x="577" y="480" type="curve" smooth="yes"/><point x="577" y="546"/><point x="519" y="583"/><point x="450" y="583" type="curve" smooth="yes"/><point x="381" y="583"/><point x="335" y="548"/><point x="325" y="509" type="curve" smooth="yes"/><point x="324" y="503"/><point x="323" y="495"/><point x="323" y="489" type="curve" smooth="yes"/><point x="323" y="473"/><point x="335" y="464"/><point x="347" y="464" type="curve" smooth="yes"/><point x="360" y="464"/><point x="368" y="470"/><point x="373" y="479" type="curve" smooth="yes"/><point x="379" y="488" type="line"/><point x="391" y="515"/><point x="415" y="534"/><point x="448" y="534" type="curve" smooth="yes"/><point x="489" y="534"/><point x="515" y="512"/><point x="515" y="478" type="curve" smooth="yes"/><point x="515" y="449"/><point x="498" y="435"/><point x="461" y="409" type="curve" smooth="yes"/><point x="430" y="387"/><point x="410" y="365"/><point x="410" y="327" type="curve" smooth="yes"/><point x="410" y="324"/><point x="410" y="321"/><point x="410" y="319" type="curve" smooth="yes"/><point x="410" y="300"/><point x="420" y="291"/></contour><contour><point x="437" y="170" type="curve" smooth="yes"/><point x="459" y="170"/><point x="478" y="188"/><point x="478" y="210" type="curve" smooth="yes"/><point x="478" y="232"/><point x="460" y="249"/><point x="437" y="249" type="curve" smooth="yes"/><point x="415" y="249"/><point x="397" y="232"/><point x="397" y="210" type="curve" smooth="yes"/><point x="397" y="188"/><point x="415" y="170"/></contour></outline></glyph>')
-                            glyph.scaleBy(scaler)
-                            glyph.width *= scaler
-
+                            glyph.scaleBy(capScale)
+                            glyph.width *= capScale
 
                         if not isinstance(glyph, RGlyph):
                             glyph = RGlyph(glyph)
@@ -2104,7 +2194,7 @@ class Spaceport(Subscriber, ezui.WindowController):
     # def windowDidResize(self, sender):
     #     print(self.collectionView._documentView._view.enclosingScrollView())
 
-    def zoom(self, direction:str="out", delta:float=None, scale:float=None) -> None:
+    def zoom(self, direction:str="out", delta:float=None, scale:float=None, option:bool=False) -> None:
 
         values = self.w.getItemValues()
         pointSize = values["pointSizeInputField"]
@@ -2120,10 +2210,11 @@ class Spaceport(Subscriber, ezui.WindowController):
                     factor = ZOOM_OUT_FACTOR
                 pointSize *= factor
             else:
+                factor = 5 if option else 15
                 if direction == "in":
-                    factor = 15
+                    pass
                 else:
-                    factor = -15
+                    factor *= -1
                 pointSize += factor
 
             self.pointSize = max(pointSize, 10)
@@ -2192,11 +2283,7 @@ class Spaceport(Subscriber, ezui.WindowController):
         if self.multiline:
             collection = self.collectionView
             typesetter = collection._documentView._typesetter
-            (containerWidth, __) = collection._documentView.getSize()
-            extras = self.extraHeights
-            if self.w.matrix.isVisible():
-                extras += MATRIX_POS[-1]
-            containerHeight = self.w.getPosSize()[-1] - extras
+            __,(containerWidth, containerHeight) = collection.getNSScrollView().bounds()
             availableHeight = len([1 for use, font in self.fonts.values() if use]) * typesetter.getLineHeight() * 1.1
 
             mm = {}
@@ -2488,11 +2575,11 @@ class Spaceport(Subscriber, ezui.WindowController):
                 elif char == "=":
                     # zoom in 
                     self.zoomCoalescerManager()
-                    self.zoom(direction="in")
+                    self.zoom(direction="in", option=AppKit.NSEvent.modifierFlags() & AppKit.NSAlternateKeyMask)
                 elif char == "-":
                     # zoom out
                     self.zoomCoalescerManager()
-                    self.zoom(direction="out")
+                    self.zoom(direction="out", option=AppKit.NSEvent.modifierFlags() & AppKit.NSAlternateKeyMask)
                     
 
 
