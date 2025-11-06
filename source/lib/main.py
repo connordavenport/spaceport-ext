@@ -68,7 +68,6 @@ if int(EXTENSION_VERSION.split(".")[0]) < 1:
 BASE_DIR = os.path.dirname(__file__)
 RESOURCES_PATH = os.path.abspath(os.path.join(BASE_DIR, "../", "resources"))
 
-
 EXTENSION_KEY:str       = "com.connordavenport.spaceport"
 
 CURRENTGLYPH_CHAR:str   = "/?"
@@ -796,7 +795,7 @@ class Spaceport(Subscriber, ezui.WindowController):
         >> * HorizontalStack                                               @fontStack
         >>> ((( Refresh Order | Add All Open Fonts )))                     @addAndReorderButton   
         >>> *Image                                                         @sortImage
-        >>> (( Weight | Width | Italic))                                   @smartReorderButton   
+        >>> (( Weight | Width | Italic))                                   @sortFontListButton   
         >> |-files----|                                                    @fontTable
         >> |          |  
         >> |----------|  
@@ -831,7 +830,7 @@ class Spaceport(Subscriber, ezui.WindowController):
                     template=True,
                 )
             ),
-            smartReorderButton=dict(
+            sortFontListButton=dict(
                 segmentDescriptions=[
                     dict(
                         # text="Weight",
@@ -927,7 +926,7 @@ class Spaceport(Subscriber, ezui.WindowController):
 
         self.w.objw.getItem("designspaceSettingsButton").set([vs,vi,dc])
 
-        self.w.objw.getItem("smartReorderButton").set(self.sortingSettings)
+        self.w.objw.getItem("sortFontListButton").set(self.sortingSettings)
 
 
         indexes = [ii for ii,(i,obj) in enumerate(self.fonts.items()) if obj[0]]
@@ -1140,15 +1139,15 @@ class Spaceport(Subscriber, ezui.WindowController):
             self.populateItems()
 
 
-    def smartReorderButtonCallback(self, sender) -> None:
+    def sortFontListButtonCallback(self, sender) -> None:
         """
         allows you to sort all the fonts by weight, width, and italic states
         holding shift when you select a new item will reverse its value in the 
         overall list. e.g.
         default:
-        light - dark
         compressed - wide
         roman - italic
+        light - dark
 
         with shift down:
         dark -  light
