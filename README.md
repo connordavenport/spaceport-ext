@@ -163,4 +163,3 @@ Continuous axes can be switched using the x and/or y axes popovers and dragging 
 
 
 
-

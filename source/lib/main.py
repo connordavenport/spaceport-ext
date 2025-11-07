@@ -6,7 +6,12 @@ from drawBot.context.tools.drawBotbuiltins import remap
 import ezui
 from fontParts.world import (CurrentGlyph,
                             CurrentLayer,
-                            CurrentFont)
+                            CurrentFont,
+                            OpenFont,
+                            RGlyph,
+                            RFont)
+from fontParts.fontshell.font import RFont as RFontType # we need to do this because RFont from .world is a function
+from fontParts.fontshell.glyph import RGlyph as RGlyphType # we need to do this because RGlyph from .world is a function
 from fontTools.misc import transform
 from fontTools.designspaceLib import (DesignSpaceDocument,
                                      AxisDescriptor,
@@ -27,9 +32,9 @@ from lib.UI.spaceCenter.glyphSequenceEditText import (GlyphSequenceEditComboBox,
                                                      groupsKey)
 import math
 from mojo import events
-from mojo.UI import *
+from mojo.UI import (getDefault, GetFile, OpenGlyphWindow)
 from mojo.extensions import getExtensionDefault, setExtensionDefault
-from mojo.roboFont import internalFontClasses
+from mojo.roboFont import internalFontClasses, AllFonts, CurrentFont
 from mojo.subscriber import (Subscriber,
                             registerCurrentGlyphSubscriber,
                             unregisterCurrentGlyphSubscriber,
@@ -42,6 +47,7 @@ import merz
 from merz.tools.typesetter import HorizontalTypesetter
 import os
 import time
+from ufoProcessor.ufoOperator import UFOOperator
 from vanilla.vanillaBase import osVersionCurrent, osVersion12_0
 import yaml
 
@@ -131,7 +137,7 @@ except:
     pass
 
 
-class InterpolateWarning(ezui.WindowController):
+class InterpolationWarningWindow(ezui.WindowController):
 
     def build(self, parent, relative):
 
@@ -184,17 +190,17 @@ class InterpolateWarning(ezui.WindowController):
 class MerzCollectionViewRGlyphItem(merz.collectionView.MerzCollectionViewItem):
 
     def __init__(self, *args, **kwargs) -> None:
-        self._name = kwargs.get("name")
-        self._font = kwargs.get("font")
-        self._glyph = kwargs.get("glyph")
-        self._index = kwargs.get("index")
-        self._onDisk = kwargs.get("onDisk")
-        self._offset = kwargs.get("italicOffset", 0)
-        self._skewAngle = kwargs.get("skewAngle", 0)
-        self._scaler = kwargs.get("scaler", 1)
-        self._location = kwargs.get("location", {})
-        self._selected = False
-        self._selectedVisible = False
+        self._name:str                 = kwargs.get("name", "")
+        self._font:DoodleFont          = kwargs.get("font")
+        self._glyph:RGlyphType         = kwargs.get("glyph")
+        self._index:int                = kwargs.get("index", 0)
+        self._onDisk:bool              = kwargs.get("onDisk", True)
+        self._offset:float|int         = kwargs.get("italicOffset", 0)
+        self._skewAngle:float|int      = kwargs.get("skewAngle", 0)
+        self._scaler:float|int         = kwargs.get("scaler", 1)
+        self._location:dict[str,float] = kwargs.get("location", {})
+        self._selected:bool            = False
+        self._selectedVisible:bool     = False
 
         super().__init__(*args, **kwargs)
 
@@ -206,10 +212,10 @@ class MerzCollectionViewRGlyphItem(merz.collectionView.MerzCollectionViewItem):
 
     name = property(getName, setName)
 
-    def getGlyph(self) -> DoodleGlyph | RGlyph:
+    def getGlyph(self) -> DoodleGlyph | RGlyphType:
         return self._glyph
 
-    def setGlyph(self, value:DoodleGlyph | RGlyph) -> None:
+    def setGlyph(self, value:DoodleGlyph | RGlyphType) -> None:
         self._glyph = value
 
     glyph = property(getGlyph, setGlyph)
@@ -242,7 +248,10 @@ class MerzCollectionViewRGlyphItem(merz.collectionView.MerzCollectionViewItem):
     selectedVisible = property(getSelectedVisible, setSelectedVisible)
 
     def getIndex(self) -> int:
-        return self._index
+        try:
+            return int(self._index)
+        except:
+            return 0
 
     def setIndex(self, value:int=0) -> None:
         self._index = value
@@ -257,34 +266,34 @@ class MerzCollectionViewRGlyphItem(merz.collectionView.MerzCollectionViewItem):
 
     onDisk = property(getOnDisk, setOnDisk)
 
-    def getOffset(self) -> int | float:
+    def getOffset(self) -> int|float:
         return self._offset
 
-    def setOffset(self, value:int | float) -> None:
+    def setOffset(self, value:int|float) -> None:
         self._offset = value
 
     offset = property(getOffset, setOffset)
 
-    def getSkewAngle(self) ->  int | float:
+    def getSkewAngle(self) ->  int|float:
         return self._skewAngle
 
-    def setSkewAngle(self, value: int | float) -> None:
+    def setSkewAngle(self, value:int|float) -> None:
         self._skewAngle = value
 
     skewAngle = property(getSkewAngle, setSkewAngle)
 
-    def getScaler(self) ->  int | float:
+    def getScaler(self) ->  int|float:
         return self._scaler
 
-    def setScaler(self, value: int | float) -> None:
+    def setScaler(self, value:int|float) -> None:
         self._scaler = value
 
     scaler = property(getScaler, setScaler)
 
-    def getLocation(self) ->  dict[str | float]:
+    def getLocation(self) ->  dict[str,float]:
         return self._location
 
-    def setLocation(self, value: dict[str | float]) -> None:
+    def setLocation(self, value:dict[str,float]) -> None:
         self._location = value
 
     location = property(getLocation, setLocation)
@@ -296,73 +305,78 @@ class Spaceport(Subscriber, ezui.WindowController):
 
     def build(self) -> None:
 
-        self.__cache = []
+        self.__cache:list[MerzCollectionViewRGlyphItem] = []
 
-        self.selectedItems = []
+        self.selectedItems:list[MerzCollectionViewRGlyphItem] = []
 
-        self.case = "default"
+        self.case:str = "default"
 
-        self.foreground     = (0, 0, 0, 1)
-        self.background     = (1, 1, 1, 1)
+        self.foreground:tuple[float|int] = (0, 0, 0, 1)
+        self.background:tuple[float|int] = (1, 1, 1, 1)
 
-        self.showKerning   = False
-        self.showMetrics   = False
-        self.showLabel     = True
-        self.multiline     = True
-        self.openSources   = False
-        self.viewSources   = False # for testing its false
-        self.viewInstances = False
-        self.showBeam      = True
-        self.designspaceController = True
+        self.showKerning:bool   = False
+        self.showMetrics:bool   = False
+        self.showLabel:bool     = True
+        self.multiline:bool     = True
+        self.openSources:bool   = False
+        self.viewSources:bool   = False # for testing its false
+        self.viewInstances:bool = False
+        self.showBeam:bool      = True
+        self.designspaceController:bool = True
 
-        self.sortingSettings = []
-        self.weightSort = self.widthSort = self.italicSort = 1
+        self.sortingSettings:list[int] = []
+        self.weightSort:int = 1
+        self.widthSort:int = 1
+        self.italicSort:int = 1
 
-        self.viewDesignspace = False
+        self.viewDesignspace:bool = False
 
-        self.detached = False
+        self.detached:bool = False
 
-        self.currentGlyph = CurrentGlyph()
-        self.font         = CurrentFont()
-        self.fonts        = dict()
-        self.glyphs       = []
-
-        self._fontFolder = {}
+        self.currentGlyph:RGlyphType                     = CurrentGlyph()
+        self.font:RFontType                              = CurrentFont()
+        self.fonts:dict[str,tuple[bool,RFontType]]       = dict()
+        self._fontFolder:dict[str,tuple[bool,RFontType]] = dict()
+        self.glyphs:list[str]                            = []
 
         for f in AllFonts():
             f.lib["descriptor"] = ""
             self.fonts[f.path] = (f==CurrentFont(), f)
 
-        self.internalPreview = False
-        self.designspaces = dict()
-        self.operator = None
+        self.internalPreview:bool = False
+        self.designspaces:dict[str,tuple[bool,UFOOperator]] = dict()
+        self.operator:UFOOperator|DesignspaceEditorController = UFOOperator()
 
-        self.xAxis = self.yAxis = None
-        self.x = self.y = 0
+        self.xAxis:str|None = None
+        self.yAxis:str|None = None
 
-        self.sources   = []
-        self.instances = []
+        self.x:float = 0.0
+        self.y:float = 0.0
 
-        self.pointSize = 30
-        self.scale = 1
-        self.lineHeight = round(30 * 1.2)
+        # add type hints
+        self.sources:list[DoodleFontType]       = []
+        self.instances:list[InstanceDescriptor] = []
 
-        self.zoomCoalescer = Coalescer(
+        self.pointSize:float|int  = 30
+        self.scale:float|int      = 1
+        self.lineHeight:float|int = round(30 * 1.2)
+
+        self.zoomCoalescer:Coalescer = Coalescer(
             callback=self.zoomEnded,
             delay=.1,
             subscriptionKey=None,
             coalescerKey=None,
         )
 
-        self.typingCoalescer = Coalescer(
+        self.typingCoalescer:Coalescer = Coalescer(
             callback=self.subscribeToGlyphs,
             delay=.5,
             subscriptionKey=None,
             coalescerKey=None,
         )
 
-        self.beamPosition = int(getattr(getattr(self.font, "info", None), "xHeight", 500) / 2)
-        self.upm = int(getattr(getattr(self.font, "info", None), "unitsPerEm", 1000))
+        self.beamPosition:float = int(getattr(getattr(self.font, "info", None), "xHeight", 500) / 2)
+        self.upm:int = int(getattr(getattr(self.font, "info", None), "unitsPerEm", 1000))
 
         toolbar = dict(
             autosaveName="demoToolbar",
@@ -419,7 +433,7 @@ class Spaceport(Subscriber, ezui.WindowController):
         numberFieldWidth = 40
 
         fontToLoad = self.font or internalFontClasses.createFontObject()
-        if isinstance(fontToLoad, RFont):
+        if isinstance(fontToLoad, RFontType):
             fontToLoad = fontToLoad.naked()
 
         descriptionData = dict(
@@ -502,24 +516,18 @@ class Spaceport(Subscriber, ezui.WindowController):
 
         self.collectionView = self.w.getItem("collectionView")
         self.container = self.collectionView.getMerzContainer()
-        self.marqueeLayer = self.container.appendRectangleSublayer()
-        self.marquee = None
         self.collectionView.setBackgroundColor(AppKit.NSColor.whiteColor())
-        # self.designspaceNav.setBackgroundColor(AppKit.NSColor.whiteColor())
-        self.marqueeLayer = self.container.appendBaseSublayer()
         self.w.matrix = spaceInput.SpaceInputScrollView(MATRIX_POS)
-        self.matrixPosition = 0
-
-        self.extraHeights = (self.w.getPosSize()[-1] - 500)
+        self.matrixPosition:int = 0
 
         self.buildSettingsPopover()
 
         #contentViewController
-        self.v.getItem("invertColorsButton").set(0)
-        self.invertColorsButtonCallback(self.v.getItem("invertColorsButton"))
+        self.viewSettingsWindow.getItem("invertColorsButton").set(0)
+        self.invertColorsButtonCallback(self.viewSettingsWindow.getItem("invertColorsButton"))
 
-        viewPrefs = getExtensionDefault(EXTENSION_KEY + ".view_prefs", fallback=self.v.getItemValues())
-        try: self.v.setItemValues(viewPrefs)
+        viewPrefs = getExtensionDefault(EXTENSION_KEY + ".view_prefs", fallback=self.viewSettingsWindow.getItemValues())
+        try: self.viewSettingsWindow.setItemValues(viewPrefs)
         except (AttributeError, KeyError): pass
 
         windowSettings = self.w.getItemValues()
@@ -548,11 +556,12 @@ class Spaceport(Subscriber, ezui.WindowController):
 
         if not self.fonts:
             window = self.buildObjectsSheet()
-            window.open()
+            if window: window.open()
 
 
     def started(self) -> None:
         self.w.open()
+
 
     def buildSettingsPopover(self, open:bool=False) -> None:
         self.detached = False
@@ -634,7 +643,7 @@ class Spaceport(Subscriber, ezui.WindowController):
 
         self.glyphMap = {}
         parent = self.w.getItem("viewOptions")
-        self.v = ezui.EZPopover(
+        self.viewSettingsWindow = ezui.EZPopover(
             size=(100,100),
             content=content,
             descriptionData=descriptionData,
@@ -643,16 +652,16 @@ class Spaceport(Subscriber, ezui.WindowController):
             # parentAlignment="right",
             controller=self
         )
-        self.v.getItem("showKerningButton").show(False)
+        self.viewSettingsWindow.getItem("showKerningButton").show(False)
 
         # disable while we work on the functions
-        self.v.getItem("sortingButton").enable(False)
-        self.v.getItem("showControlGlyphsButton").enable(False)
-        self.v.getItem("vertAlignmentSegmentButton").enable(False)
+        self.viewSettingsWindow.getItem("sortingButton").enable(False)
+        self.viewSettingsWindow.getItem("showControlGlyphsButton").enable(False)
+        self.viewSettingsWindow.getItem("vertAlignmentSegmentButton").enable(False)
 
-        self.styleWindowButtons(self.v)
+        self.styleWindowButtons(self.viewSettingsWindow)
 
-        if open: self.v.open()
+        if open: self.viewSettingsWindow.open()
 
 
     # designspace editor notifcations
@@ -834,15 +843,15 @@ class Spaceport(Subscriber, ezui.WindowController):
                 segmentDescriptions=[
                     dict(
                         # text="Weight",
-                        image=ezui.makeImage(imagePath=os.path.join(RESOURCES_PATH, f"sort.weight.svg"), template=True),
+                        image=ezui.makeImage(imagePath=os.path.join(RESOURCES_PATH, "sort.weight.svg"), template=True),
                     ),
                     dict(
                         # text="Width",
-                        image=ezui.makeImage(imagePath=os.path.join(RESOURCES_PATH, f"sort.width.svg"), template=True),
+                        image=ezui.makeImage(imagePath=os.path.join(RESOURCES_PATH, "sort.width.svg"), template=True),
                     ),
                     dict(
                         # text="Italic",
-                        image=ezui.makeImage(imagePath=os.path.join(RESOURCES_PATH, f"sort.italic.svg"), template=True),
+                        image=ezui.makeImage(imagePath=os.path.join(RESOURCES_PATH, "sort.italic.svg"), template=True),
                     ),
                 ]
             ),
@@ -1104,8 +1113,9 @@ class Spaceport(Subscriber, ezui.WindowController):
                     self.w.getItem(name).setFont(self.font)
 
 
-    def designspaceTableCreateItemsForDroppedPathsCallback(self, sender, paths) -> None:
+    def designspaceTableCreateItemsForDroppedPathsCallback(self, sender, paths) -> list:
         operators = []
+        operator = None
         for path in paths:
             controller = DesignspaceEditorController(path)
             operator = controller.operator
@@ -1115,8 +1125,7 @@ class Spaceport(Subscriber, ezui.WindowController):
                 path=path,
             )
             operators.append(item)
-            
-        self.setMainFont(operator, True)
+        if operator: self.setMainFont(operator, True)
         return operators
 
 
@@ -1189,7 +1198,7 @@ class Spaceport(Subscriber, ezui.WindowController):
         self.textFieldCallback(None)
 
 
-    def fontTableCreateItemsForDroppedPathsCallback(self, sender, paths) -> None:
+    def fontTableCreateItemsForDroppedPathsCallback(self, sender, paths) -> list[dict]:
         fonts = []
         _temp = list(self.fonts.keys())
         for path in paths:
@@ -1250,7 +1259,7 @@ class Spaceport(Subscriber, ezui.WindowController):
 
         try:
             if not self.detatched:
-                self.v.close()
+                self.viewSettingsWindow.close()
         except: pass
 
         self.viewDesignspace = not self.viewDesignspace
@@ -1271,7 +1280,7 @@ class Spaceport(Subscriber, ezui.WindowController):
                 value = axisDescriptor.default
                 if hasattr(axisDescriptor, "values"):
                     # discrete axis
-                    content += f"""
+                    content += """
                     *HorizontalStack
                     > {axisDescriptor.name}:
                     > ( ...)    @{axisDescriptor.name}
@@ -1282,21 +1291,21 @@ class Spaceport(Subscriber, ezui.WindowController):
                 else:
                     interpolatable.append(axisDescriptor.name)
 
-            content += f"""
+            content += """
             * HorizontalStack   @axisSelectors
             """
-            content += f"""
+            content += """
             > x-axis:
             > ( ...)            @xAxisSelection
             """
             if len(interpolatable) > 1:
                 axes += "y"
-                content += f"""
+                content += """
                 > y-axis:
                 > ( ...)        @yAxisSelection
             """
 
-            content += f"""
+            content += """
             * MerzView          @designspaceNav
             """
 
@@ -1315,7 +1324,7 @@ class Spaceport(Subscriber, ezui.WindowController):
                 distribution="fillEqually"
             )
 
-            self.vp = ezui.EZPopover(
+            self.interpolationWindow = ezui.EZPopover(
                 content=content,
                 descriptionData=descriptionData,
                 size="auto",
@@ -1323,20 +1332,20 @@ class Spaceport(Subscriber, ezui.WindowController):
                 parentAlignment="right",
                 controller=self
             )
-            self.vp.open()
+            self.interpolationWindow.open()
         else:
-            InterpolateWarning(self.w, self)
+            InterpolationWarningWindow(self.w, self)
 
 
     def detachSettingsButtonCallback(self, sender) -> None:
-        self.v.getNSPopover().detach()
-        self.v.getItem("detachSettingsButton").show(False)
+        self.viewSettingsWindow.getNSPopover().detach()
+        self.viewSettingsWindow.getItem("detachSettingsButton").show(False)
         self.detached = True
 
 
     def viewOptionsCallback(self,sender) -> None:
-        self.v.close()
-        try: self.vp.close()
+        self.viewSettingsWindow.close()
+        try: self.interpolationWindow.close()
         except: pass
         self.buildSettingsPopover(open=True)
 
@@ -1388,6 +1397,7 @@ class Spaceport(Subscriber, ezui.WindowController):
         validated = []
         previous = None
         for index, glyphName in enumerate(glyphNames):
+            name = glyphName
             selected = CurrentFont().selectedGlyphNames if CurrentFont() else  []
             if glyphName == SELECTEDGLYPHS_CHAR:
                 if selected:
@@ -1448,7 +1458,7 @@ class Spaceport(Subscriber, ezui.WindowController):
 
     def controlsStackCallback(self, sender) -> None:
         windowSettings = self.w.getItemValues()
-        viewSettings = self.v.getItemValues()
+        viewSettings = self.viewSettingsWindow.getItemValues()
 
         pointSize = windowSettings["pointSizeInputField"]
         lineHeight = windowSettings["lineHeightField"]
@@ -1470,7 +1480,7 @@ class Spaceport(Subscriber, ezui.WindowController):
         )
 
     def invertColorsButtonCallback(self, sender) -> None:
-        self.invert = self.v.getItemValue("invertColorsButton")
+        self.invert = self.viewSettingsWindow.getItemValue("invertColorsButton")
         foregroundColor = [(0,0,0,1), (1,1,1,1)][self.invert]
         backgroundColor = [AppKit.NSColor.whiteColor(), AppKit.NSColor.blackColor()][self.invert]
 
@@ -1509,17 +1519,17 @@ class Spaceport(Subscriber, ezui.WindowController):
 
 
     def showMetricsButtonCallback(self, sender) -> None:
-        self.showMetrics = self.v.getItemValue("showMetricsButton")
+        self.showMetrics = self.viewSettingsWindow.getItemValue("showMetricsButton")
         self.displaySettingsButtonCallback(None)
 
 
     def showLabelButtonCallback(self, sender) -> None:
-        self.showLabel = self.v.getItemValue("showLabelButton")
+        self.showLabel = self.viewSettingsWindow.getItemValue("showLabelButton")
         self.displaySettingsButtonCallback(None)
 
 
     def multilineButtonCallback(self, sender) -> None:
-        self.multiline = self.v.getItemValue("multilineButton")
+        self.multiline = self.viewSettingsWindow.getItemValue("multilineButton")
         self.w.getToolbarItems().get("zoomToWidth").setEnabled_(self.multiline)
         # self.w.getItem("zoomToWidth").enable()
         self.displaySettingsButtonCallback(None)
@@ -1532,24 +1542,24 @@ class Spaceport(Subscriber, ezui.WindowController):
 
 
     def showBeamButtonCallback(self, sender) -> None:
-        self.showBeam = self.v.getItemValue("showBeamButton")
+        self.showBeam = self.viewSettingsWindow.getItemValue("showBeamButton")
         self.displaySettingsButtonCallback(None, onlyBeam=True)
 
 
     def showKerningButtonCallback(self, sender) -> None:
-        self.showKerning = self.v.getItemValue("showKerningButton")
+        self.showKerning = self.viewSettingsWindow.getItemValue("showKerningButton")
         self.displaySettingsButtonCallback(None)
         self.populateItems()
 
 
     def displaySettingsButtonCallback(self, sender, onlyBeam=False) -> None:
-        values = self.v.getItemValue("displaySettingsButton")
+        values = self.viewSettingsWindow.getItemValue("displaySettingsButton")
         self.showFill      = 0 in values
         self.showStroke    = 1 in values
         self.showPoints    = 2 in values
 
-        self.beamPosition  = self.v.getItemValue("beamPositionSlider")
-        self.showBeam      = self.v.getItemValue("showBeamButton")
+        self.beamPosition  = self.viewSettingsWindow.getItemValue("beamPositionSlider")
+        self.showBeam      = self.viewSettingsWindow.getItemValue("showBeamButton")
 
         items = self.w.getItemValue("collectionView")
         for item in items:
@@ -2012,7 +2022,7 @@ class Spaceport(Subscriber, ezui.WindowController):
                             glyph.scaleBy(capScale)
                             glyph.width *= capScale
 
-                        if not isinstance(glyph, RGlyph):
+                        if not isinstance(glyph, RGlyphType):
                             glyph = RGlyph(glyph)
 
                         item = self.buildItem(
@@ -2307,7 +2317,7 @@ class Spaceport(Subscriber, ezui.WindowController):
 
     def destroy(self) -> None:
         #setExtensionDefault(EXTENSION_KEY + ".main_prefs", self.w.getItemValues())
-        setExtensionDefault(EXTENSION_KEY + ".view_prefs", self.v.getItemValues())
+        setExtensionDefault(EXTENSION_KEY + ".view_prefs", self.viewSettingsWindow.getItemValues())
         windowSettings = self.w.getItemValues()
         for name,field in windowSettings.items():
             if name.lower().endswith("textfield"):
@@ -2326,7 +2336,7 @@ class Spaceport(Subscriber, ezui.WindowController):
         if "collectionView" in windowSettings.keys(): del windowSettings['collectionView']
 
         if self.detached:
-            self.v.close()
+            self.viewSettingsWindow.close()
 
         setExtensionDefault(EXTENSION_KEY + ".main_prefs", windowSettings)
         self.clearObservedAdjunctObjects()
@@ -2334,7 +2344,7 @@ class Spaceport(Subscriber, ezui.WindowController):
         self.typingCoalescer.stop()
 
 
-    def _getItemAtEvent(self, position:tuple[float,float]=(0.0,0.0)) -> MerzCollectionViewRGlyphItem:
+    def _getItemAtEvent(self, position:tuple[float,float]=(0.0,0.0)) -> MerzCollectionViewRGlyphItem | None:
         x,y = position
         hits = self.container.findSublayersContainingPoint(
             (x, y),
@@ -2370,7 +2380,6 @@ class Spaceport(Subscriber, ezui.WindowController):
             # working with glyph record view
             event = merz.unpackEvent(event)
             self.start = (x,y) = self._convertLocation(event, view)
-            self.marqueeLayer.clearSublayers()
             hit = self._getItemAtEvent((x,y))
             selection = []
 
@@ -2481,8 +2490,8 @@ class Spaceport(Subscriber, ezui.WindowController):
 
 
     @property
-    def currentLocation(self) -> dict[str,float]:
-        location = self.vp.getItemValues()
+    def currentLocation(self) -> dict[str, float]:
+        location = self.interpolationWindow.getItemValues()
 
         if "xAxisSelection" in location.keys():
             del location["xAxisSelection"]
@@ -2585,7 +2594,7 @@ class Spaceport(Subscriber, ezui.WindowController):
             if mods == []:
                 if char.lower() == "b":
                     self.showBeam = not self.showBeam
-                    self.v.setItemValue("showBeamButton", self.showBeam)
+                    self.viewSettingsWindow.setItemValue("showBeamButton", self.showBeam)
 
                     self.w.matrix.setShowBeam(self.showBeam)
 
