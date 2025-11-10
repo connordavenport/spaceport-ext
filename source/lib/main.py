@@ -45,6 +45,7 @@ from mojo.subscriber import (Subscriber,
                             Coalescer)
 import merz
 from merz.tools.typesetter import HorizontalTypesetter
+from merz.errors import MerzError
 import os
 import time
 from ufoProcessor.ufoOperator import UFOOperator
@@ -90,8 +91,8 @@ BEAM:str                = "ruler"
 
 KERN_HEIGHT:int = 100
 
-POS_KERN_COLOR:tuple[float,float,float] = (0.0, 0.0, 1.0)
-NEG_KERN_COLOR:tuple[float,float,float] = (1.0, 0.0, 0.0)
+POS_KERN_COLOR:tuple[float,...] = (0.0, 0.0, 1.0)
+NEG_KERN_COLOR:tuple[float,...] = (1.0, 0.0, 0.0)
 
 ZOOM_IN_FACTOR:float = getDefault("zoomInFactor",.85)
 ZOOM_OUT_FACTOR:float = getDefault("zoomOutFactor",1.15)
@@ -184,7 +185,6 @@ class InterpolationWarningWindow(ezui.WindowController):
 
     def started(self) -> None:
         self.w.open()
-
 
 
 class MerzCollectionViewRGlyphItem(merz.collectionView.MerzCollectionViewItem):
@@ -311,8 +311,8 @@ class Spaceport(Subscriber, ezui.WindowController):
 
         self.case:str = "default"
 
-        self.foreground:tuple[float|int] = (0, 0, 0, 1)
-        self.background:tuple[float|int] = (1, 1, 1, 1)
+        self.foreground:tuple[float,...] = (0, 0, 0, 1)
+        self.background:tuple[float,...] = (1, 1, 1, 1)
 
         self.showKerning:bool   = False
         self.showMetrics:bool   = False
@@ -345,7 +345,7 @@ class Spaceport(Subscriber, ezui.WindowController):
 
         self.internalPreview:bool = False
         self.designspaces:dict[str,tuple[bool,UFOOperator]] = dict()
-        self.operator:UFOOperator|DesignspaceEditorController = UFOOperator()
+        self.operator:UFOOperator|DesignspaceEditorController|None = None
 
         self.xAxis:str|None = None
         self.yAxis:str|None = None
@@ -406,7 +406,7 @@ class Spaceport(Subscriber, ezui.WindowController):
                     image=ezui.makeImage(imagePath=os.path.join(RESOURCES_PATH, f"{INTERPOLATE}.svg"), template=True),
                     text="Interpolate",
                     template=True,
-                ), 
+                ),
             ]
         )
 
@@ -501,9 +501,9 @@ class Spaceport(Subscriber, ezui.WindowController):
             minSize=(400, 200),
         )
 
-        self.w.setItemValue("textField", "SPACEPORT") 
-        self.w.setItemValue("preTextField", "") 
-        self.w.setItemValue("pstTextField", "") 
+        self.w.setItemValue("textField", "SPACEPORT")
+        self.w.setItemValue("preTextField", "")
+        self.w.setItemValue("pstTextField", "")
 
         # resize only the slider
         self.w.getItem("pointSizeInputField")._slider._setSizeStyle("small")
@@ -590,7 +590,7 @@ class Spaceport(Subscriber, ezui.WindowController):
         (( Fill | Stroke ))                                           @displaySettingsButton
         -----
         Sorting Order:
-        ( Fonts | Line | Glyph )                                      @sortingButton       
+        ( Fonts | Line | Glyph )                                      @sortingButton
         -----
         Text Formatting:
         ( {characters.lowercase} | {textformat.characters} | {characters.uppercase} | None ) @textFormattingButton
@@ -723,7 +723,7 @@ class Spaceport(Subscriber, ezui.WindowController):
         self.viewInstances         = 1 in sender.get()
         self.designspaceController = 2 in sender.get()
         self.designspaceSettingsChanged()
-        
+
 
     def vertAlignmentSegmentButtonCallback(self, sender) -> None:
         m = "top center bottom".split(" ")
@@ -768,7 +768,7 @@ class Spaceport(Subscriber, ezui.WindowController):
                 self.w.getItem(item).show(sender.get())
         self.w.matrix.show(sender.get())
 
-        
+
     def moveSpaceMatrixButtonCallback(self, sender) -> None:
         if self.w.matrix.isVisible():
             if self.matrixPosition == 0:
@@ -802,12 +802,12 @@ class Spaceport(Subscriber, ezui.WindowController):
         > * Box                                                            @fontBox = VerticalStack
         >> !!!Fonts
         >> * HorizontalStack                                               @fontStack
-        >>> ((( Refresh Order | Add All Open Fonts )))                     @addAndReorderButton   
+        >>> ((( Refresh Order | Add All Open Fonts )))                     @addAndReorderButton
         >>> *Image                                                         @sortImage
-        >>> (( Weight | Width | Italic))                                   @sortFontListButton   
+        >>> (( Weight | Width | Italic))                                   @sortFontListButton
         >> |-files----|                                                    @fontTable
-        >> |          |  
-        >> |----------|  
+        >> |          |
+        >> |----------|
         >> (+-)                                                            @fontTableAddRemoveButton
         > * Box                                                            @designspaceBox = VerticalStack
         >> !!!Designspaces
@@ -925,7 +925,6 @@ class Spaceport(Subscriber, ezui.WindowController):
             controller=self
         )
 
-        
 
         self.styleWindowButtons(self.w.objw)
         # get current values
@@ -957,7 +956,7 @@ class Spaceport(Subscriber, ezui.WindowController):
             if f.path not in current:
                 self.fonts[f.path] = (False, f)
         self.fonts = {path:(True,font) for path,(view,font) in self.fonts.items()}
-        self.w.objw.getItem("fontTable").set(dict(use=use,path=path) for (path, (use, font)) in self.fonts.items())                
+        self.w.objw.getItem("fontTable").set(dict(use=use,path=path) for (path, (use, font)) in self.fonts.items())
         self.populateItems()
 
 
@@ -1014,7 +1013,7 @@ class Spaceport(Subscriber, ezui.WindowController):
                 # remove designspace items
                 fontsDict = list(self.fonts.items())
                 for _path, (_view, _font) in fontsDict:
-                    # if _view:    
+                    # if _view:
                     if _path in [p.path for (p,_) in self.sources]:
                         del self.fonts[_path]
                         self._fontFolder[_path] = (_view, _font)
@@ -1049,10 +1048,10 @@ class Spaceport(Subscriber, ezui.WindowController):
                             source = openFonts.get(source.path)
 
                         source.lib["descriptor"] = "source"
-                        source.lib["location"]   = locationData                    
+                        source.lib["location"]   = locationData
                         self.fonts[source.path]  = (True,source)
 
-                if self.viewInstances:    
+                if self.viewInstances:
                     for instance in instances:
                         inst = internalFontClasses.createFontObject()
                         inst.lib["descriptor"] = "instance"
@@ -1073,7 +1072,7 @@ class Spaceport(Subscriber, ezui.WindowController):
         if not self.font and self.fonts:
             self.setMainFont(obj, True)
         try:
-            self.w.objw.getItem("fontTable").set(dict(use=use,path=path) for (path, (use, font)) in self.fonts.items())                
+            self.w.objw.getItem("fontTable").set(dict(use=use,path=path) for (path, (use, font)) in self.fonts.items())
         except AttributeError:
             pass
         self.populateItems()
@@ -1151,7 +1150,7 @@ class Spaceport(Subscriber, ezui.WindowController):
     def sortFontListButtonCallback(self, sender) -> None:
         """
         allows you to sort all the fonts by weight, width, and italic states
-        holding shift when you select a new item will reverse its value in the 
+        holding shift when you select a new item will reverse its value in the
         overall list. e.g.
         default:
         compressed - wide
@@ -1275,7 +1274,7 @@ class Spaceport(Subscriber, ezui.WindowController):
                     backgroundColor=(1,1,1,1)
                 ),
             )
-            
+
             for axisDescriptor in self.operator.axes:
                 value = axisDescriptor.default
                 if hasattr(axisDescriptor, "values"):
@@ -1362,10 +1361,10 @@ class Spaceport(Subscriber, ezui.WindowController):
 
     def contentCallback(self, sender) -> None:
         """
-        this is linked as several callbacks so we have to 
+        this is linked as several callbacks so we have to
         make sure its only running for the designspace navigation
-        popover and adjust then. 
-        """ 
+        popover and adjust then.
+        """
         if isinstance(sender.get(), dict):
             if "xAxisSelection" in sender.get().keys():
                 self._convertViewLocationToDesignspaceLocation((self.x,self.y))
@@ -1430,7 +1429,6 @@ class Spaceport(Subscriber, ezui.WindowController):
 
 
     def textFieldCallback(self, sender) -> None:
-
         self.typingCoalescer.restart()
         self.unsubscribeFromGlyphs()
         if self.font:
@@ -1491,7 +1489,7 @@ class Spaceport(Subscriber, ezui.WindowController):
             glyphFillLayer = glyphContainer.getSublayer("glyphFill")
             glyphFillLayer.setFillColor(foregroundColor)
             glyphFillLayer.setVisible(self.showFill)
-                
+
             glyphStrokeLayer = glyphContainer.getSublayer("glyphStroke")
             if self.showStroke:
                 if self.invert:
@@ -1630,7 +1628,7 @@ class Spaceport(Subscriber, ezui.WindowController):
             name="descriptorIndicator",
             visible=True,
         )
-        
+
         glyphContainer.appendBaseSublayer(
             name="glyphMetrics",
             visible=True,
@@ -1805,12 +1803,12 @@ class Spaceport(Subscriber, ezui.WindowController):
                     fillColor=(0,1,0,.2),
                 )
                 selectionIndicatorLayer.addSublayerSkewTransformation((-skewAngle))
-                
+
                 if item in self.selectedItems:
                     selectionIndicatorLayer.setVisible(True)
                 else:
                     selectionIndicatorLayer.setVisible(False)
-            
+
             glyphFillLayer = glyphContainer.getSublayer("glyphFill")
             with glyphFillLayer.propertyGroup():
                 glyphFillLayer.setPath(glyph.getRepresentation("merz.CGPath"))
@@ -1877,7 +1875,7 @@ class Spaceport(Subscriber, ezui.WindowController):
                 glyph = internalFontClasses.createGlyphObject()
                 glyph = RGlyph(mathGlyph.extractGlyph(glyph))
                 item.glyph = glyph
-                
+
                 descriptionLayer = glyphContainer.getSublayer("descriptorIndicator")
                 with descriptionLayer.propertyGroup():
                     descriptionLayer.clearSublayers()
@@ -1925,21 +1923,21 @@ class Spaceport(Subscriber, ezui.WindowController):
         glyphFillLayer = glyphContainer.getSublayer("glyphFill")
         #with glyphFillLayer.propertyGroup():    # for some reason this wont work inside a property group
         try: glyphFillLayer.removeTransformation("translate")
-        except: pass
+        except MerzError: pass
         glyphFillLayer.addTranslationTransformation((-item.offset, 0), "translate")
         glyphFillLayer.setPath(glyph.getRepresentation("merz.CGPath"))
 
         glyphStrokeLayer = glyphContainer.getSublayer("glyphStroke")
         #with glyphStrokeLayer.propertyGroup():    # for some reason this wont work inside a property group
         try: glyphStrokeLayer.removeTransformation("translate")
-        except: pass
+        except MerzError: pass
         glyphStrokeLayer.addTranslationTransformation((-item.offset, 0), "translate")
         glyphStrokeLayer.setPath(glyph.getRepresentation("merz.CGPath"))
 
         # glyphPointsLayer = glyphContainer.getSublayer("glyphPoints")
         # glyphPointsLayer.clearSublayers()
         # onCurve = 20 * item.scaler
-        
+
         # with glyphPointsLayer.propertyGroup():
         #     for contour in glyph.contours:
         #         for point in contour.points:
@@ -1962,14 +1960,14 @@ class Spaceport(Subscriber, ezui.WindowController):
                 # if switching from roman <> italic, we need to update the selection indicator skew
         if kwargs.get("updatedLocation"):
             try: selection.removeTransformation("skew")
-            except: pass
+            except MerzError: pass
             if item.skewAngle: selection.addSublayerSkewTransformation((-item.skewAngle))
 
 
     def populateItems(self, reload:bool=False) -> None:
         items = []
         _glyphRecords = []
-        
+
         for fontIndex, (path,(use,font)) in enumerate(self.fonts.items()):
             if use:
                 scaler = font.info.unitsPerEm/1000
@@ -2048,7 +2046,7 @@ class Spaceport(Subscriber, ezui.WindowController):
         items = self.w.getItemValue("collectionView")
         for item in items:
             self.beamController(item)
-            
+
         self.w.matrix.set(_glyphRecords)
 
 
@@ -2302,7 +2300,7 @@ class Spaceport(Subscriber, ezui.WindowController):
                 mm[ii.font.path] = v
             availableWidth = max(list(mm.values())) * 1.1
 
-            xScale = containerWidth/availableWidth 
+            xScale = containerWidth/availableWidth
             yScale = containerHeight/availableHeight
             if direction == "width":
                 scale = xScale
@@ -2375,7 +2373,7 @@ class Spaceport(Subscriber, ezui.WindowController):
         if isinstance(view, ezui.views.merzView.MerzView):
             # working with designspace navigator
             pass
-            
+
         elif isinstance(view, merz.collectionView.MerzCollectionDocumentView):
             # working with glyph record view
             event = merz.unpackEvent(event)
@@ -2474,7 +2472,7 @@ class Spaceport(Subscriber, ezui.WindowController):
                 strokeColor=(0,0,0,.2),
                 strokeWidth=1,
                 )
-            
+
             container.appendOvalSublayer(
                 position=(x,y),
                 size=(10,10),
@@ -2514,7 +2512,7 @@ class Spaceport(Subscriber, ezui.WindowController):
             desc = [a for a in self.operator.axes if a.name == self.yAxis][0]
             minimum, default, maximum = self.operator.getAxisExtremes(desc)
             ny = remap(y, 0, 300, minimum, maximum, True)
-            location[self.yAxis] = ny        
+            location[self.yAxis] = ny
         self.designspaceEditorPreviewLocationDidChange(dict(location=location))
 
 
@@ -2534,7 +2532,7 @@ class Spaceport(Subscriber, ezui.WindowController):
 
                 # glyph = self.getGlyphFromItem(item)
                 glyph = item.glyph
-                                            
+
                 if item.onDisk:
                     with glyph.undo(f"Change spacing of {glyph.name}"):
                         if "shift" in mods and "command" in mods:
@@ -2581,14 +2579,14 @@ class Spaceport(Subscriber, ezui.WindowController):
                     self.addObjectsCallback(None)
 
                 elif char == "=":
-                    # zoom in 
+                    # zoom in
                     self.zoomCoalescerManager()
                     self.zoom(direction="in", option=AppKit.NSEvent.modifierFlags() & AppKit.NSAlternateKeyMask)
                 elif char == "-":
                     # zoom out
                     self.zoomCoalescerManager()
                     self.zoom(direction="out", option=AppKit.NSEvent.modifierFlags() & AppKit.NSAlternateKeyMask)
-                    
+
 
 
             if mods == []:
@@ -2603,14 +2601,14 @@ class Spaceport(Subscriber, ezui.WindowController):
                         self.beamController(item)
 
                 elif char == getDefault("glyphViewZoomInKey", "z"):
-                    # zoom in 
+                    # zoom in
                     self.zoomCoalescerManager()
                     self.zoom(direction="in")
                 elif char == getDefault("glyphViewZoomOutKey", "x"):
                     # zoom out
                     self.zoomCoalescerManager()
                     self.zoom(direction="out")
-                    
+
 
 
     def mouseMoved(self, view, event) -> None:
@@ -2663,5 +2661,3 @@ class Spaceport(Subscriber, ezui.WindowController):
 
 if __name__ == "__main__":
     registerRoboFontSubscriber(Spaceport)
-
-
