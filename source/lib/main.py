@@ -8,10 +8,12 @@ from fontParts.world import (CurrentGlyph,
                             CurrentLayer,
                             CurrentFont,
                             OpenFont,
-                            RGlyph,
-                            RFont)
-from fontParts.fontshell.font import RFont as RFontType # we need to do this because RFont from .world is a function
-from fontParts.fontshell.glyph import RGlyph as RGlyphType # we need to do this because RGlyph from .world is a function
+                            #RGlyph,
+                            #RFont
+)
+# from fontParts.fontshell.font import RFont as RFont # we need to do this because RFont from .world is a function
+# from fontParts.fontshell.glyph import RGlyph as RGlyph # we need to do this because RGlyph from .world is a function
+from mojo.roboFont import(RGlyph, RFont)
 from fontTools.misc import transform
 from fontTools.designspaceLib import (DesignSpaceDocument,
                                      AxisDescriptor,
@@ -192,7 +194,7 @@ class MerzCollectionViewRGlyphItem(merz.collectionView.MerzCollectionViewItem):
     def __init__(self, *args, **kwargs) -> None:
         self._name:str                 = kwargs.get("name", "")
         self._font:DoodleFont          = kwargs.get("font")
-        self._glyph:RGlyphType         = kwargs.get("glyph")
+        self._glyph:RGlyph         = kwargs.get("glyph")
         self._index:int                = kwargs.get("index", 0)
         self._onDisk:bool              = kwargs.get("onDisk", True)
         self._offset:float|int         = kwargs.get("italicOffset", 0)
@@ -212,10 +214,10 @@ class MerzCollectionViewRGlyphItem(merz.collectionView.MerzCollectionViewItem):
 
     name = property(getName, setName)
 
-    def getGlyph(self) -> DoodleGlyph | RGlyphType:
+    def getGlyph(self) -> DoodleGlyph | RGlyph:
         return self._glyph
 
-    def setGlyph(self, value:DoodleGlyph | RGlyphType) -> None:
+    def setGlyph(self, value:DoodleGlyph | RGlyph) -> None:
         self._glyph = value
 
     glyph = property(getGlyph, setGlyph)
@@ -314,14 +316,14 @@ class Spaceport(Subscriber, ezui.WindowController):
         self.foreground:tuple[float,...] = (0, 0, 0, 1)
         self.background:tuple[float,...] = (1, 1, 1, 1)
 
-        self.showKerning:bool   = False
-        self.showMetrics:bool   = False
-        self.showLabel:bool     = True
-        self.multiline:bool     = True
-        self.openSources:bool   = False
-        self.viewSources:bool   = False # for testing its false
-        self.viewInstances:bool = False
-        self.showBeam:bool      = True
+        self.showKerning:bool           = False
+        self.showMetrics:bool           = False
+        self.showLabel:bool             = True
+        self.multiline:bool             = True
+        self.openSources:bool           = False
+        self.viewSources:bool           = False # for testing its false
+        self.viewInstances:bool         = False
+        self.showBeam:bool              = True
         self.designspaceController:bool = True
 
         self.sortingSettings:list[int] = []
@@ -333,11 +335,11 @@ class Spaceport(Subscriber, ezui.WindowController):
 
         self.detached:bool = False
 
-        self.currentGlyph:RGlyphType                     = CurrentGlyph()
-        self.font:RFontType                              = CurrentFont()
-        self.fonts:dict[str,tuple[bool,RFontType]]       = dict()
-        self._fontFolder:dict[str,tuple[bool,RFontType]] = dict()
-        self.glyphs:list[str]                            = []
+        self.currentGlyph:RGlyph                     = CurrentGlyph()
+        self.font:RFont                              = CurrentFont()
+        self.fonts:dict[str,tuple[bool,RFont]]       = dict()
+        self._fontFolder:dict[str,tuple[bool,RFont]] = dict()
+        self.glyphs:list[str]                        = []
 
         for f in AllFonts():
             f.lib["descriptor"] = ""
@@ -433,7 +435,7 @@ class Spaceport(Subscriber, ezui.WindowController):
         numberFieldWidth = 40
 
         fontToLoad = self.font or internalFontClasses.createFontObject()
-        if isinstance(fontToLoad, RFontType):
+        if isinstance(fontToLoad, RFont):
             fontToLoad = fontToLoad.naked()
 
         descriptionData = dict(
@@ -504,7 +506,6 @@ class Spaceport(Subscriber, ezui.WindowController):
         self.w.setItemValue("textField", "SPACEPORT")
         self.w.setItemValue("preTextField", "")
         self.w.setItemValue("pstTextField", "")
-
         # resize only the slider
         self.w.getItem("pointSizeInputField")._slider._setSizeStyle("small")
 
@@ -730,7 +731,7 @@ class Spaceport(Subscriber, ezui.WindowController):
         position = m[sender.get()]
         collection = self.collectionView
         typesetter = collection._documentView._typesetter
-        firstYPos = typesetter.getItemPosition(0)[1]
+        # firstYPos = typesetter.getItemPosition(0)[1]
         lineHeight = self.w.getItemValues()["lineHeightField"]
         pointSize = self.w.getItemValues()["pointSizeInputField"]
 
@@ -1503,15 +1504,7 @@ class Spaceport(Subscriber, ezui.WindowController):
 
             glyphStrokeLayer.setStrokeColor(foregroundColor)
             glyphStrokeLayer.setVisible(self.showStroke)
-            # glyphPointsLayer = glyphContainer.getSublayer("glyphPoints")
 
-            # for point in glyphPointsLayer.getSublayers():
-            #     #location = point.getPosition()
-            #     #settings = point.getImageSettings()
-            #     #settings["fillColor"] = foregroundColor
-            #     #point.setImageSettings(settings)
-            #     point.setFillColor(foregroundColor)
-            # glyphPointsLayer.setVisible(self.showPoints)
         self.foreground = foregroundColor
         self.background = backgroundColor
 
@@ -1528,8 +1521,7 @@ class Spaceport(Subscriber, ezui.WindowController):
 
     def multilineButtonCallback(self, sender) -> None:
         self.multiline = self.viewSettingsWindow.getItemValue("multilineButton")
-        self.w.getToolbarItems().get("zoomToWidth").setEnabled_(self.multiline)
-        # self.w.getItem("zoomToWidth").enable()
+        self.w.getItem("zoomToWidth").enable(self.multiline)
         self.displaySettingsButtonCallback(None)
         self.populateItems()
 
@@ -2020,7 +2012,7 @@ class Spaceport(Subscriber, ezui.WindowController):
                             glyph.scaleBy(capScale)
                             glyph.width *= capScale
 
-                        if not isinstance(glyph, RGlyphType):
+                        if not isinstance(glyph, RGlyph):
                             glyph = RGlyph(glyph)
 
                         item = self.buildItem(
@@ -2572,12 +2564,11 @@ class Spaceport(Subscriber, ezui.WindowController):
                         glyph = toUndo.glyph
                         manager = AppKit.NSApp().getUndoManagerForGlyph_(glyph.asDefcon())
                         manager.undo()
-                # elif char.lower() == "t":
-                #     self.te.open()
-
+                elif char.lower() == "t":
+                    # set the text field as active
+                    self.w.getNSWindow().makeFirstResponder_(self.w.getItem("textField").getNSTextField())
                 elif char == ";":
                     self.addObjectsCallback(None)
-
                 elif char == "=":
                     # zoom in
                     self.zoomCoalescerManager()
@@ -2588,14 +2579,11 @@ class Spaceport(Subscriber, ezui.WindowController):
                     self.zoom(direction="out", option=AppKit.NSEvent.modifierFlags() & AppKit.NSAlternateKeyMask)
 
 
-
             if mods == []:
                 if char.lower() == "b":
                     self.showBeam = not self.showBeam
                     self.viewSettingsWindow.setItemValue("showBeamButton", self.showBeam)
-
                     self.w.matrix.setShowBeam(self.showBeam)
-
                     items = self.w.getItemValue("collectionView")
                     for item in items:
                         self.beamController(item)
@@ -2656,7 +2644,6 @@ class Spaceport(Subscriber, ezui.WindowController):
             if item.glyph == info["glyph"]:
                 self.updateItem(item)
         self.collectionView.set(self.w.getItemValue("collectionView")) # i think that this is the only external-way to reload the view
-
 
 
 if __name__ == "__main__":
