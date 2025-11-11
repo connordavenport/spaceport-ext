@@ -1,58 +1,63 @@
-import AppKit
-from defcon import Font
-from designspaceEditor.ui import DesignspaceEditorController
-from designspaceEditor.locationPreview import PreviewLocationFinder
-from drawBot.context.tools.drawBotbuiltins import remap
-import ezui
-from fontParts.world import (CurrentGlyph,
-                            CurrentLayer,
-                            CurrentFont,
-                            OpenFont,
-                            #RGlyph,
-                            #RFont
-)
-# from fontParts.fontshell.font import RFont as RFont # we need to do this because RFont from .world is a function
-# from fontParts.fontshell.glyph import RGlyph as RGlyph # we need to do this because RGlyph from .world is a function
-from mojo.roboFont import(RGlyph, RFont)
-from fontTools.misc import transform
-from fontTools.designspaceLib import (DesignSpaceDocument,
-                                     AxisDescriptor,
-                                     SourceDescriptor,
-                                     InstanceDescriptor)
-import functools
-from glyphNameFormatter.reader import n2u, n2N, N2n
-from lib.fontObjects.doodleFont import DoodleFont
-from lib.fontObjects.doodleLayer import DoodleLayer
-from lib.fontObjects.doodleGlyph import DoodleGlyph
-from lib.UI.spaceCenter import spaceInputScrollView as spaceInput
-from lib.UI.spaceCenter.lineViewGlyphWrappers import  GlyphRecord
-from lib.UI.spaceCenter.glyphSequenceEditText import (GlyphSequenceEditComboBox,
-                                                     splitText,
-                                                     currentGlyphKey,
-                                                     currentSelectionKey,
-                                                     newLineKey,
-                                                     groupsKey)
 import math
-from mojo import events
-from mojo.UI import (getDefault, GetFile, OpenGlyphWindow)
-from mojo.extensions import getExtensionDefault, setExtensionDefault
-from mojo.roboFont import internalFontClasses, AllFonts, CurrentFont
-from mojo.subscriber import (Subscriber,
-                            registerCurrentGlyphSubscriber,
-                            unregisterCurrentGlyphSubscriber,
-                            registerRoboFontSubscriber,
-                            unregisterRoboFontSubscriber,
-                            registerSubscriberEvent,
-                            getRegisteredSubscriberEvents,
-                            Coalescer)
-import merz
-from merz.tools.typesetter import HorizontalTypesetter
-from merz.errors import MerzError
 import os
 import time
-from ufoProcessor.ufoOperator import UFOOperator
-from vanilla.vanillaBase import osVersionCurrent, osVersion12_0
+
+import AppKit
+import ezui
+import merz
 import yaml
+from defcon import Font
+from designspaceEditor.locationPreview import PreviewLocationFinder
+from designspaceEditor.ui import DesignspaceEditorController
+from drawBot.context.tools.drawBotbuiltins import remap
+from fontParts.world import (
+    CurrentFont,
+    CurrentGlyph,
+    CurrentLayer,
+    OpenFont,
+    #RGlyph,
+    #RFont
+)
+from fontTools.designspaceLib import (
+    AxisDescriptor,
+    DesignSpaceDocument,
+    InstanceDescriptor,
+    SourceDescriptor,
+)
+from fontTools.misc import transform
+from glyphNameFormatter.reader import N2n, n2N, n2u
+from lib.fontObjects.doodleFont import DoodleFont
+from lib.fontObjects.doodleGlyph import DoodleGlyph
+from lib.fontObjects.doodleLayer import DoodleLayer
+from lib.UI.spaceCenter import spaceInputScrollView as spaceInput
+from lib.UI.spaceCenter.glyphSequenceEditText import (
+    GlyphSequenceEditComboBox,
+    currentGlyphKey,
+    currentSelectionKey,
+    groupsKey,
+    newLineKey,
+    splitText,
+)
+from lib.UI.spaceCenter.lineViewGlyphWrappers import GlyphRecord
+from merz.errors import MerzError
+from merz.tools.typesetter import HorizontalTypesetter
+from mojo import events
+from mojo.extensions import getExtensionDefault, setExtensionDefault
+
+# from fontParts.fontshell.font import RFont as RFont # we need to do this because RFont from .world is a function
+# from fontParts.fontshell.glyph import RGlyph as RGlyph # we need to do this because RGlyph from .world is a function
+from mojo.roboFont import AllFonts, CurrentFont, RFont, RGlyph, internalFontClasses
+from mojo.subscriber import (
+    Coalescer,
+    Subscriber,
+    getRegisteredSubscriberEvents,
+    registerRoboFontSubscriber,
+    registerSubscriberEvent,
+    unregisterRoboFontSubscriber,
+)
+from mojo.UI import GetFile, OpenGlyphWindow, getDefault
+from ufoProcessor.ufoOperator import UFOOperator
+from vanilla.vanillaBase import osVersion12_0, osVersionCurrent
 
 """
 versioning
@@ -108,6 +113,16 @@ MATRIX_POS:tuple[int,int,int,int] = (0, -48, 0, 48)
 
 CASES:list[str] = ["lower", "title", "upper", "default"]
 
+CURSOR_SIZE = 30
+CURSOR_IMAGE = AppKit.NSCursor.IBeamCursor().image()
+CURSOR_IMAGE = CURSOR_IMAGE.resizeTo_(CURSOR_SIZE)
+TYPING_CURSOR = CreateCursor(
+    CURSOR_IMAGE,
+    hotSpot=(CURSOR_SIZE/2, CURSOR_SIZE/2)
+)
+IBEAM_COLOR:tuple[float,float,float,float] = (0, 0.478, 1, 1)
+ARROW_CURSOR = AppKit.NSCursor.arrowCursor()
+
 class EZSequenceCombo(GlyphSequenceEditComboBox, ezui.tools.ParserMixIn):
     # https://github.com/typemytype/basicShapingRoboFontExtension/blob/47698796e1b45b074e6489b49c8b7b7ab7493bce/BasicShaping.roboFontExt/lib/CoreTextShaping.py#L167
     def __init__(
@@ -138,7 +153,6 @@ try:
     ezui.tools.classes.registerClass("SequenceCombo", EZSequenceCombo)
 except:
     pass
-
 
 class InterpolationWarningWindow(ezui.WindowController):
 
@@ -194,7 +208,7 @@ class MerzCollectionViewRGlyphItem(merz.collectionView.MerzCollectionViewItem):
     def __init__(self, *args, **kwargs) -> None:
         self._name:str                 = kwargs.get("name", "")
         self._font:DoodleFont          = kwargs.get("font")
-        self._glyph:RGlyph         = kwargs.get("glyph")
+        self._glyph:RGlyph             = kwargs.get("glyph")
         self._index:int                = kwargs.get("index", 0)
         self._onDisk:bool              = kwargs.get("onDisk", True)
         self._offset:float|int         = kwargs.get("italicOffset", 0)
@@ -202,6 +216,7 @@ class MerzCollectionViewRGlyphItem(merz.collectionView.MerzCollectionViewItem):
         self._scaler:float|int         = kwargs.get("scaler", 1)
         self._location:dict[str,float] = kwargs.get("location", {})
         self._selected:bool            = False
+        self._typingItem:bool          = False
         self._selectedVisible:bool     = False
 
         super().__init__(*args, **kwargs)
@@ -238,6 +253,25 @@ class MerzCollectionViewRGlyphItem(merz.collectionView.MerzCollectionViewItem):
         self.getLayer("glyphContainer").getSublayer("selectionIndicator").setVisible(value)
 
     selected = property(getSelected, setSelected)
+
+    def getTypingItem(self) -> bool:
+        return self._typingItem
+
+    def setTypingItem(self, value:bool=False) -> None:
+        self._typingItem = value
+        layer = self.getLayer("glyphContainer").getSublayer("typingIndicator")
+        layer.setVisible(value)
+        # reset blinking
+        layer.setBackgroundColor(IBEAM_COLOR)
+        with layer.propertyGroup(
+            duration=.5,
+            repeatCount="loop",
+            reverse=True,
+            timing="easeInEaseOut",
+        ):
+            layer.setBackgroundColor((*IBEAM_COLOR[0:3], .1))
+
+    typing = property(getTypingItem, setTypingItem)
 
     def getSelectedVisible(self) -> bool:
         return self._selectedVisible
@@ -328,11 +362,12 @@ class Spaceport(Subscriber, ezui.WindowController):
 
         self.sortingSettings:list[int] = []
         self.weightSort:int = 1
-        self.widthSort:int = 1
+        self.widthSort:int  = 1
         self.italicSort:int = 1
 
         self.viewDesignspace:bool = False
 
+        self.typing:bool   = False
         self.detached:bool = False
 
         self.currentGlyph:RGlyph                     = CurrentGlyph()
@@ -1542,7 +1577,7 @@ class Spaceport(Subscriber, ezui.WindowController):
         self.populateItems()
 
 
-    def displaySettingsButtonCallback(self, sender, onlyBeam=False) -> None:
+    def displaySettingsButtonCallback(self, sender, onlyBeam=False, previewState=False) -> None:
         values = self.viewSettingsWindow.getItemValue("displaySettingsButton")
         self.showFill      = 0 in values
         self.showStroke    = 1 in values
@@ -1551,37 +1586,48 @@ class Spaceport(Subscriber, ezui.WindowController):
         self.beamPosition  = self.viewSettingsWindow.getItemValue("beamPositionSlider")
         self.showBeam      = self.viewSettingsWindow.getItemValue("showBeamButton")
 
+        showBeam = self.showBeam
+        showMetrics = self.showMetrics
+        showLabel = self.showLabel
+        showKerning = self.showKerning
+        showBeam = self.showBeam
+        showFill = self.showFill
+        showStroke = self.showStroke
+
+        if previewState:
+            showMetrics = showLabel = showKerning = showBeam = showStroke = showBeam = False
+            showFill = True
+
         items = self.w.getItemValue("collectionView")
         for item in items:
-
             if onlyBeam:
                 self.beamController(item)
-                self.w.matrix.setShowBeam(self.showBeam)
+                self.w.matrix.setShowBeam(showBeam)
                 self.w.matrix.setBeamPosition(self.beamPosition)
             else:
                 glyphContainer = item.getLayer("glyphContainer")
 
                 glyphMetricsLayer = glyphContainer.getSublayer("glyphMetrics")
-                glyphMetricsLayer.setVisible(self.showMetrics)
+                glyphMetricsLayer.setVisible(showMetrics)
 
                 labelLayer = glyphContainer.getSublayer("descriptorIndicator")
-                labelLayer.setVisible(self.showLabel)
+                labelLayer.setVisible(showLabel)
 
                 kernIndicatorLayer = glyphContainer.getSublayer("kernIndicator")
-                kernIndicatorLayer.setVisible(self.showKerning)
+                kernIndicatorLayer.setVisible(showKerning)
 
                 beamIndicatorLayer = glyphContainer.getSublayer("beamIndicator")
-                beamIndicatorLayer.setVisible(self.showBeam)
+                beamIndicatorLayer.setVisible(showBeam)
 
                 glyphFillLayer = glyphContainer.getSublayer("glyphFill")
-                glyphFillLayer.setVisible(self.showFill)
-                if self.showStroke:
+                glyphFillLayer.setVisible(showFill)
+                if showStroke:
                     glyphFillLayer.setFillColor((*self.foreground[:3], .2))
                 else:
                     glyphFillLayer.setFillColor(self.foreground)
 
                 glyphStrokeLayer = glyphContainer.getSublayer("glyphStroke")
-                glyphStrokeLayer.setVisible(self.showStroke)
+                glyphStrokeLayer.setVisible(showStroke)
                 # glyphPointsLayer = glyphContainer.getSublayer("glyphPoints")
                 # glyphPointsLayer.setVisible(self.showPoints)
 
@@ -1641,7 +1687,6 @@ class Spaceport(Subscriber, ezui.WindowController):
             fillColor=foreground,
             visible=True,
         )
-
         glyphContainer.appendPathSublayer(
             name="glyphStroke",
             fillColor=None,
@@ -1657,7 +1702,12 @@ class Spaceport(Subscriber, ezui.WindowController):
         glyphContainer.appendBaseSublayer(
             name="selectionIndicator",
         )
-
+        typingIndicator = glyphContainer.appendBaseSublayer(
+            name="typingIndicator",
+            position=(0,0),
+            backgroundColor=IBEAM_COLOR,
+            visible=True,
+        )
         glyphContainer.appendBaseSublayer(
             name="kernIndicator",
             position=(0, 0),
@@ -1811,23 +1861,15 @@ class Spaceport(Subscriber, ezui.WindowController):
                 glyphStrokeLayer.setPath(glyph.getRepresentation("merz.CGPath"))
                 glyphStrokeLayer.addTranslationTransformation((-off, 0), "translate")
                 glyphStrokeLayer.setVisible(self.showStroke)
-            # glyphPointsLayer = glyphContainer.getSublayer("glyphPoints")
-            # glyphPointsLayer.clearSublayers()
-            # onCurve = 20 * item.scaler
-            # with glyphPointsLayer.propertyGroup():
-            #     for contour in glyph.contours:
-            #         for point in contour.points:
-            #             if point.type != "offcurve":
-            #                 x = point.x
-            #                 y = point.y
-            #                 glyphPointsLayer.appendOvalSublayer(
-            #                     position=(x-off, y),
-            #                     size=(onCurve,onCurve),
-            #                     anchor=(.5,.5),
-            #                     fillColor=(0, 0, 0, 1),
-            #                 )
-            #     glyphPointsLayer.setVisible(self.showPoints)
-                self.beamController(item)
+
+            typingIndicatorLayer = glyphContainer.getSublayer("typingIndicator")
+            typingIndicatorLayer.setPosition((glyph.width,font.info.descender))
+            typingIndicatorLayer.setSize((30, abs(font.info.descender) + font.info.ascender))
+            typingIndicatorLayer.setCornerRadius(2)
+            typingIndicatorLayer.addSublayerSkewTransformation((-skewAngle))
+            typingIndicatorLayer.setVisible(False)
+
+            self.beamController(item)
 
         if index+1 == len(self.glyphs):
             if self.multiline:
@@ -2043,7 +2085,6 @@ class Spaceport(Subscriber, ezui.WindowController):
 
 
     def beamController(self, item:MerzCollectionViewRGlyphItem) -> None:
-
         glyph = item.glyph
         font = item.font
         beamIndicatorLayer = item.getLayer("glyphContainer").getSublayer("beamIndicator")
@@ -2307,6 +2348,7 @@ class Spaceport(Subscriber, ezui.WindowController):
 
     def destroy(self) -> None:
         #setExtensionDefault(EXTENSION_KEY + ".main_prefs", self.w.getItemValues())
+        TYPING_CURSOR.pop()
         setExtensionDefault(EXTENSION_KEY + ".view_prefs", self.viewSettingsWindow.getItemValues())
         windowSettings = self.w.getItemValues()
         for name,field in windowSettings.items():
@@ -2336,11 +2378,18 @@ class Spaceport(Subscriber, ezui.WindowController):
 
     def _getItemAtEvent(self, position:tuple[float,float]=(0.0,0.0)) -> MerzCollectionViewRGlyphItem | None:
         x,y = position
-        hits = self.container.findSublayersContainingPoint(
-            (x, y),
-            onlyAcceptsHit=True,
-            recurse=False
-        )
+        if self.typing:
+            hits = self.container.findSublayersIntersectedByRect(
+                (x-100,y-25,100,50),
+                onlyAcceptsHit=True,
+                recurse=False
+            )
+        else:
+            hits = self.container.findSublayersContainingPoint(
+                (x, y),
+                onlyAcceptsHit=True,
+                recurse=False
+            )
         if not hits:
             return None
         hit = hits[0]
@@ -2385,33 +2434,34 @@ class Spaceport(Subscriber, ezui.WindowController):
                 clickCount = event["clickCount"]
                 parsed = hit.glyph
                 if parsed is not None and parsed.name != "IGNORE":
-                    hit.selected = True
-                    # selectedGlyph = self.getGlyphFromItem(hit)
-                    selectedGlyph = parsed
+                    if not self.typing:
+                        hit.selected = True
+                        # selectedGlyph = self.getGlyphFromItem(hit)
+                        selectedGlyph = parsed
 
-                    if event["modifiers"] == ["command"]:
-                        selectedFont = hit.font
+                        if event["modifiers"] == ["command"]:
+                            selectedFont = hit.font
 
-                    elif event["modifiers"] == ["option"]:
-                        multiFontSelect = True
+                        elif event["modifiers"] == ["option"]:
+                            multiFontSelect = True
 
-                    if AppKit.NSEvent.modifierFlags() & AppKit.NSShiftKeyMask:
-                        # print("shift down, append")
-                        self.selectedItems.append(hit)
+                        if AppKit.NSEvent.modifierFlags() & AppKit.NSShiftKeyMask:
+                            # print("shift down, append")
+                            self.selectedItems.append(hit)
+                        else:
+                            # print("no mod, use only this")
+                            self.selectedItems = [hit]
+                            for temporary in self.collectionView.get():
+                                if temporary not in self.selectedItems:
+                                    temporary.selected = False
                     else:
-                        # print("no mod, use only this")
-                        self.selectedItems = [hit]
-                        for temporary in self.collectionView.get():
-                            if temporary not in self.selectedItems:
-                                temporary.selected = False
-
+                        hit.typing = True
                     if clickCount == 2:
                         try:
                             OpenGlyphWindow(selectedGlyph)
                         except:
                             selectedGlyph.copyToPasteboard()
                 else:
-                    # print("clearing selection")
                     self.selectedItems = []
             else:
                 # print("clearing selection")
@@ -2420,6 +2470,8 @@ class Spaceport(Subscriber, ezui.WindowController):
             if not self.selectedItems:
                 for temporary in self.collectionView.get():
                     temporary.selected = False
+                    if temporary != hit:
+                        temporary.typing   = False
 
             if multiFontSelect:
                 for temporary in self.collectionView.get():
@@ -2428,7 +2480,7 @@ class Spaceport(Subscriber, ezui.WindowController):
                         temporary.selected = True
 
             # only set the matrix for one font at a time, the selected one.
-            if len(set([hits.glyph.font for hits in self.selectedItems])) == 1:
+            if len(set([hits.glyph.font for hits in self.selectedItems])) == 1 and selectedGlyph:
                 records = [GlyphRecord(item.glyph.naked()) for item in self.collectionView.get() if item.glyph.font == selectedGlyph.font]
                 self.w.matrix.set(records)
 
@@ -2437,11 +2489,8 @@ class Spaceport(Subscriber, ezui.WindowController):
                 self.w.matrix.set(records)
 
 
-
     def mouseDragged(self, view, event) -> None:
-
         if isinstance(view, ezui.views.merzView.MerzView):
-
             self.internalPreview = True
             self.hoverItem = None
             self.wasDragging = True
@@ -2567,6 +2616,7 @@ class Spaceport(Subscriber, ezui.WindowController):
                 elif char.lower() == "t":
                     # set the text field as active
                     self.w.getNSWindow().makeFirstResponder_(self.w.getItem("textField").getNSTextField())
+                    self.toggleTypingState()
                 elif char == ";":
                     self.addObjectsCallback(None)
                 elif char == "=":
@@ -2597,7 +2647,17 @@ class Spaceport(Subscriber, ezui.WindowController):
                     self.zoomCoalescerManager()
                     self.zoom(direction="out")
 
-
+    def toggleTypingState(self):
+        self.typing = not self.typing
+        if self.typing:
+            cursor = TYPING_CURSOR
+        else:
+            cursor = ARROW_CURSOR
+        scrollView = self.collectionView.getNSScrollView()
+        scrollView.setDocumentCursor_(
+            cursor
+        )
+        self.displaySettingsButtonCallback(None, previewState=self.typing)
 
     def mouseMoved(self, view, event) -> None:
         pass
