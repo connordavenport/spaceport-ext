@@ -2736,11 +2736,11 @@ class Spaceport(Subscriber, ezui.WindowController):
                     elif char == "=":
                         # zoom in
                         self.zoomCoalescerManager()
-                        self.zoom(direction="in", option=AppKit.NSEvent.modifierFlags() & AppKit.NSAlternateKeyMask)
+                        self.zoom(direction="in", option=self.option)
                     elif char == "-":
                         # zoom out
                         self.zoomCoalescerManager()
-                        self.zoom(direction="out", option=AppKit.NSEvent.modifierFlags() & AppKit.NSAlternateKeyMask)
+                        self.zoom(direction="out", option=self.option)
 
                 if mods == []:
                     if char.lower() == "b":
@@ -2766,6 +2766,9 @@ class Spaceport(Subscriber, ezui.WindowController):
                 if self.command:
                     self.typingIndex = 0
                     self.rawGlyphList = []
+                elif self.option:
+                    if self.typingIndex > 0:
+                        self.rawGlyphList.pop(self.typingIndex-1)
                 else:
                     if self.typingIndex < len(self.holdingGlyphs):
                         self.rawGlyphList.pop(self.typingIndex)
@@ -2822,6 +2825,14 @@ class Spaceport(Subscriber, ezui.WindowController):
     @property
     def command(self) -> bool:
         return AppKit.NSEvent.modifierFlags() & AppKit.NSCommandKeyMask
+
+    @property
+    def option(self) -> bool:
+        return AppKit.NSEvent.modifierFlags() & AppKit.NSAlternateKeyMask
+
+    @property
+    def function(self) -> bool:
+        return AppKit.NSEvent.modifierFlags() & AppKit.NSFunctionKeyMask
 
     def getMergedIndexFromRawIndex(self, rawIndex):
         if not self.holdingGlyphs:
