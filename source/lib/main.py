@@ -371,7 +371,7 @@ class Spaceport(Subscriber, ezui.WindowController):
         self.typing:bool   = False
         self.detached:bool = False
 
-        self.typingIndex:int = 0
+        self.typingIndex:int|None = None
         self.typingFont:DoodleFont|None=None
 
         self.currentGlyph:RGlyph                     = CurrentGlyph()
@@ -459,9 +459,11 @@ class Spaceport(Subscriber, ezui.WindowController):
         > * HorizontalStack                 @controlsStack
         >> ---X--- [__](±)                  @pointSizeInputField
         >> ---X--- [__](±)                  @lineHeightField
-        >> *GlyphSequence                   @preTextField
-        >> *SequenceCombo                   @textField
-        >> *GlyphSequence                   @pstTextField
+        >> ---------------
+        >> * HorizontalStack
+        >>> *GlyphSequence                  @leadingTextField
+        >>> *Image                          @trailingLeadingImage
+        >>> *GlyphSequence                  @trailingTextField
         >> ({arrow.left.and.right.square})  @zoomToWidth
         >> ({arrow.up.and.down.square})     @zoomToHeight
         >> ({gearshape})                    @viewOptions
@@ -485,11 +487,11 @@ class Spaceport(Subscriber, ezui.WindowController):
                 width="fill",
                 delegate=self,
             ),
-            preTextField=dict(
+            leadingTextField=dict(
                 width=40,
                 font=fontToLoad,
             ),
-            pstTextField=dict(
+            trailingTextField=dict(
                 width=40,
                 font=fontToLoad,
             ),
@@ -519,6 +521,14 @@ class Spaceport(Subscriber, ezui.WindowController):
                 valueIncrement=0.1,
                 width=140,
             ),
+
+            trailingLeadingImage=dict(
+                image=ezui.makeImage(imagePath=os.path.join(RESOURCES_PATH, "leading.trailing.svg"), template=True),
+                symbolConfiguration=dict(
+                    scale="large",
+                )
+            ),
+
             zoomToWidth=dict(
                 image=ezui.makeImage(symbolName=ZOOM_WIDTH, imagePath=os.path.join(RESOURCES_PATH, f"{ZOOM_WIDTH}.svg"), template=True),
                 symbolConfiguration=dict(
@@ -543,14 +553,6 @@ class Spaceport(Subscriber, ezui.WindowController):
             size=(1000, 500),
             minSize=(400, 200),
         )
-
-        self.w.setItemValue("textField", "SPACEPORT")
-        self.w.setItemValue("preTextField", "")
-        self.w.setItemValue("pstTextField", "")
-
-        self.w.getItem("textField").enable(False)
-        self.w.getItem("preTextField").enable(False)
-        self.w.getItem("pstTextField").enable(False)
         # resize only the slider
         self.w.getItem("pointSizeInputField")._slider._setSizeStyle("small")
 
@@ -607,7 +609,6 @@ class Spaceport(Subscriber, ezui.WindowController):
         if not self.fonts:
             window = self.buildObjectsSheet()
             if window: window.open()
-
 
     def started(self) -> None:
         self.w.open()
@@ -1434,11 +1435,11 @@ class Spaceport(Subscriber, ezui.WindowController):
         self.currentGlyph = CurrentGlyph()
 
 
-    def preTextFieldCallback(self, sender) -> None:
+    def leadingTextFieldCallback(self, sender) -> None:
         self.textFieldCallback(None)
 
 
-    def pstTextFieldCallback(self, sender) -> None:
+    def trailingTextFieldCallback(self, sender) -> None:
         self.textFieldCallback(None)
 
 
@@ -1550,8 +1551,8 @@ class Spaceport(Subscriber, ezui.WindowController):
 
             font = self.font
             holding = []
-            pre = self.validateGlyphNames(self.w.getItemValue("preTextField"))
-            pst = self.validateGlyphNames(self.w.getItemValue("pstTextField"))
+            pre = self.validateGlyphNames(self.w.getItemValue("leadingTextField"))
+            pst = self.validateGlyphNames(self.w.getItemValue("trailingTextField"))
             if font:
                 for index,name in enumerate(glyphNames):
                     if name in font.keys():
@@ -1652,6 +1653,23 @@ class Spaceport(Subscriber, ezui.WindowController):
         self.displaySettingsButtonCallback(None)
         self.populateItems()
 
+    def NSColor2RGBA(self, color:AppKit.NSColor):
+        try:
+            reColor = (
+                color.redComponent(),
+                color.greenComponent(),
+                color.blueComponent(),
+                color.alphaComponent()
+            )
+        except ValueError:
+            rgb = color.colorUsingColorSpace_(AppKit.NSColorSpace.genericRGBColorSpace())
+            r = rgb.redComponent()
+            g = rgb.greenComponent()
+            b = rgb.blueComponent()
+            a = rgb.alphaComponent()
+            reColor = (r,g,b,a)
+        return reColor
+
 
     def displaySettingsButtonCallback(self, sender, onlyBeam=False, previewState=False) -> None:
         values = self.viewSettingsWindow.getItemValue("displaySettingsButton")
@@ -1669,10 +1687,15 @@ class Spaceport(Subscriber, ezui.WindowController):
         showBeam = self.showBeam
         showFill = self.showFill
         showStroke = self.showStroke
+        background = self.NSColor2RGBA(self.background)
 
         if previewState:
             showMetrics = showLabel = showKerning = showBeam = showStroke = showBeam = False
             showFill = True
+            r,g,b,a = background
+            colorComp = .9 if r == 1 else .1
+            background = (colorComp,colorComp,colorComp,a)
+        self.collectionView.setBackgroundColor(AppKit.NSColor.colorWithCalibratedRed_green_blue_alpha_(*background))
 
         items = self.w.getItemValue("collectionView")
         for item in items:
@@ -2432,6 +2455,7 @@ class Spaceport(Subscriber, ezui.WindowController):
         TYPING_CURSOR.pop()
         setExtensionDefault(EXTENSION_KEY + ".view_prefs", self.viewSettingsWindow.getItemValues())
         setExtensionDefault(EXTENSION_KEY + ".text", self.holdingGlyphs)
+
         windowSettings = self.w.getItemValues()
         for name,field in windowSettings.items():
             if name.lower().endswith("textfield"):
@@ -2451,7 +2475,6 @@ class Spaceport(Subscriber, ezui.WindowController):
 
         if self.detached:
             self.viewSettingsWindow.close()
-
         setExtensionDefault(EXTENSION_KEY + ".main_prefs", windowSettings)
         self.clearObservedAdjunctObjects()
         self.zoomCoalescer.stop()
@@ -2547,7 +2570,6 @@ class Spaceport(Subscriber, ezui.WindowController):
                         self.typingFont  = hit.font
                         selectedGlyph    = hit.glyph
                         self.selectedItems = [hit]
-
                 else:
                     self.selectedItems = []
             else:
@@ -2558,16 +2580,8 @@ class Spaceport(Subscriber, ezui.WindowController):
                 for temporary in self.collectionView.get():
                     temporary.selected = False
 
-            # index = self.getMergedIndexFromRawIndex(self.typingIndex)
             if self.typing:
-                for item in self.collectionView.get():
-                    if item.font == self.typingFont:
-                        if item.index == self.typingIndex:
-                            item.typing = True
-                        else:
-                            item.typing = False
-                    else:
-                        item.typing = False
+                self.setTypingItem()
 
             if multiFontSelect:
                 for temporary in self.collectionView.get():
@@ -2713,8 +2727,10 @@ class Spaceport(Subscriber, ezui.WindowController):
                             manager.undo()
                     elif char.lower() == "t":
                         # set the text field as active
-                        self.w.getNSWindow().makeFirstResponder_(self.w.getItem("textField").getNSTextField())
+                        #self.w.getNSWindow().makeFirstResponder_(self.w.getItem("textField").getNSTextField())
                         self.toggleTypingState()
+                        return
+
                     elif char == ";":
                         self.addObjectsCallback(None)
                     elif char == "=":
@@ -2794,14 +2810,7 @@ class Spaceport(Subscriber, ezui.WindowController):
             if adding or deleting:
                 self.textFieldCallback(None)
 
-            index = self.getMergedIndexFromRawIndex(self.typingIndex)
-            for item in self.collectionView.get():
-                item.typing = False
-                if item.font == self.typingFont:
-                    if item.index == index:
-                        item.typing = True
-                    else:
-                        item.typing = False
+            self.setTypingItem()
 
             # records = [GlyphRecord(item.glyph.naked()) for item in self.collectionView.get() if item.glyph.font == self.typingFont]
             # self.w.matrix.set(records)
@@ -2862,15 +2871,33 @@ class Spaceport(Subscriber, ezui.WindowController):
 
 
     def toggleTypingState(self):
-        self.typing = not self.typing
-        self.typingFont = list(self.fonts.values())[0][-1]
-        if self.typing:
-            cursor = TYPING_CURSOR
-        else:
-            cursor = ARROW_CURSOR
-        scrollView = self.collectionView.getNSScrollView()
-        scrollView.setDocumentCursor_(cursor)
-        self.displaySettingsButtonCallback(None, previewState=self.typing)
+        if self.fonts:
+            self.typing = not self.typing
+            self.typingFont = list(self.fonts.values())[0][-1]
+            if self.typing:
+                cursor = TYPING_CURSOR
+            else:
+                cursor = ARROW_CURSOR
+            scrollView = self.collectionView.getNSScrollView()
+            scrollView.setDocumentCursor_(cursor)
+            self.displaySettingsButtonCallback(None, previewState=self.typing)
+            if self.typing:
+                if self.typingIndex is None:
+                    self.typingIndex = len(self.holdingGlyphs)-1
+                self.setTypingItem()
+
+
+    def setTypingItem(self):
+        # set where the typing cursor is
+        index = self.getMergedIndexFromRawIndex(self.typingIndex)
+        for item in self.collectionView.get():
+            item.typing = False
+            if item.font == self.typingFont:
+                if item.index == index:
+                    item.typing = True
+                else:
+                    item.typing = False
+
 
     def mouseMoved(self, view, event) -> None:
         pass
