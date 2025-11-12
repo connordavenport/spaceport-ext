@@ -1940,7 +1940,7 @@ class Spaceport(Subscriber, ezui.WindowController):
                     name="selectionIndicatorDrawing",
                     position=(0,font.info.descender),
                     size=(glyph.width, abs(font.info.descender) + font.info.ascender),
-                    fillColor=(0,1,0,.2),
+                    fillColor=((*IBEAM_COLOR[0:3],.2)),
                 )
                 selectionIndicatorLayer.addSublayerSkewTransformation((-skewAngle))
 
@@ -2782,6 +2782,10 @@ class Spaceport(Subscriber, ezui.WindowController):
             if self.command:
                 if char.lower() == "t":
                     self.toggleTypingState()
+                    return
+                if char.lower() == "a":
+                    print("selecting all")
+                    print(self.typingFont)
                     return
 
             if char in directions:
