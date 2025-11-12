@@ -216,7 +216,7 @@ class MerzCollectionViewRGlyphItem(merz.collectionView.MerzCollectionViewItem):
         self._scaler:float|int         = kwargs.get("scaler", 1)
         self._location:dict[str,float] = kwargs.get("location", {})
         self._selected:bool            = False
-        self._typingItem:bool          = False
+        self._isTyping:bool            = False
         self._selectedVisible:bool     = False
 
         super().__init__(*args, **kwargs)
@@ -255,22 +255,22 @@ class MerzCollectionViewRGlyphItem(merz.collectionView.MerzCollectionViewItem):
     selected = property(getSelected, setSelected)
 
     def getTypingItem(self) -> bool:
-        return self._typingItem
+        return self._isTyping
 
     def setTypingItem(self, value:bool=False) -> None:
-        self._typingItem = value
+        self._isTyping = value
         layer = self.getLayer("glyphContainer").getSublayer("typingIndicator")
         layer.setVisible(value)
-        # # reset blinking
-        sublayer = layer.getSublayer("typingIndicatorDrawing")
-        sublayer.setFillColor(IBEAM_COLOR)
-        with sublayer.propertyGroup(
-            duration=.5,
-            repeatCount="loop",
-            reverse=True,
-            timing="easeInEaseOut",
-        ):
-            sublayer.setFillColor((*IBEAM_COLOR[0:3], .1))
+        if self._isTyping:
+            sublayer = layer.getSublayer("typingIndicatorDrawing")
+            sublayer.setFillColor(IBEAM_COLOR)
+            with sublayer.propertyGroup(
+                duration=.5,
+                repeatCount="loop",
+                reverse=True,
+                timing="easeInEaseOut",
+            ):
+                sublayer.setFillColor((*IBEAM_COLOR[0:3], .1))
 
     typing = property(getTypingItem, setTypingItem)
 
@@ -380,6 +380,7 @@ class Spaceport(Subscriber, ezui.WindowController):
         self._fontFolder:dict[str,tuple[bool,RFont]] = dict()
         self.glyphs:list[str,...]                    = []
         self.holdingGlyphs:list[str,...]             = []
+        self.rawGlyphList:list[str,...]              = []
 
         for f in AllFonts():
             f.lib["descriptor"] = ""
@@ -546,6 +547,10 @@ class Spaceport(Subscriber, ezui.WindowController):
         self.w.setItemValue("textField", "SPACEPORT")
         self.w.setItemValue("preTextField", "")
         self.w.setItemValue("pstTextField", "")
+
+        self.w.getItem("textField").enable(False)
+        self.w.getItem("preTextField").enable(False)
+        self.w.getItem("pstTextField").enable(False)
         # resize only the slider
         self.w.getItem("pointSizeInputField")._slider._setSizeStyle("small")
 
@@ -588,6 +593,10 @@ class Spaceport(Subscriber, ezui.WindowController):
         mainPrefs = getExtensionDefault(EXTENSION_KEY + ".main_prefs", fallback=windowSettings)
         try: self.w.setItemValues(mainPrefs)
         except (AttributeError, KeyError): pass
+
+        holding = getExtensionDefault(EXTENSION_KEY + ".text", [])
+        if holding:
+            self.holdingGlyphs = holding
 
         self.controlsStackCallback(None)
         self.displaySettingsButtonCallback(None)
@@ -1467,6 +1476,52 @@ class Spaceport(Subscriber, ezui.WindowController):
             previous = name
         return validated
 
+
+    def mergeTextList(self, glyphList:list[str,...]) -> list[str,...]:
+        output = []
+        index = 0
+
+        while index < len(glyphList):
+            if glyphList[index] == 'slash':
+                slashed = '/'
+                startIndex = index
+                index += 1
+
+                charsCollected = []
+                while index < len(glyphList) and glyphList[index] not in ['space', 'slash']:
+                    charsCollected.append(glyphList[index])
+                    slashed += glyphList[index]
+                    index += 1
+                skipFollowingSpace = False
+                if slashed == '/question':
+                    output.append('/?')
+                    skipFollowingSpace = True
+                elif slashed == '/exclam':
+                    output.append('/!')
+                    skipFollowingSpace = True
+                elif slashed == '/':
+                    output.append('/')
+                else:
+                    glyphName = slashed[1:]
+
+                    if glyphName in self.font.keys():
+                        output.append(glyphName)
+                        skipFollowingSpace = True
+                    else:
+                        output.append('slash')
+                        output.extend(charsCollected)
+
+                if index < len(glyphList) and glyphList[index] == 'space' and skipFollowingSpace:
+                    index += 1
+            elif glyphList[index] == 'space':
+                output.append('space')
+                index += 1
+            else:
+                output.append(glyphList[index])
+                index += 1
+        return output
+
+
     def combineText(self, glyphList:list[str,...]) -> str:
         # the opposite of mojo.UI's `splitText()`
         output = ""
@@ -1485,14 +1540,14 @@ class Spaceport(Subscriber, ezui.WindowController):
                     output += f"/{glyphName} "
         return output
 
-    def textFieldCallback(self, sender, override:list[str,...]|None=None) -> None:
+    def textFieldCallback(self, sender) -> None:
         self.typingCoalescer.restart()
         self.unsubscribeFromGlyphs()
         if self.font:
-            """
-            figure out how to recompile these into an acceptable list to parse as individual glyph names
-            """
-            glyphNames = self.holdingGlyphs
+            raw = self.holdingGlyphs
+            glyphNames = self.validateGlyphNames(self.mergeTextList(raw))
+            self.rawGlyphList = raw
+
             font = self.font
             holding = []
             pre = self.validateGlyphNames(self.w.getItemValue("preTextField"))
@@ -1652,6 +1707,7 @@ class Spaceport(Subscriber, ezui.WindowController):
 
                 typingIndicatorLayer = glyphContainer.getSublayer("typingIndicator")
                 typingIndicatorLayer.setVisible(False)
+                item.typing = False
                 # glyphPointsLayer = glyphContainer.getSublayer("glyphPoints")
                 # glyphPointsLayer.setVisible(self.showPoints)
 
@@ -2375,6 +2431,7 @@ class Spaceport(Subscriber, ezui.WindowController):
         #setExtensionDefault(EXTENSION_KEY + ".main_prefs", self.w.getItemValues())
         TYPING_CURSOR.pop()
         setExtensionDefault(EXTENSION_KEY + ".view_prefs", self.viewSettingsWindow.getItemValues())
+        setExtensionDefault(EXTENSION_KEY + ".text", self.holdingGlyphs)
         windowSettings = self.w.getItemValues()
         for name,field in windowSettings.items():
             if name.lower().endswith("textfield"):
@@ -2479,29 +2536,38 @@ class Spaceport(Subscriber, ezui.WindowController):
                             for temporary in self.collectionView.get():
                                 if temporary not in self.selectedItems:
                                     temporary.selected = False
+                        if clickCount == 2:
+                            try:
+                                OpenGlyphWindow(selectedGlyph)
+                            except:
+                                selectedGlyph.copyToPasteboard()
+
                     else:
-                        hit.typing = True
                         self.typingIndex = hit.index
                         self.typingFont  = hit.font
                         selectedGlyph    = hit.glyph
                         self.selectedItems = [hit]
 
-                    if clickCount == 2:
-                        try:
-                            OpenGlyphWindow(selectedGlyph)
-                        except:
-                            selectedGlyph.copyToPasteboard()
                 else:
                     self.selectedItems = []
             else:
                 self.selectedItems = []
 
+
             if not self.selectedItems:
                 for temporary in self.collectionView.get():
                     temporary.selected = False
-            for temporary in self.collectionView.get():
-                if temporary != hit:
-                    temporary.typing = False
+
+            # index = self.getMergedIndexFromRawIndex(self.typingIndex)
+            if self.typing:
+                for item in self.collectionView.get():
+                    if item.font == self.typingFont:
+                        if item.index == self.typingIndex:
+                            item.typing = True
+                        else:
+                            item.typing = False
+                    else:
+                        item.typing = False
 
             if multiFontSelect:
                 for temporary in self.collectionView.get():
@@ -2586,20 +2652,19 @@ class Spaceport(Subscriber, ezui.WindowController):
 
 
     def keyDown(self, view, event) -> None:
-
         rawEvent = event
-        rawChar = rawEvent.characters()
+        rawChar  = rawEvent.characters()
         deleting = adding = False
-        directions = "left right up down".split(" ")
-        event = merz.unpackEvent(event)
-        mods = event["modifiers"]
-        char = event["character"]
-        # repeat = event["isKeyRepeat"]
-        rawGlyphName = u2n(ord(rawChar))
 
-        self.holdingGlyphs = self.glyphs
+        event = merz.unpackEvent(event)
+        mods  = event["modifiers"]
+        char  = event["character"]
+
+        rawGlyphName = u2n(ord(rawChar))
+        directions = "left right up down".split(" ")
 
         fontList = [f for p,(u,f) in self.fonts.items() if u]
+
         if not self.typing:
             if char in directions:
                 for item in self.selectedItems:
@@ -2640,7 +2705,7 @@ class Spaceport(Subscriber, ezui.WindowController):
 
             else:
                 # allow for undoing
-                if AppKit.NSEvent.modifierFlags() & AppKit.NSCommandKeyMask:
+                if self.command:
                     if char.lower() == "z":
                         for toUndo in self.selectedItems:
                             glyph = toUndo.glyph
@@ -2682,55 +2747,118 @@ class Spaceport(Subscriber, ezui.WindowController):
             if rawEvent.keyCode() == 51:
                 # print(f"deleting {self.glyphs[self.typingIndex]} @ {self.typingIndex}")
                 deleting = True
-                self.holdingGlyphs.pop(self.typingIndex)
+                if self.command:
+                    self.typingIndex = 0
+                    self.rawGlyphList = []
+                else:
+                    if self.typingIndex < len(self.holdingGlyphs):
+                        self.rawGlyphList.pop(self.typingIndex)
+                self.holdingGlyphs = self.rawGlyphList
 
             if rawGlyphName:
                 adding = True
-                self.holdingGlyphs.insert(self.typingIndex + 1, rawGlyphName)
+                self.rawGlyphList.insert(self.typingIndex + 1, rawGlyphName)
+                self.holdingGlyphs = self.rawGlyphList
 
-            if AppKit.NSEvent.modifierFlags() & AppKit.NSCommandKeyMask:
+            if self.command:
                 if char.lower() == "t":
                     self.toggleTypingState()
+                    return
 
             if char in directions:
                 if char == "left":
-                    if self.typingIndex > 0:
-                        self.typingIndex += -1
-
+                    if self.command:
+                        self.typingIndex = 0
+                    else:
+                        if self.typingIndex > 0:
+                            self.typingIndex += -1
                 elif char == "right":
-                    if self.typingIndex < len(self.holdingGlyphs)-1:
-                        self.typingIndex += 1
-
+                    if self.command:
+                        self.typingIndex = len(self.holdingGlyphs)-1
+                    else:
+                        if self.typingIndex < len(self.holdingGlyphs)-1:
+                            self.typingIndex += 1
                 elif char == "up":
                     if self.typingFont != fontList[0]:
                         self.typingFont = fontList[fontList.index(self.typingFont)-1]
-
                 elif char == "down":
                     if self.typingFont != fontList[-1]:
                         self.typingFont = fontList[fontList.index(self.typingFont)+1]
-
             if deleting:
                 if self.typingIndex > 0:
                     self.typingIndex += -1
             if adding:
-                if self.typingIndex < len(self.glyphs)-1:
+                if self.typingIndex < len(self.holdingGlyphs)-1:
                     self.typingIndex += 1
 
+            if adding or deleting:
+                self.textFieldCallback(None)
+
+            index = self.getMergedIndexFromRawIndex(self.typingIndex)
             for item in self.collectionView.get():
+                item.typing = False
                 if item.font == self.typingFont:
-                    if item.index == self.typingIndex:
+                    if item.index == index:
                         item.typing = True
                     else:
                         item.typing = False
-                else:
-                    item.typing = False
+
             # records = [GlyphRecord(item.glyph.naked()) for item in self.collectionView.get() if item.glyph.font == self.typingFont]
             # self.w.matrix.set(records)
-            self.w.setItemValue(
-                "textField",
-                self.combineText(self.holdingGlyphs)
-            )
-            self.textFieldCallback(None)
+            # self.w.setItemValue(
+            #     "textField",
+            #     self.combineText(self.holdingGlyphs)
+            # )
+
+    @property
+    def command(self) -> bool:
+        return AppKit.NSEvent.modifierFlags() & AppKit.NSCommandKeyMask
+
+    def getMergedIndexFromRawIndex(self, rawIndex):
+        if not self.holdingGlyphs:
+            return 0
+
+        currentRawIndex = 0
+        mergedIndex = 0
+
+        while currentRawIndex < rawIndex and currentRawIndex < len(self.holdingGlyphs):
+            if self.holdingGlyphs[currentRawIndex] == 'slash':
+                slashStr = '/'
+                startRawIndex = currentRawIndex
+                currentRawIndex += 1
+
+                charsCollected = []
+                while currentRawIndex < len(self.holdingGlyphs) and self.holdingGlyphs[currentRawIndex] not in ['space', 'slash']:
+                    charsCollected.append(self.holdingGlyphs[currentRawIndex])
+                    slashStr += self.holdingGlyphs[currentRawIndex]
+                    currentRawIndex += 1
+
+                skipFollowingSpace = False
+
+                if slashStr in ['/question', '/exclam', '/']:
+                    skipFollowingSpace = True
+                else:
+                    glyphName = slashStr[1:]
+                    if glyphName in self.font.keys():
+                        skipFollowingSpace = True
+                    else:
+                        if startRawIndex < rawIndex:
+                            mergedIndex += 1 + len(charsCollected)
+                        continue
+
+                if currentRawIndex < len(self.holdingGlyphs) and self.holdingGlyphs[currentRawIndex] == 'space' and skipFollowingSpace:
+                    currentRawIndex += 1
+
+                mergedIndex += 1
+
+            elif self.holdingGlyphs[currentRawIndex] == 'space':
+                currentRawIndex += 1
+                mergedIndex += 1
+            else:
+                currentRawIndex += 1
+                mergedIndex += 1
+
+        return mergedIndex
 
 
     def toggleTypingState(self):
