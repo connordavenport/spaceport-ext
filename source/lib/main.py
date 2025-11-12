@@ -25,7 +25,7 @@ from fontTools.designspaceLib import (
     SourceDescriptor,
 )
 from fontTools.misc import transform
-from glyphNameFormatter.reader import N2n, n2N, n2u
+from glyphNameFormatter.reader import N2n, n2N, n2u, u2n
 from lib.fontObjects.doodleFont import DoodleFont
 from lib.fontObjects.doodleGlyph import DoodleGlyph
 from lib.fontObjects.doodleLayer import DoodleLayer
@@ -55,7 +55,7 @@ from mojo.subscriber import (
     registerSubscriberEvent,
     unregisterRoboFontSubscriber,
 )
-from mojo.UI import GetFile, OpenGlyphWindow, getDefault
+from mojo.UI import GetFile, OpenGlyphWindow, getDefault, splitText
 from ufoProcessor.ufoOperator import UFOOperator
 from vanilla.vanillaBase import osVersion12_0, osVersionCurrent
 
@@ -261,15 +261,16 @@ class MerzCollectionViewRGlyphItem(merz.collectionView.MerzCollectionViewItem):
         self._typingItem = value
         layer = self.getLayer("glyphContainer").getSublayer("typingIndicator")
         layer.setVisible(value)
-        # reset blinking
-        layer.setBackgroundColor(IBEAM_COLOR)
-        with layer.propertyGroup(
+        # # reset blinking
+        sublayer = layer.getSublayer("typingIndicatorDrawing")
+        sublayer.setFillColor(IBEAM_COLOR)
+        with sublayer.propertyGroup(
             duration=.5,
             repeatCount="loop",
             reverse=True,
             timing="easeInEaseOut",
         ):
-            layer.setBackgroundColor((*IBEAM_COLOR[0:3], .1))
+            sublayer.setFillColor((*IBEAM_COLOR[0:3], .1))
 
     typing = property(getTypingItem, setTypingItem)
 
@@ -370,11 +371,15 @@ class Spaceport(Subscriber, ezui.WindowController):
         self.typing:bool   = False
         self.detached:bool = False
 
+        self.typingIndex:int = 0
+        self.typingFont:DoodleFont|None=None
+
         self.currentGlyph:RGlyph                     = CurrentGlyph()
         self.font:RFont                              = CurrentFont()
         self.fonts:dict[str,tuple[bool,RFont]]       = dict()
         self._fontFolder:dict[str,tuple[bool,RFont]] = dict()
-        self.glyphs:list[str]                        = []
+        self.glyphs:list[str,...]                    = []
+        self.holdingGlyphs:list[str,...]             = []
 
         for f in AllFonts():
             f.lib["descriptor"] = ""
@@ -1458,17 +1463,36 @@ class Spaceport(Subscriber, ezui.WindowController):
                         name = N2n(name)
                 else:
                     name = name
-
                 validated.append(name)
             previous = name
         return validated
 
+    def combineText(self, glyphList:list[str,...]) -> str:
+        # the opposite of mojo.UI's `splitText()`
+        output = ""
+        for glyphName in glyphList:
+            if glyphName in [CURRENTGLYPH_CHAR,SELECTEDGLYPHS_CHAR]:
+                output += f"{glyphName} "
+            else:
+                uu = n2u(glyphName)
+                if uu:
+                    cc = chr(uu)
+                    if cc:
+                        output += cc
+                    else:
+                        output += f"/{glyphName} "
+                else:
+                    output += f"/{glyphName} "
+        return output
 
-    def textFieldCallback(self, sender) -> None:
+    def textFieldCallback(self, sender, override:list[str,...]|None=None) -> None:
         self.typingCoalescer.restart()
         self.unsubscribeFromGlyphs()
         if self.font:
-            glyphNames = self.validateGlyphNames(self.w.getItemValue("textField"))
+            """
+            figure out how to recompile these into an acceptable list to parse as individual glyph names
+            """
+            glyphNames = self.holdingGlyphs
             font = self.font
             holding = []
             pre = self.validateGlyphNames(self.w.getItemValue("preTextField"))
@@ -1479,12 +1503,9 @@ class Spaceport(Subscriber, ezui.WindowController):
                         holding.extend(pre)
                         holding.append(name)
                         holding.extend(pst)
-
             self.glyphs = holding
             self.populateItems()
-
             self.scale = self.w.getItemValue("pointSizeInputField") / self.upm
-
 
     def horzAlignmentSegmentButtonCallback(self, sender) -> None:
         self.controlsStackCallback(None)
@@ -1628,6 +1649,9 @@ class Spaceport(Subscriber, ezui.WindowController):
 
                 glyphStrokeLayer = glyphContainer.getSublayer("glyphStroke")
                 glyphStrokeLayer.setVisible(showStroke)
+
+                typingIndicatorLayer = glyphContainer.getSublayer("typingIndicator")
+                typingIndicatorLayer.setVisible(False)
                 # glyphPointsLayer = glyphContainer.getSublayer("glyphPoints")
                 # glyphPointsLayer.setVisible(self.showPoints)
 
@@ -1702,11 +1726,8 @@ class Spaceport(Subscriber, ezui.WindowController):
         glyphContainer.appendBaseSublayer(
             name="selectionIndicator",
         )
-        typingIndicator = glyphContainer.appendBaseSublayer(
+        glyphContainer.appendBaseSublayer(
             name="typingIndicator",
-            position=(0,0),
-            backgroundColor=IBEAM_COLOR,
-            visible=True,
         )
         glyphContainer.appendBaseSublayer(
             name="kernIndicator",
@@ -1809,7 +1830,6 @@ class Spaceport(Subscriber, ezui.WindowController):
                     kern = font.kerning.find((glyph.name, nextGlyph))
                 except IndexError:
                     kern = 0
-
                 if not self.showKerning:
                     kern = 0
 
@@ -1824,7 +1844,6 @@ class Spaceport(Subscriber, ezui.WindowController):
                         position=((abs(kern)/2), 0),
                         fillColor=(*kernColor,1),
                         horizontalAlignment="center",
-                        # padding=(0,0),
                         )
 
                     x = (glyph.width+kern) if kern < 0 else glyph.width
@@ -1863,9 +1882,15 @@ class Spaceport(Subscriber, ezui.WindowController):
                 glyphStrokeLayer.setVisible(self.showStroke)
 
             typingIndicatorLayer = glyphContainer.getSublayer("typingIndicator")
-            typingIndicatorLayer.setPosition((glyph.width,font.info.descender))
-            typingIndicatorLayer.setSize((30, abs(font.info.descender) + font.info.ascender))
-            typingIndicatorLayer.setCornerRadius(2)
+            with typingIndicatorLayer.propertyGroup():
+
+                typingIndicatorLayer.appendRectangleSublayer(
+                    name="typingIndicatorDrawing",
+                    position=(glyph.width-20,font.info.descender),
+                    size=(40, abs(font.info.descender) + font.info.ascender),
+                    fillColor=(IBEAM_COLOR),
+                    cornerRadius=20,
+                )
             typingIndicatorLayer.addSublayerSkewTransformation((-skewAngle))
             typingIndicatorLayer.setVisible(False)
 
@@ -2071,7 +2096,6 @@ class Spaceport(Subscriber, ezui.WindowController):
 
                     if fontIndex == 0:
                         _glyphRecords.append(GlyphRecord(item.glyph.naked()))
-
                     items.append(item)
 
         self.__cache = self.glyphs
@@ -2082,6 +2106,7 @@ class Spaceport(Subscriber, ezui.WindowController):
             self.beamController(item)
 
         self.w.matrix.set(_glyphRecords)
+        self.displaySettingsButtonCallback(None, previewState=self.typing)
 
 
     def beamController(self, item:MerzCollectionViewRGlyphItem) -> None:
@@ -2456,6 +2481,11 @@ class Spaceport(Subscriber, ezui.WindowController):
                                     temporary.selected = False
                     else:
                         hit.typing = True
+                        self.typingIndex = hit.index
+                        self.typingFont  = hit.font
+                        selectedGlyph    = hit.glyph
+                        self.selectedItems = [hit]
+
                     if clickCount == 2:
                         try:
                             OpenGlyphWindow(selectedGlyph)
@@ -2464,14 +2494,14 @@ class Spaceport(Subscriber, ezui.WindowController):
                 else:
                     self.selectedItems = []
             else:
-                # print("clearing selection")
                 self.selectedItems = []
 
             if not self.selectedItems:
                 for temporary in self.collectionView.get():
                     temporary.selected = False
-                    if temporary != hit:
-                        temporary.typing   = False
+            for temporary in self.collectionView.get():
+                if temporary != hit:
+                    temporary.typing = False
 
             if multiFontSelect:
                 for temporary in self.collectionView.get():
@@ -2531,10 +2561,8 @@ class Spaceport(Subscriber, ezui.WindowController):
     @property
     def currentLocation(self) -> dict[str, float]:
         location = self.interpolationWindow.getItemValues()
-
         if "xAxisSelection" in location.keys():
             del location["xAxisSelection"]
-
         for axisDescriptor in self.operator.axes:
             if hasattr(axisDescriptor, "values"):
                 index = location[axisDescriptor.name]
@@ -2559,104 +2587,161 @@ class Spaceport(Subscriber, ezui.WindowController):
 
     def keyDown(self, view, event) -> None:
 
+        rawEvent = event
+        rawChar = rawEvent.characters()
+        deleting = adding = False
         directions = "left right up down".split(" ")
         event = merz.unpackEvent(event)
-
         mods = event["modifiers"]
         char = event["character"]
-        repeat = event["isKeyRepeat"]
+        # repeat = event["isKeyRepeat"]
+        rawGlyphName = u2n(ord(rawChar))
 
-        if char in directions:
-            for item in self.selectedItems:
+        self.holdingGlyphs = self.glyphs
 
-                item.selected = True
+        fontList = [f for p,(u,f) in self.fonts.items() if u]
+        if not self.typing:
+            if char in directions:
+                for item in self.selectedItems:
+                    item.selected = True
+                    # glyph = self.getGlyphFromItem(item)
+                    glyph = item.glyph
 
-                # glyph = self.getGlyphFromItem(item)
-                glyph = item.glyph
-
-                if item.onDisk:
-                    with glyph.undo(f"Change spacing of {glyph.name}"):
-                        if "shift" in mods and "command" in mods:
-                            spacingUnit = 100
-                        elif "shift" in mods:
-                            spacingUnit = 10
-                        else:
-                            spacingUnit = 1
-                        if glyph.bounds:
-                            if "option" in mods and char == "right":
-                                glyph.leftMargin += spacingUnit
-                            elif "option" in mods and char == "left":
-                                glyph.leftMargin -= spacingUnit
-                            elif char == "right":
-                                glyph.rightMargin += spacingUnit
-                            elif char == "left":
-                                glyph.rightMargin -= spacingUnit
-                            elif char == "up":
-                                glyph.rightMargin += spacingUnit
-                                glyph.leftMargin  += spacingUnit
-                            elif char == "down":
-                                glyph.rightMargin -= spacingUnit
-                                glyph.leftMargin  -= spacingUnit
+                    if item.onDisk:
+                        with glyph.undo(f"Change spacing of {glyph.name}"):
+                            if "shift" in mods and "command" in mods:
+                                spacingUnit = 100
+                            elif "shift" in mods:
+                                spacingUnit = 10
                             else:
-                                pass
-                        else:
-                            if char == "right":
-                                glyph.width += spacingUnit
-                            elif char == "left":
-                                glyph.width -= spacingUnit
+                                spacingUnit = 1
+                            if glyph.bounds:
+                                if "option" in mods and char == "right":
+                                    glyph.leftMargin += spacingUnit
+                                elif "option" in mods and char == "left":
+                                    glyph.leftMargin -= spacingUnit
+                                elif char == "right":
+                                    glyph.rightMargin += spacingUnit
+                                elif char == "left":
+                                    glyph.rightMargin -= spacingUnit
+                                elif char == "up":
+                                    glyph.rightMargin += spacingUnit
+                                    glyph.leftMargin  += spacingUnit
+                                elif char == "down":
+                                    glyph.rightMargin -= spacingUnit
+                                    glyph.leftMargin  -= spacingUnit
+                                else:
+                                    pass
+                            else:
+                                if char == "right":
+                                    glyph.width += spacingUnit
+                                elif char == "left":
+                                    glyph.width -= spacingUnit
 
+            else:
+                # allow for undoing
+                if AppKit.NSEvent.modifierFlags() & AppKit.NSCommandKeyMask:
+                    if char.lower() == "z":
+                        for toUndo in self.selectedItems:
+                            glyph = toUndo.glyph
+                            manager = AppKit.NSApp().getUndoManagerForGlyph_(glyph.asDefcon())
+                            manager.undo()
+                    elif char.lower() == "t":
+                        # set the text field as active
+                        self.w.getNSWindow().makeFirstResponder_(self.w.getItem("textField").getNSTextField())
+                        self.toggleTypingState()
+                    elif char == ";":
+                        self.addObjectsCallback(None)
+                    elif char == "=":
+                        # zoom in
+                        self.zoomCoalescerManager()
+                        self.zoom(direction="in", option=AppKit.NSEvent.modifierFlags() & AppKit.NSAlternateKeyMask)
+                    elif char == "-":
+                        # zoom out
+                        self.zoomCoalescerManager()
+                        self.zoom(direction="out", option=AppKit.NSEvent.modifierFlags() & AppKit.NSAlternateKeyMask)
+
+                if mods == []:
+                    if char.lower() == "b":
+                        self.showBeam = not self.showBeam
+                        self.viewSettingsWindow.setItemValue("showBeamButton", self.showBeam)
+                        self.w.matrix.setShowBeam(self.showBeam)
+                        items = self.w.getItemValue("collectionView")
+                        for item in items:
+                            self.beamController(item)
+
+                    elif char == getDefault("glyphViewZoomInKey", "z"):
+                        # zoom in
+                        self.zoomCoalescerManager()
+                        self.zoom(direction="in")
+                    elif char == getDefault("glyphViewZoomOutKey", "x"):
+                        # zoom out
+                        self.zoomCoalescerManager()
+                        self.zoom(direction="out")
         else:
-            # allow for undoing
+            if rawEvent.keyCode() == 51:
+                # print(f"deleting {self.glyphs[self.typingIndex]} @ {self.typingIndex}")
+                deleting = True
+                self.holdingGlyphs.pop(self.typingIndex)
+
+            if rawGlyphName:
+                adding = True
+                self.holdingGlyphs.insert(self.typingIndex + 1, rawGlyphName)
+
             if AppKit.NSEvent.modifierFlags() & AppKit.NSCommandKeyMask:
-                if char.lower() == "z":
-                    for toUndo in self.selectedItems:
-                        glyph = toUndo.glyph
-                        manager = AppKit.NSApp().getUndoManagerForGlyph_(glyph.asDefcon())
-                        manager.undo()
-                elif char.lower() == "t":
-                    # set the text field as active
-                    self.w.getNSWindow().makeFirstResponder_(self.w.getItem("textField").getNSTextField())
+                if char.lower() == "t":
                     self.toggleTypingState()
-                elif char == ";":
-                    self.addObjectsCallback(None)
-                elif char == "=":
-                    # zoom in
-                    self.zoomCoalescerManager()
-                    self.zoom(direction="in", option=AppKit.NSEvent.modifierFlags() & AppKit.NSAlternateKeyMask)
-                elif char == "-":
-                    # zoom out
-                    self.zoomCoalescerManager()
-                    self.zoom(direction="out", option=AppKit.NSEvent.modifierFlags() & AppKit.NSAlternateKeyMask)
 
+            if char in directions:
+                if char == "left":
+                    if self.typingIndex > 0:
+                        self.typingIndex += -1
 
-            if mods == []:
-                if char.lower() == "b":
-                    self.showBeam = not self.showBeam
-                    self.viewSettingsWindow.setItemValue("showBeamButton", self.showBeam)
-                    self.w.matrix.setShowBeam(self.showBeam)
-                    items = self.w.getItemValue("collectionView")
-                    for item in items:
-                        self.beamController(item)
+                elif char == "right":
+                    if self.typingIndex < len(self.holdingGlyphs)-1:
+                        self.typingIndex += 1
 
-                elif char == getDefault("glyphViewZoomInKey", "z"):
-                    # zoom in
-                    self.zoomCoalescerManager()
-                    self.zoom(direction="in")
-                elif char == getDefault("glyphViewZoomOutKey", "x"):
-                    # zoom out
-                    self.zoomCoalescerManager()
-                    self.zoom(direction="out")
+                elif char == "up":
+                    if self.typingFont != fontList[0]:
+                        self.typingFont = fontList[fontList.index(self.typingFont)-1]
+
+                elif char == "down":
+                    if self.typingFont != fontList[-1]:
+                        self.typingFont = fontList[fontList.index(self.typingFont)+1]
+
+            if deleting:
+                if self.typingIndex > 0:
+                    self.typingIndex += -1
+            if adding:
+                if self.typingIndex < len(self.glyphs)-1:
+                    self.typingIndex += 1
+
+            for item in self.collectionView.get():
+                if item.font == self.typingFont:
+                    if item.index == self.typingIndex:
+                        item.typing = True
+                    else:
+                        item.typing = False
+                else:
+                    item.typing = False
+            # records = [GlyphRecord(item.glyph.naked()) for item in self.collectionView.get() if item.glyph.font == self.typingFont]
+            # self.w.matrix.set(records)
+            self.w.setItemValue(
+                "textField",
+                self.combineText(self.holdingGlyphs)
+            )
+            self.textFieldCallback(None)
+
 
     def toggleTypingState(self):
         self.typing = not self.typing
+        self.typingFont = list(self.fonts.values())[0][-1]
         if self.typing:
             cursor = TYPING_CURSOR
         else:
             cursor = ARROW_CURSOR
         scrollView = self.collectionView.getNSScrollView()
-        scrollView.setDocumentCursor_(
-            cursor
-        )
+        scrollView.setDocumentCursor_(cursor)
         self.displaySettingsButtonCallback(None, previewState=self.typing)
 
     def mouseMoved(self, view, event) -> None:
