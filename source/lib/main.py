@@ -56,6 +56,7 @@ from mojo.subscriber import (
     unregisterRoboFontSubscriber,
 )
 from mojo.UI import GetFile, OpenGlyphWindow, getDefault, splitText
+import subprocess
 from ufoProcessor.ufoOperator import UFOOperator
 from vanilla.vanillaBase import osVersion12_0, osVersionCurrent
 
@@ -2786,6 +2787,13 @@ class Spaceport(Subscriber, ezui.WindowController):
                 if char.lower() == "a":
                     print("selecting all")
                     print(self.typingFont)
+                    return
+
+                if char.lower() == "v":
+                    clipboardContents = subprocess.check_output(['pbpaste'], text=True)
+                    processed = splitText(clipboardContents, self.font.getCharacterMapping())
+                    self.holdingGlyphs.extend(processed)
+                    self.typingIndex = len(self.holdingGlyphs)-1
                     return
 
             if char in directions:
