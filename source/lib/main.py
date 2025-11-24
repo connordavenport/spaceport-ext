@@ -121,7 +121,8 @@ TYPING_CURSOR = CreateCursor(
     CURSOR_IMAGE,
     hotSpot=(CURSOR_SIZE/2, CURSOR_SIZE/2)
 )
-IBEAM_COLOR:tuple[float,float,float,float] = (0, 0.478, 1, 1)
+IBEAM_COLOR:tuple[float,float,float,float] = (.2, .2, .2, 1)
+SELECTION_COLOR:tuple[float,float,float,float] = (0, 0.478, 1, .2)
 ARROW_CURSOR = AppKit.NSCursor.arrowCursor()
 
 class EZSequenceCombo(GlyphSequenceEditComboBox, ezui.tools.ParserMixIn):
@@ -1654,23 +1655,6 @@ class Spaceport(Subscriber, ezui.WindowController):
         self.displaySettingsButtonCallback(None)
         self.populateItems()
 
-    def NSColor2RGBA(self, color:AppKit.NSColor):
-        try:
-            reColor = (
-                color.redComponent(),
-                color.greenComponent(),
-                color.blueComponent(),
-                color.alphaComponent()
-            )
-        except ValueError:
-            rgb = color.colorUsingColorSpace_(AppKit.NSColorSpace.genericRGBColorSpace())
-            r = rgb.redComponent()
-            g = rgb.greenComponent()
-            b = rgb.blueComponent()
-            a = rgb.alphaComponent()
-            reColor = (r,g,b,a)
-        return reColor
-
 
     def displaySettingsButtonCallback(self, sender, onlyBeam=False, previewState=False) -> None:
         values = self.viewSettingsWindow.getItemValue("displaySettingsButton")
@@ -1688,15 +1672,18 @@ class Spaceport(Subscriber, ezui.WindowController):
         showBeam = self.showBeam
         showFill = self.showFill
         showStroke = self.showStroke
-        background = self.NSColor2RGBA(self.background)
 
+        borderColor = AppKit.NSColor.clearColor()
         if previewState:
             showMetrics = showLabel = showKerning = showBeam = showStroke = showBeam = False
             showFill = True
-            r,g,b,a = background
-            colorComp = .9 if r == 1 else .1
-            background = (colorComp,colorComp,colorComp,a)
-        self.collectionView.setBackgroundColor(AppKit.NSColor.colorWithCalibratedRed_green_blue_alpha_(*background))
+            borderColor = AppKit.NSColor.keyboardFocusIndicatorColor().colorWithAlphaComponent_(1).CGColor()
+
+        nsScrollView = self.collectionView.getNSScrollView()
+        nsScrollView.setWantsLayer_(True)
+        nsScrollView.layer().setBorderColor_(borderColor)
+        nsScrollView.layer().setBorderWidth_(5)
+        nsScrollView.layer().setCornerRadius_(5)
 
         items = self.w.getItemValue("collectionView")
         for item in items:
@@ -1941,7 +1928,7 @@ class Spaceport(Subscriber, ezui.WindowController):
                     name="selectionIndicatorDrawing",
                     position=(0,font.info.descender),
                     size=(glyph.width, abs(font.info.descender) + font.info.ascender),
-                    fillColor=((*IBEAM_COLOR[0:3],.2)),
+                    fillColor=(SELECTION_COLOR),
                 )
                 selectionIndicatorLayer.addSublayerSkewTransformation((-skewAngle))
 
@@ -1967,9 +1954,9 @@ class Spaceport(Subscriber, ezui.WindowController):
                 typingIndicatorLayer.appendRectangleSublayer(
                     name="typingIndicatorDrawing",
                     position=(glyph.width-20,font.info.descender),
-                    size=(40, abs(font.info.descender) + font.info.ascender),
+                    size=(30, abs(font.info.descender) + font.info.ascender),
                     fillColor=(IBEAM_COLOR),
-                    cornerRadius=20,
+                    cornerRadius=15,
                 )
             typingIndicatorLayer.addSublayerSkewTransformation((-skewAngle))
             typingIndicatorLayer.setVisible(False)
