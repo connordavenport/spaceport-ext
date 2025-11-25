@@ -65,7 +65,7 @@ versioning
 adds alpha to anything less than 0.1.0
 adds beta to anything less than 1.0.0
 """
-FALLBACK_VERSION = "0.0.0"
+FALLBACK_VERSION = "0.000"
 INFO_YAML = os.path.abspath(os.path.join(__file__, "../../../", "info.yaml"))
 if os.path.exists(INFO_YAML):
     with open(INFO_YAML, mode="r") as file:
@@ -73,12 +73,14 @@ if os.path.exists(INFO_YAML):
 else:
     info = dict(version=FALLBACK_VERSION)
 EXTENSION_VERSION = info.get("version", FALLBACK_VERSION)
-if int(EXTENSION_VERSION.split(".")[0]) < 1:
-    if int(EXTENSION_VERSION.split(".")[1]) < 1:
+major, minor_patch = EXTENSION_VERSION.split(".")
+minor_patch = minor_patch.zfill(3)
+if int(major) < 1:
+    # pull only minor, ignore patch num
+    if int(minor_patch[0]) < 1:
         EXTENSION_VERSION += "ɑ"
     else:
         EXTENSION_VERSION += "β"
-
 
 BASE_DIR = os.path.dirname(__file__)
 RESOURCES_PATH = os.path.abspath(os.path.join(BASE_DIR, "../", "resources"))
@@ -612,12 +614,6 @@ class Spaceport(Subscriber, ezui.WindowController):
         self.showMetricsButtonCallback(None)
         #self.showKerningButtonCallback(None)
         self.textFieldCallback(None)
-
-        # temporarily disable this until we fix the bugs
-        self.w.setItemValue("leadingTextField", "")
-        self.w.getItem("leadingTextField").enable(False)
-        self.w.setItemValue("trailingTextField", "")
-        self.w.getItem("trailingTextField").enable(False)
 
         if not self.fonts:
             window = self.buildObjectsSheet()
@@ -1509,27 +1505,41 @@ class Spaceport(Subscriber, ezui.WindowController):
                     charsCollected.append(glyphList[index])
                     slashed += glyphList[index]
                     index += 1
+
                 skipFollowingSpace = False
+
+                # Check for special characters FIRST (before font.keys() check)
                 if slashed == '/question':
                     output.append('/?')
                     skipFollowingSpace = True
                 elif slashed == '/exclam':
                     output.append('/!')
                     skipFollowingSpace = True
+                elif slashed == '/?':
+                    output.append('/?')
+                    skipFollowingSpace = True
+                elif slashed == '/!':
+                    output.append('/!')
+                    skipFollowingSpace = True
                 elif slashed == '/':
-                    output.append('/')
+                    output.append('slash')
                 else:
+                    # Extract glyph name (everything after the slash)
                     glyphName = slashed[1:]
 
+                    # Check if it's a valid glyph name in the font
                     if glyphName in self.font.keys():
                         output.append(glyphName)
                         skipFollowingSpace = True
                     else:
+                        # Not a valid glyph, treat as literal slash followed by characters
                         output.append('slash')
                         output.extend(charsCollected)
 
+                # Skip the space after a valid slashed glyph name
                 if index < len(glyphList) and glyphList[index] == 'space' and skipFollowingSpace:
                     index += 1
+
             elif glyphList[index] == 'space':
                 output.append('space')
                 index += 1
@@ -1561,9 +1571,12 @@ class Spaceport(Subscriber, ezui.WindowController):
         self.typingCoalescer.restart()
         self.unsubscribeFromGlyphs()
         if self.font:
+            if not hasattr(self, 'rawGlyphList') or not self.rawGlyphList:
+                self.rawGlyphList = self.holdingGlyphs[:]
+
             raw = self.holdingGlyphs
             glyphNames = self.validateGlyphNames(self.mergeTextList(raw))
-            self.rawGlyphList = raw
+            self.rawGlyphList = raw[:]
 
             font = self.font
             holding = []
@@ -2728,8 +2741,6 @@ class Spaceport(Subscriber, ezui.WindowController):
                             manager = AppKit.NSApp().getUndoManagerForGlyph_(glyph.asDefcon())
                             manager.undo()
                     elif char.lower() == "t":
-                        # set the text field as active
-                        #self.w.getNSWindow().makeFirstResponder_(self.w.getItem("textField").getNSTextField())
                         self.toggleTypingState()
                         return
 
@@ -2763,17 +2774,18 @@ class Spaceport(Subscriber, ezui.WindowController):
                         self.zoom(direction="out")
         else:
             if rawEvent.keyCode() == 51:
-                # print(f"deleting {self.glyphs[self.typingIndex]} @ {self.typingIndex}")
                 deleting = True
                 if self.command:
                     self.typingIndex = 0
                     self.rawGlyphList = []
                 elif self.option:
                     if self.typingIndex > 0:
-                        self.rawGlyphList.pop(self.typingIndex-1)
+                        self.rawGlyphList.pop(self.typingIndex - 1)
+                        self.typingIndex -= 1
                 else:
-                    if self.typingIndex < len(self.holdingGlyphs):
+                    if self.typingIndex < len(self.rawGlyphList):
                         self.rawGlyphList.pop(self.typingIndex)
+                        self.typingIndex -= 1
                 self.holdingGlyphs = self.rawGlyphList
 
             if self.command:
@@ -2785,23 +2797,23 @@ class Spaceport(Subscriber, ezui.WindowController):
                     print(self.typingFont)
                     return
                 if char.lower() == "v":
+
                     clipboardContents = subprocess.check_output(['pbpaste'], text=True)
                     processed = splitText(clipboardContents, self.font.getCharacterMapping())
-                    self.holdingGlyphs.extend(processed)
-                    self.typingIndex = len(self.holdingGlyphs)-1
+
+                    for i, item in enumerate(processed):
+                        self.rawGlyphList.insert(self.typingIndex + i + 1, item)
+                    self.typingIndex += len(processed)
+                    self.holdingGlyphs = self.rawGlyphList
                     self.textFieldCallback(None)
                     return
             else:
+
                 if rawGlyphName:
                     adding = True
                     self.rawGlyphList.insert(self.typingIndex + 1, rawGlyphName)
                     self.holdingGlyphs = self.rawGlyphList
 
-            leading_len  = len(self.validateGlyphNames(self.w.getItemValue("leadingTextField")))
-            trailing_len = len(self.validateGlyphNames(self.w.getItemValue("trailingTextField")))
-            extra_len    = 1
-            extra_len    += (leading_len + trailing_len)
-            all_len      = len(self.collectionView.get())
 
             if char in directions:
                 if char == "left":
@@ -2809,30 +2821,33 @@ class Spaceport(Subscriber, ezui.WindowController):
                         self.typingIndex = 0
                     else:
                         if self.typingIndex > 0:
-                            self.typingIndex += -extra_len
+                            self.typingIndex -= 1
                 elif char == "right":
                     if self.command:
-                        self.typingIndex = all_len-1
+                        self.typingIndex = len(self.rawGlyphList) - 1
                     else:
-                        if self.typingIndex < all_len-1:
-                            self.typingIndex += extra_len
+                        if self.typingIndex < len(self.rawGlyphList) - 1:
+                            self.typingIndex += 1
                 elif char == "up":
                     if self.typingFont != fontList[0]:
-                        self.typingFont = fontList[fontList.index(self.typingFont)-1]
+                        self.typingFont = fontList[fontList.index(self.typingFont) - 1]
                 elif char == "down":
                     if self.typingFont != fontList[-1]:
-                        self.typingFont = fontList[fontList.index(self.typingFont)+1]
+                        self.typingFont = fontList[fontList.index(self.typingFont) + 1]
+
+
             if deleting:
-                if self.typingIndex > 0:
-                    self.typingIndex += -1
+
+                pass
             if adding:
-                if self.typingIndex < all_len:
+                if self.typingIndex < len(self.rawGlyphList):
                     self.typingIndex += 1
 
             if adding or deleting:
                 self.textFieldCallback(None)
 
             self.setTypingItem()
+
 
             # records = [GlyphRecord(item.glyph.naked()) for item in self.collectionView.get() if item.glyph.font == self.typingFont]
             # self.w.matrix.set(records)
@@ -2856,9 +2871,14 @@ class Spaceport(Subscriber, ezui.WindowController):
     def getMergedIndexFromRawIndex(self, rawIndex):
         if not self.holdingGlyphs:
             return 0
+
         currentRawIndex = 0
         mergedIndex = 0
-        while currentRawIndex < rawIndex and currentRawIndex < len(self.holdingGlyphs):
+
+        while currentRawIndex <= rawIndex and currentRawIndex < len(self.holdingGlyphs):
+            if currentRawIndex == rawIndex:
+                break
+
             if self.holdingGlyphs[currentRawIndex] == 'slash':
                 slashStr = '/'
                 startRawIndex = currentRawIndex
@@ -2872,29 +2892,40 @@ class Spaceport(Subscriber, ezui.WindowController):
 
                 skipFollowingSpace = False
 
-                if slashStr in ['/question', '/exclam', '/']:
+                # Check for special characters
+                if slashStr in ['/question', '/exclam', '/?', '/!']:
                     skipFollowingSpace = True
+                    mergedIndex += 1
+                elif slashStr == '/':
+                    mergedIndex += 1
                 else:
                     glyphName = slashStr[1:]
                     if glyphName in self.font.keys():
                         skipFollowingSpace = True
+                        mergedIndex += 1
                     else:
-                        if startRawIndex < rawIndex:
-                            mergedIndex += 1 + len(charsCollected)
-                        continue
+                        # Invalid glyph name - expanded to slash + individual chars
+                        mergedIndex += 1 + len(charsCollected)
 
+                # Skip space if it follows a valid slashed glyph
                 if currentRawIndex < len(self.holdingGlyphs) and self.holdingGlyphs[currentRawIndex] == 'space' and skipFollowingSpace:
                     currentRawIndex += 1
-                mergedIndex += 1
 
             elif self.holdingGlyphs[currentRawIndex] == 'space':
-                currentRawIndex += 1
                 mergedIndex += 1
+                currentRawIndex += 1
             else:
-                currentRawIndex += 1
                 mergedIndex += 1
+                currentRawIndex += 1
 
-        return mergedIndex
+        leading = self.validateGlyphNames(self.w.getItemValue("leadingTextField"))
+        trailing = self.validateGlyphNames(self.w.getItemValue("trailingTextField"))
+        leading_len = len(leading)
+        trailing_len = len(trailing)
+
+        offset = mergedIndex * (leading_len + trailing_len) + leading_len
+
+        return mergedIndex + offset
 
 
     def toggleTypingState(self):
