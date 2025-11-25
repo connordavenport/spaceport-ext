@@ -477,6 +477,11 @@ class Spaceport(Subscriber, ezui.WindowController):
         content += """
         >* MerzCollectionView               @collectionView
         """
+        for i in range(4):
+            content += f"""
+            > --------            @bottomLine{i}
+            """
+
         numberFieldWidth = 40
 
         fontToLoad = self.font or internalFontClasses.createFontObject()
@@ -607,6 +612,12 @@ class Spaceport(Subscriber, ezui.WindowController):
         self.showMetricsButtonCallback(None)
         #self.showKerningButtonCallback(None)
         self.textFieldCallback(None)
+
+        # temporarily disable this until we fix the bugs
+        self.w.setItemValue("leadingTextField", "")
+        self.w.getItem("leadingTextField").enable(False)
+        self.w.setItemValue("trailingTextField", "")
+        self.w.getItem("trailingTextField").enable(False)
 
         if not self.fonts:
             window = self.buildObjectsSheet()
@@ -815,10 +826,9 @@ class Spaceport(Subscriber, ezui.WindowController):
 
 
     def showSpaceMatrixButtonCallback(self, sender) -> None:
-        if self.matrixPosition == 1:
-            for i in range(4):
-                item = f"line{i}"
-                self.w.getItem(item).show(sender.get())
+        for i in range(4):
+            item = f"line{i}" if self.matrixPosition == 1 else f"bottomLine{i}"
+            self.w.getItem(item).show(sender.get())
         self.w.matrix.show(sender.get())
 
 
@@ -833,6 +843,10 @@ class Spaceport(Subscriber, ezui.WindowController):
                 self.matrixPosition = 0
                 pos = MATRIX_POS
                 show = False
+
+            for i in range(4):
+                item = f"bottomLine{i}"
+                self.w.getItem(item).show(not show)
 
             self.w.matrix.setPosSize(pos, False)
             for i in range(4):
@@ -2762,11 +2776,6 @@ class Spaceport(Subscriber, ezui.WindowController):
                         self.rawGlyphList.pop(self.typingIndex)
                 self.holdingGlyphs = self.rawGlyphList
 
-            if rawGlyphName:
-                adding = True
-                self.rawGlyphList.insert(self.typingIndex + 1, rawGlyphName)
-                self.holdingGlyphs = self.rawGlyphList
-
             if self.command:
                 if char.lower() == "t":
                     self.toggleTypingState()
@@ -2775,13 +2784,24 @@ class Spaceport(Subscriber, ezui.WindowController):
                     print("selecting all")
                     print(self.typingFont)
                     return
-
                 if char.lower() == "v":
                     clipboardContents = subprocess.check_output(['pbpaste'], text=True)
                     processed = splitText(clipboardContents, self.font.getCharacterMapping())
                     self.holdingGlyphs.extend(processed)
                     self.typingIndex = len(self.holdingGlyphs)-1
+                    self.textFieldCallback(None)
                     return
+            else:
+                if rawGlyphName:
+                    adding = True
+                    self.rawGlyphList.insert(self.typingIndex + 1, rawGlyphName)
+                    self.holdingGlyphs = self.rawGlyphList
+
+            leading_len  = len(self.validateGlyphNames(self.w.getItemValue("leadingTextField")))
+            trailing_len = len(self.validateGlyphNames(self.w.getItemValue("trailingTextField")))
+            extra_len    = 1
+            extra_len    += (leading_len + trailing_len)
+            all_len      = len(self.collectionView.get())
 
             if char in directions:
                 if char == "left":
@@ -2789,13 +2809,13 @@ class Spaceport(Subscriber, ezui.WindowController):
                         self.typingIndex = 0
                     else:
                         if self.typingIndex > 0:
-                            self.typingIndex += -1
+                            self.typingIndex += -extra_len
                 elif char == "right":
                     if self.command:
-                        self.typingIndex = len(self.holdingGlyphs)-1
+                        self.typingIndex = all_len-1
                     else:
-                        if self.typingIndex < len(self.holdingGlyphs)-1:
-                            self.typingIndex += 1
+                        if self.typingIndex < all_len-1:
+                            self.typingIndex += extra_len
                 elif char == "up":
                     if self.typingFont != fontList[0]:
                         self.typingFont = fontList[fontList.index(self.typingFont)-1]
@@ -2806,7 +2826,7 @@ class Spaceport(Subscriber, ezui.WindowController):
                 if self.typingIndex > 0:
                     self.typingIndex += -1
             if adding:
-                if self.typingIndex < len(self.holdingGlyphs)-1:
+                if self.typingIndex < all_len:
                     self.typingIndex += 1
 
             if adding or deleting:
@@ -2836,10 +2856,8 @@ class Spaceport(Subscriber, ezui.WindowController):
     def getMergedIndexFromRawIndex(self, rawIndex):
         if not self.holdingGlyphs:
             return 0
-
         currentRawIndex = 0
         mergedIndex = 0
-
         while currentRawIndex < rawIndex and currentRawIndex < len(self.holdingGlyphs):
             if self.holdingGlyphs[currentRawIndex] == 'slash':
                 slashStr = '/'
@@ -2867,7 +2885,6 @@ class Spaceport(Subscriber, ezui.WindowController):
 
                 if currentRawIndex < len(self.holdingGlyphs) and self.holdingGlyphs[currentRawIndex] == 'space' and skipFollowingSpace:
                     currentRawIndex += 1
-
                 mergedIndex += 1
 
             elif self.holdingGlyphs[currentRawIndex] == 'space':
