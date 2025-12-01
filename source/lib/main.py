@@ -667,7 +667,7 @@ class Spaceport(Subscriber, ezui.WindowController):
             ),
             detachSettingsButton=DETACH_DATA,
             showBeamButton=dict(
-                value=True,
+                value=self.showBeam,
             ),
             beamPositionSlider=dict(
                 minValue=0,
@@ -678,10 +678,10 @@ class Spaceport(Subscriber, ezui.WindowController):
                 # hide=False,
             ),
             showMetricsButton=dict(
-                value=True
+                value=self.showMetrics
             ),
             showLabelButton=dict(
-                value=True
+                value=self.showLabel
             ),
             displaySettingsButton=dict(
                 selected=[0]
@@ -718,6 +718,7 @@ class Spaceport(Subscriber, ezui.WindowController):
         self.viewSettingsWindow.getItem("sortingButton").enable(False)
         self.viewSettingsWindow.getItem("showControlGlyphsButton").enable(False)
         self.viewSettingsWindow.getItem("vertAlignmentSegmentButton").enable(False)
+        self.viewSettingsWindow.getItem("showSpaceMatrixButton").enable(not self.typing)
 
         self.styleWindowButtons(self.viewSettingsWindow)
 
@@ -822,10 +823,11 @@ class Spaceport(Subscriber, ezui.WindowController):
 
 
     def showSpaceMatrixButtonCallback(self, sender) -> None:
+        state = sender if isinstance(sender, bool) else sender.get()
         for i in range(4):
             item = f"line{i}" if self.matrixPosition == 1 else f"bottomLine{i}"
-            self.w.getItem(item).show(sender.get())
-        self.w.matrix.show(sender.get())
+            self.w.getItem(item).show(state)
+        self.w.matrix.show(state)
 
 
     def moveSpaceMatrixButtonCallback(self, sender) -> None:
@@ -1234,7 +1236,7 @@ class Spaceport(Subscriber, ezui.WindowController):
         if recentSender:
             newIndex = recentSender[0]
             newItem  = sortKeys[newIndex]
-            if AppKit.NSEvent.modifierFlags() & AppKit.NSShiftKeyMask:
+            if self.shift:
                 holding = getattr(self, f"{newItem}Sort")
                 setattr(self, f"{newItem}Sort", -holding)
 
@@ -1696,28 +1698,27 @@ class Spaceport(Subscriber, ezui.WindowController):
         showMetrics = self.showMetrics
         showLabel = self.showLabel
         showKerning = self.showKerning
-        showBeam = self.showBeam
         showFill = self.showFill
         showStroke = self.showStroke
 
         borderColor = AppKit.NSColor.clearColor()
         if previewState:
-            showMetrics = showLabel = showKerning = showBeam = showStroke = showBeam = False
+            showMetrics = showLabel = showKerning = showBeam = showStroke = False
             showFill = True
             borderColor = AppKit.NSColor.keyboardFocusIndicatorColor().colorWithAlphaComponent_(1).CGColor()
 
         nsScrollView = self.collectionView.getNSScrollView()
         nsScrollView.setWantsLayer_(True)
         nsScrollView.layer().setBorderColor_(borderColor)
-        nsScrollView.layer().setBorderWidth_(5)
+        nsScrollView.layer().setBorderWidth_(3)
         nsScrollView.layer().setCornerRadius_(5)
 
         items = self.w.getItemValue("collectionView")
+        self.w.matrix.setShowBeam(showBeam)
+        self.w.matrix.setBeamPosition(self.beamPosition)
         for item in items:
             if onlyBeam:
                 self.beamController(item)
-                self.w.matrix.setShowBeam(showBeam)
-                self.w.matrix.setBeamPosition(self.beamPosition)
             else:
                 glyphContainer = item.getLayer("glyphContainer")
 
@@ -1835,6 +1836,7 @@ class Spaceport(Subscriber, ezui.WindowController):
         glyphContainer.appendBaseSublayer(
             name="beamIndicator",
             visible=True,
+            acceptsHit=True,
         )
         # item.appendLayer("selectionIndicator", selectionLayer)
 
@@ -2252,9 +2254,10 @@ class Spaceport(Subscriber, ezui.WindowController):
 
                 if item.index == 0:
                     if self.multiline:
-                        beamIndicatorLayer.appendOvalSublayer(
+                        beamIndicatorLayer.appendRectangleSublayer(
                             position=(-(beamIntersectSize*2), self.beamPosition),
-                            size=(beamIntersectSize*2,beamIntersectSize*2),
+                            size=(beamIntersectSize,beamIntersectSize*4),
+                            cornerRadius=beamIntersectSize/2,
                             anchor=(.5,.5),
                             fillColor=(1,.2,0,1),
                             horizontalAlignment="right",
@@ -2264,7 +2267,7 @@ class Spaceport(Subscriber, ezui.WindowController):
                         startPoint=(-beamIntersectSize*2, self.beamPosition),
                         endPoint=(left+transformed, self.beamPosition),
                         strokeColor=(1,.2,0,.4),
-                        strokeWidth=1,
+                        strokeWidth=.75,
                     )
 
                 if not isEmpty:
@@ -2294,7 +2297,7 @@ class Spaceport(Subscriber, ezui.WindowController):
                     startPoint=(left+transformed, self.beamPosition),
                     endPoint=((glyph.width - right)+transformed, self.beamPosition),
                     strokeColor=(1,.2,0,.4),
-                    strokeWidth=1,
+                    strokeWidth=.75,
                     )
 
                 if next is not None:
@@ -2308,7 +2311,7 @@ class Spaceport(Subscriber, ezui.WindowController):
                                 startPoint=((glyph.width - right)+transformed, self.beamPosition),
                                 endPoint=((glyph.width + nextLeft)+transformed, self.beamPosition),
                                 strokeColor=(1,.2,0,1),
-                                strokeWidth=1,
+                                strokeWidth=.75,
                             )
                             if nextLeft:
                                 beamIndicatorLayer.appendTextLineSublayer(
@@ -2329,7 +2332,7 @@ class Spaceport(Subscriber, ezui.WindowController):
                                 startPoint=((glyph.width - right)+transformed, self.beamPosition),
                                 endPoint=((glyph.width + nextLeft)+transformed, self.beamPosition),
                                 strokeColor=(1,.2,0,.4),
-                                strokeWidth=1,
+                                strokeWidth=.75,
                             )
 
                 beamIndicatorLayer.setVisible(self.showBeam)
@@ -2545,6 +2548,7 @@ class Spaceport(Subscriber, ezui.WindowController):
             selectedGlyph = None
             selectedFont = None
             multiFontSelect = False
+            self.adjustingBeamPosition = False
 
             for temporary in self.collectionView.get():
                 if temporary not in self.selectedItems:
@@ -2565,7 +2569,7 @@ class Spaceport(Subscriber, ezui.WindowController):
                         elif event["modifiers"] == ["option"]:
                             multiFontSelect = True
 
-                        if AppKit.NSEvent.modifierFlags() & AppKit.NSShiftKeyMask:
+                        if self.shift:
                             # print("shift down, append")
                             self.selectedItems.append(hit)
                         else:
@@ -2589,6 +2593,7 @@ class Spaceport(Subscriber, ezui.WindowController):
                     self.selectedItems = []
             else:
                 self.selectedItems = []
+                self.adjustingBeamPosition = True
 
 
             if not self.selectedItems:
@@ -2615,7 +2620,20 @@ class Spaceport(Subscriber, ezui.WindowController):
 
 
     def mouseDragged(self, view, event) -> None:
-        if isinstance(view, ezui.views.merzView.MerzView):
+        if isinstance(view, merz.collectionView.MerzCollectionDocumentView):
+            if self.adjustingBeamPosition:
+                delta = (-event.deltaY() * (1/self.scale)) # calculate accurate new dragged delta with scale
+                event = merz.unpackEvent(event)
+                x, y = self._convertLocation(event,view)
+                if self.command and self.shift:
+                    self.viewSettingsWindow.setItemValue(
+                        "beamPositionSlider",
+                        (self.beamPosition + delta)
+                    )
+                    self.displaySettingsButtonCallback(None, onlyBeam=True)
+
+
+        elif isinstance(view, ezui.views.merzView.MerzView):
             self.internalPreview = True
             self.hoverItem = None
             self.wasDragging = True
@@ -2837,8 +2855,8 @@ class Spaceport(Subscriber, ezui.WindowController):
 
 
             if deleting:
-
                 pass
+
             if adding:
                 if self.typingIndex < len(self.rawGlyphList):
                     self.typingIndex += 1
@@ -2855,6 +2873,10 @@ class Spaceport(Subscriber, ezui.WindowController):
             #     "textField",
             #     self.combineText(self.holdingGlyphs)
             # )
+
+    @property
+    def shift(self) -> bool:
+        return AppKit.NSEvent.modifierFlags() & AppKit.NSShiftKeyMask
 
     @property
     def command(self) -> bool:
@@ -2943,6 +2965,9 @@ class Spaceport(Subscriber, ezui.WindowController):
                 if self.typingIndex is None:
                     self.typingIndex = len(self.holdingGlyphs)-1
                 self.setTypingItem()
+
+            self.showSpaceMatrixButtonCallback(not self.typing)
+            #self.w.matrix.show(not self.typing)
 
 
     def setTypingItem(self):
