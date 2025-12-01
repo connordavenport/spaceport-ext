@@ -158,6 +158,76 @@ try:
 except:
     pass
 
+
+class GlyphFinderPalette(ezui.WindowController):
+
+    def build(self, parent, relative):
+        self.relative = relative
+        self.parent   = parent
+        content = """
+        [__] @textfield
+        |-----------------| @table
+        |                 |
+        |-----------------|
+        """
+        data = dict(
+            textfield=dict(
+                width=200,
+            ),
+            table=dict(
+                allowsMultipleSelection=False,
+                alternatingRowColors=True,
+                width=200,
+                height=100,
+                items=CurrentFont().glyphOrder
+            )
+        )
+        self.w = ezui.EZPopUp(
+            content=content,
+            parent=parent,
+            controller=self,
+            descriptionData=data,
+            parentOffset=(-100, 0)
+        )
+
+        ns = self.w.getItem("textfield").getNSTextField()
+        ns.setBordered_(False)
+        ns.setFocusRingType_(1)
+        ns.setBackgroundColor_(None)
+        customFont = AppKit.NSFont.fontWithName_size_('SFMono-Light', 20)
+        ns.setFont_(customFont)
+
+        nt = self.w.getItem("table").getNSTableView()
+        # help(nt)
+        nt.setBackgroundColor_(None)
+
+
+
+    def tableDoubleClickCallback(self, sender):
+        selected = sender.getSelectedItems()
+        if selected:
+            returnedItem = selected[0]
+            self.relative.rawGlyphList.insert(self.relative.typingIndex + 1, returnedItem)
+            self.relative.holdingGlyphs = self.relative.rawGlyphList
+            self.relative.typingIndex += 1
+            self.relative.textFieldCallback(None)
+            self.relative.setTypingItem()
+
+            self.w.close()
+
+    def textfieldCallback(self, sender):
+        hit = sender.get()
+        accepts = sorted([g for g in CurrentFont().glyphOrder if g.startswith(hit)])
+        accepts.extend(sorted([g for g in CurrentFont().glyphOrder if hit in g]))
+        self.w.getItem("table").set(accepts)
+        if accepts: self.w.getItem("table").setSelectedIndexes([0])
+
+    def started(self):
+        # left, top, width, height = self.parent.getPosSize()
+        # location=(int(width/2),int(height/2)+top, 1, 1)
+        self.w.open()
+
+
 class InterpolationWarningWindow(ezui.WindowController):
 
     def build(self, parent, relative):
@@ -1496,20 +1566,24 @@ class Spaceport(Subscriber, ezui.WindowController):
         output = []
         index = 0
 
+        currentTokens = {"question":"?", "exclam":"!"}
+
         while index < len(glyphList):
             if glyphList[index] == 'slash':
                 slashed = '/'
-                startIndex = index
                 index += 1
 
                 charsCollected = []
                 while index < len(glyphList) and glyphList[index] not in ['space', 'slash']:
-                    charsCollected.append(glyphList[index])
-                    slashed += glyphList[index]
-                    index += 1
-
+                    if glyphList[index] in currentTokens.keys():
+                        slashed += currentTokens.get(glyphList[index])
+                        index += 1
+                        break
+                    else:
+                        charsCollected.append(glyphList[index])
+                        slashed += glyphList[index]
+                        index += 1
                 skipFollowingSpace = False
-
                 # Check for special characters FIRST (before font.keys() check)
                 if slashed == '/question':
                     output.append('/?')
@@ -1573,6 +1647,7 @@ class Spaceport(Subscriber, ezui.WindowController):
         self.typingCoalescer.restart()
         self.unsubscribeFromGlyphs()
         if self.font:
+
             if not hasattr(self, 'rawGlyphList') or not self.rawGlyphList:
                 self.rawGlyphList = self.holdingGlyphs[:]
 
@@ -1593,6 +1668,7 @@ class Spaceport(Subscriber, ezui.WindowController):
             self.glyphs = holding
             self.populateItems()
             self.scale = self.w.getItemValue("pointSizeInputField") / self.upm
+
 
     def horzAlignmentSegmentButtonCallback(self, sender) -> None:
         self.controlsStackCallback(None)
@@ -2825,8 +2901,13 @@ class Spaceport(Subscriber, ezui.WindowController):
                     self.holdingGlyphs = self.rawGlyphList
                     self.textFieldCallback(None)
                     return
-            else:
 
+                if char == "/":
+                    # cmd + slash to open glyph selection palette
+                    GlyphFinderPalette(self.w, self)
+                    return
+
+            else:
                 if rawGlyphName:
                     adding = True
                     self.rawGlyphList.insert(self.typingIndex + 1, rawGlyphName)
@@ -2852,7 +2933,6 @@ class Spaceport(Subscriber, ezui.WindowController):
                 elif char == "down":
                     if self.typingFont != fontList[-1]:
                         self.typingFont = fontList[fontList.index(self.typingFont) + 1]
-
 
             if deleting:
                 pass
