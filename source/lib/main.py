@@ -220,9 +220,10 @@ class GlyphFinderPalette(ezui.WindowController):
             if returnedItem in self.glyphMap.keys():
                 returnedItem = self.glyphMap.get(returnedItem)
             self.relative.holdingGlyphs.insert(self.relative.typingIndex, returnedItem)
-            # self.relative.holdingGlyphs = self.relative.rawGlyphList
-            self.relative.typingIndex += 1
-            self.relative.textFieldCallback(None)
+            if returnedItem == "/!":
+                self.relative.typingIndex += len(self.relative.currentSelection)
+            else:
+                self.relative.typingIndex += 1
             self.relative.setTypingItem()
             self.w.close()
 
