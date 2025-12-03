@@ -39,6 +39,7 @@ from lib.UI.spaceCenter.glyphSequenceEditText import (
     splitText,
 )
 from lib.UI.spaceCenter.lineViewGlyphWrappers import GlyphRecord
+from lib.UI.jumpToPopUpWindow import JumpToGlyphPopUpWindow
 from merz.errors import MerzError
 from merz.tools.typesetter import HorizontalTypesetter
 from mojo import events
@@ -165,22 +166,29 @@ class GlyphFinderPalette(ezui.WindowController):
         self.relative = relative
         self.parent   = parent
         content = """
-            [__] @glyphFinderTextField
-        |-----------------| @glyphFinderTable
+        [__]                               @glyphFinderTextField
+        ( X Starts With X | Contains )     @matchingSegmentedButton
+        |-----------------|                @glyphFinderTable
         |                 |
         |-----------------|
+        """
+        footer = """
+        (Insert)                           @insertGlyphButton
         """
         self.glyphMap = {"CurrentGlyph":"/?", "CurrentSelection":"/!",}
         glyphNames = list(self.glyphMap.keys())
         glyphNames.extend(self.relative.font.glyphOrder)
         data = dict(
+            matchingSegmentedButton=dict(
+                width=200,
+            ),
             glyphFinderTextField=dict(
-                placeholder="glyph name",
+                placeholder="Glyph Name",
                 width=200,
             ),
             glyphFinderTable=dict(
                 allowsMultipleSelection=False,
-                # alternatingRowColors=True,
+                alternatingRowColors=True,
                 width=200,
                 height=100,
                 items=glyphNames
@@ -189,34 +197,21 @@ class GlyphFinderPalette(ezui.WindowController):
         self.w = ezui.EZPopUp(
             content=content,
             parent=parent,
+            footer=footer,
             controller=self,
             descriptionData=data,
             parentOffset=(-100, 0)
         )
 
+        self.w.setDefaultButton(self.w.getItem("insertGlyphButton"))
+
         ns = self.w.getItem("glyphFinderTextField").getNSTextField()
-        ns.setBordered_(False)
         ns.setFocusRingType_(1)
-        ns.setBackgroundColor_(None)
-        customFont = AppKit.NSFont.fontWithName_size_('SFMono-Light', 20)
-        ns.setFont_(customFont)
-
-        nt = self.w.getItem("glyphFinderTable").getNSTableView()
-        nt.setBackgroundColor_(AppKit.NSColor.colorWithCalibratedRed_green_blue_alpha_(0.0, 0.0, 0.0, 0.1))
-        nt.setGridColor_(AppKit.NSColor.colorWithCalibratedWhite_alpha_(0.5, 0.2))
-        nt.setCornerRadius_(10)
-
-        sv = nt.enclosingScrollView()
-        if sv:
-            sv.setDrawsBackground_(False)
-            sv.setBackgroundColor_(AppKit.NSColor.clearColor())
-            sv.setBorderType_(0)
 
 
-    def glyphFinderTableDoubleClickCallback(self, sender):
-        selected = sender.getSelectedItems()
-        if selected:
-            returnedItem = selected[0]
+    def insertGlyphCallback(self, input):
+        if input:
+            returnedItem = input[0]
             if returnedItem in self.glyphMap.keys():
                 returnedItem = self.glyphMap.get(returnedItem)
             self.relative.holdingGlyphs.insert(self.relative.typingIndex, returnedItem)
@@ -225,14 +220,29 @@ class GlyphFinderPalette(ezui.WindowController):
             else:
                 self.relative.typingIndex += 1
             self.relative.setTypingItem()
+            self.relative.textFieldCallback(None)
             self.w.close()
+
+
+    def insertGlyphButtonCallback(self, sender):
+        selected = self.w.getItem("glyphFinderTable").getSelectedItems()
+        self.insertGlyphCallback(selected)
+
+
+    def glyphFinderTableDoubleClickCallback(self, sender):
+        selected = sender.getSelectedItems()
+        self.insertGlyphCallback(selected)
 
 
     def glyphFinderTextFieldCallback(self, sender):
         hit = sender.get()
-        accepts = sorted([g for g in self.relative.font.glyphOrder if g.startswith(hit)])
+        if self.w.getItemValue("matchingSegmentedButton") == 0:
+            accepts = sorted([g for g in self.relative.font.glyphOrder if g.startswith(hit)])
+        else:
+            accepts = sorted([g for g in self.relative.font.glyphOrder if hit in g])
+
         accepts.extend(list(self.glyphMap.keys()))
-        accepts.extend(sorted([g for g in self.relative.font.glyphOrder if hit in g and g not in accepts]))
+        # accepts.extend(sorted([g for g in self.relative.font.glyphOrder if hit in g and g not in accepts]))
         self.w.getItem("glyphFinderTable").set(accepts)
         if accepts: self.w.getItem("glyphFinderTable").setSelectedIndexes([0])
 
