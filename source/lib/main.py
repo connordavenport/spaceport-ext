@@ -6,6 +6,7 @@ import AppKit
 import ezui
 import merz
 import yaml
+from collections import UserList
 from defcon import Font
 from designspaceEditor.locationPreview import PreviewLocationFinder
 from designspaceEditor.ui import DesignspaceEditorController
@@ -60,6 +61,8 @@ from mojo.UI import GetFile, OpenGlyphWindow, getDefault, splitText
 import subprocess
 from ufoProcessor.ufoOperator import UFOOperator
 from vanilla.vanillaBase import osVersion12_0, osVersionCurrent
+from vanilla.vanillaMenuBuilder import VanillaMenuBuilder
+
 
 """
 versioning
@@ -305,6 +308,7 @@ class MerzCollectionViewRGlyphItem(merz.collectionView.MerzCollectionViewItem):
     def __init__(self, *args, **kwargs) -> None:
         self._name:str                 = kwargs.get("name", "")
         self._font:DoodleFont          = kwargs.get("font")
+        # self._layer:DoodleFont     = self._font.layers.defaultLayer.name or "foreground"
         self._glyph:RGlyph             = kwargs.get("glyph")
         self._index:int                = kwargs.get("index", 0)
         self._onDisk:bool              = kwargs.get("onDisk", True)
@@ -341,6 +345,23 @@ class MerzCollectionViewRGlyphItem(merz.collectionView.MerzCollectionViewItem):
         self._font = value
 
     font = property(getFont, setFont)
+
+    # # we use layer to actually draw
+    # def getLayer(self) -> DoodleLayer:
+    #     return self._layer
+
+    # def setLayer(self, value:str|DoodleLayer) -> None:
+    #     if isinstance(value, str):
+    #         name = value
+    #     elif isinstance(value, DoodleLayer):
+    #         name = value.name
+    #     else:
+    #         return
+
+    #     if name in self._font.layerOrder:
+    #         self._layer = self._font.layers[name]
+
+    # layer = property(getLayer, setLayer)
 
     def getSelected(self) -> bool:
         return self._selected
@@ -433,6 +454,60 @@ class MerzCollectionViewRGlyphItem(merz.collectionView.MerzCollectionViewItem):
     location = property(getLocation, setLocation)
 
 
+class FontItem(object):
+    # custom item so we can store more attributes with fonts we are using
+    def __init__(self, **kwargs) -> None:
+        self._path:str          = kwargs.get("path")
+        self._use:bool          = kwargs.get("use")
+        self._font:DoodleFont   = kwargs.get("font")
+        if isinstance(self._font, RFont):
+            self._font = self._font.naked()
+        self._layer:DoodleLayer = kwargs.get("layer", self._font.layers.defaultLayer)
+
+    def getPath(self) -> str:
+        return self._path
+
+    def setPath(self, value:str):
+        self._path = value
+
+    path = property(getPath, setPath)
+
+    def getUse(self) -> bool:
+        return self._use
+
+    def setUse(self, value:bool):
+        self._use = value
+
+    use = property(getUse, setUse)
+
+    def getFont(self) -> str:
+        return self._font
+
+    def setFont(self, value:DoodleFont):
+        if self._layer.name not in value.layerOrder:
+            self._layer = value.layers.defaultLayer
+        self._font = value
+
+    font = property(getFont, setFont)
+
+    # we use layer to actually draw
+    def getLayer(self) -> DoodleLayer:
+        return self._layer
+
+    def setLayer(self, value:str|DoodleLayer) -> None:
+        if isinstance(value, str):
+            name = value
+        elif isinstance(value, DoodleLayer):
+            name = value.name
+
+        if name in self._font.layers.layerOrder:
+            self._layer = self._font.layers[name]
+
+    layer = property(getLayer, setLayer)
+
+
+
+
 class Spaceport(Subscriber, ezui.WindowController):
 
     debug = True
@@ -471,18 +546,25 @@ class Spaceport(Subscriber, ezui.WindowController):
         self.typingIndex:int|None = None
         self.typingFont:DoodleFont|None=None
 
+        self.layerFontHit = None  # update type hits
+
         self.currentGlyph:RGlyph                     = CurrentGlyph()
         self.currentSelection:list[str,...]          = []
         self.font:RFont                              = CurrentFont()
-        self.fonts:dict[str,tuple[bool,RFont]]       = dict()
-        self._fontFolder:dict[str,tuple[bool,RFont]] = dict()
+        self.fonts:dict[str,FontItem]                = dict()
+        self._fontFolder:dict[str,FontItem]          = dict()
         self.glyphs:list[str,...]                    = []
         self.holdingGlyphs:list[str,...]             = []
         self.rawGlyphList:list[str,...]              = []
 
         for f in AllFonts():
             f.lib["descriptor"] = ""
-            self.fonts[f.path] = (f==CurrentFont(), f)
+            fontItem = FontItem(
+                font=f,
+                use=f==CurrentFont(),
+                path=f.path,
+            )
+            self.fonts[f.path] = fontItem
 
         self.internalPreview:bool = False
         self.designspaces:dict[str,tuple[bool,UFOOperator]] = dict()
@@ -819,6 +901,45 @@ class Spaceport(Subscriber, ezui.WindowController):
         if open: self.viewSettingsWindow.open()
 
 
+    def rightMouseDown(self, view, event) -> None:
+
+        event = merz.unpackEvent(event)
+        self.start = (x,y) = self._convertLocation(event, view)
+        hit = self._getItemAtEvent((x,y))
+        if hit:
+            if hit.font:
+
+                self.layerFontHit = hit
+                content = """
+                Layers:
+                (Layers ...)                @layersButton
+                [ ] Global Layer Settings   @globalLayersButton
+                """
+                descriptionData=dict(
+                    layersButton=dict(
+                        items=hit.font.layers.layerOrder or ["default", ]
+                    ),
+                )
+                self.contextMenu = ezui.EZPopUp(
+                    content=content,
+                    descriptionData=descriptionData,
+                    #size="auto",
+                    parent=self.w,
+                    controller=self
+                )
+                self.contextMenu.open()
+
+    def layersButtonCallback(self, sender):
+        if self.layerFontHit:
+            for path, font in self.fonts.items():
+                if font.font == self.layerFontHit.font:
+                    font.layer = sender.getItems()[sender.get()]
+
+                    self.__cache = []
+
+            self.populateItems()
+                    # item.layerName =
+
     # designspace editor notifcations
     designspaceEditorPreviewLocationDidChangeDelay = 0.01
     def designspaceEditorPreviewLocationDidChange(self, notification) -> None:
@@ -1017,7 +1138,7 @@ class Spaceport(Subscriber, ezui.WindowController):
             fontTable=dict(
                 height=200,
                 items=[
-                    dict(use=use,path=path) for (path, (use, font)) in self.fonts.items()
+                    dict(use=fi.use,path=fi.path) for fi in list(self.fonts.values())
                 ],
                 itemType="dict",
                 acceptedDropFileTypes=[".ufo", ".ufoz", ".ufox"],
@@ -1096,7 +1217,7 @@ class Spaceport(Subscriber, ezui.WindowController):
         self.w.objw.getItem("sortFontListButton").set(self.sortingSettings)
 
 
-        indexes = [ii for ii,(i,obj) in enumerate(self.fonts.items()) if obj[0]]
+        indexes = [ii for ii,(fi) in enumerate(self.fonts.values()) if fi.use]
         self.w.objw.getItem("fontTable").setSelectedIndexes(indexes)
 
         table=self.w.objw.getItem("designspaceTable")
@@ -1113,9 +1234,9 @@ class Spaceport(Subscriber, ezui.WindowController):
         current = self.fonts.keys()
         for f in AllFonts():
             if f.path not in current:
-                self.fonts[f.path] = (False, f)
-        self.fonts = {path:(True,font) for path,(view,font) in self.fonts.items()}
-        self.w.objw.getItem("fontTable").set(dict(use=use,path=path) for (path, (use, font)) in self.fonts.items())
+                self.fonts[f.path] = FontItem(use=False, font=f)
+        self.fonts = {fi.path:(True,fi.font) for fi in list(self.fonts.values())}
+        self.w.objw.getItem("fontTable").set(dict(use=fi.use,path=fi.path) for fi in list(self.fonts.values()))
         self.populateItems()
 
 
@@ -1130,7 +1251,9 @@ class Spaceport(Subscriber, ezui.WindowController):
                 )
                 table.appendItems([item])
                 obj = OpenFont(file,True)
-                self.fonts[file] = (True, obj)
+
+                fontItem = FontItem(path=path, use=True, font=obj)
+                self.fonts[file] = fontItem
 
 
     def fontTableAddRemoveButtonRemoveCallback(self, sender) -> None:
@@ -1171,17 +1294,18 @@ class Spaceport(Subscriber, ezui.WindowController):
                 instances = kwargs.get("instances", obj.instances)
                 # remove designspace items
                 fontsDict = list(self.fonts.items())
-                for _path, (_view, _font) in fontsDict:
+                for (_path, _fontItem) in fontsDict:
                     # if _view:
                     if _path in [p.path for (p,_) in self.sources]:
                         del self.fonts[_path]
-                        self._fontFolder[_path] = (_view, _font)
+                        self._fontFolder[_path] = (_fontItem.use, _fontItem.font)
 
                 # temporarily disable font previews when changing sources
 
                 preview = self.fonts.get("Preview Location")
-                for path, (view, font) in self.fonts.items():
-                    self.fonts[path] = (False, font)
+                for path, fi in self.fonts.items():
+                    fi.use = False
+                    self.fonts[path] = fi
 
                 if "Preview Location" not in self.fonts.keys():
                     # create a temporary instance that we can interpolate on if no fonts are selected
@@ -1197,18 +1321,19 @@ class Spaceport(Subscriber, ezui.WindowController):
                         temp.lib["com.typemytype.robofont.italicSlantOffset"] = lib.get("com.typemytype.robofont.italicSlantOffset", 0)
 
                     items = list(self.fonts.items())
-                    items.insert(0, ('Preview Location', (False, temp)))
+                    fi = FontItem(path='Preview Location', use=False, font=temp)
+                    items.insert(0, ('Preview Location', fi))
                     self.fonts = dict(items)
 
                 if self.viewSources:
                     for source,locationData in sources:
-
                         if source.path in openFonts.keys():
                             source = openFonts.get(source.path)
-
                         source.lib["descriptor"] = "source"
                         source.lib["location"]   = locationData
-                        self.fonts[source.path]  = (True,source)
+
+                        fi = FontItem(path=source.path, use=True, font=source)
+                        self.fonts[source.path] = fi
 
                 if self.viewInstances:
                     for instance in instances:
@@ -1222,7 +1347,9 @@ class Spaceport(Subscriber, ezui.WindowController):
                             lib = libMutator.makeInstance(instance.designLocation)
                             inst.lib["com.typemytype.robofont.italicSlantOffset"] = lib.get("com.typemytype.robofont.italicSlantOffset", 0)
 
-                        self.fonts[instance.path] = (True,inst)
+                        fi = FontItem(path=instance.path, use=True, font=inst)
+                        self.fonts[instance.path] = fi
+
 
                 if preview:
                     self.fonts["Preview Location"] = preview
@@ -1231,7 +1358,7 @@ class Spaceport(Subscriber, ezui.WindowController):
         if not self.font and self.fonts:
             self.setMainFont(obj, True)
         try:
-            self.w.objw.getItem("fontTable").set(dict(use=use,path=path) for (path, (use, font)) in self.fonts.items())
+            self.w.objw.getItem("fontTable").set(dict(use=fontItem.use,path=fontItem.path) for fontItem in list(self.fonts.values()))
         except AttributeError:
             pass
         self.populateItems()
@@ -1263,7 +1390,7 @@ class Spaceport(Subscriber, ezui.WindowController):
         if operator:
             self.font = operator.getFonts()[0][0]
         else:
-            self.font = list(self.fonts.values())[1][-1]
+            self.font = list(self.fonts.values())[1].font
         self.upm = self.font.info.unitsPerEm
         if setText:
             for name,item in self.w.get().items():
@@ -1302,7 +1429,12 @@ class Spaceport(Subscriber, ezui.WindowController):
     def refreshOrderButtonCallback(self) -> None:
         reordered = [item["path"] for item in self.w.objw.getItemValue("fontTable")]
         if reordered != list(self.fonts.keys()):
-            self.fonts = {item["path"]:(item["use"],self.fonts[item["path"]][1]) for item in self.w.objw.getItemValue("fontTable")}
+            self.fonts = {item["path"]:(item["use"],self.fonts[item["path"]].font) for item in self.w.objw.getItemValue("fontTable")}
+            tempDict = {}
+            for item in self.w.objw.getItemValue("fontTable"):
+                fontItem = FontItem(path=item["path"], use=item["use"], font=self.fonts[item["path"]].font)
+                tempDict[item["path"]] = fontItem
+            self.fonts = tempDict
             self.populateItems()
 
 
@@ -1334,13 +1466,13 @@ class Spaceport(Subscriber, ezui.WindowController):
                 holding = getattr(self, f"{newItem}Sort")
                 setattr(self, f"{newItem}Sort", -holding)
 
-        sortedFonts = sorted(self.fonts, key=lambda key: (-self.fonts[key][1].info.openTypeOS2WidthClass * self.widthSort if width else 5, -self.fonts[key][1].info.italicAngle * self.italicSort if italic else 0, self.fonts[key][1].info.openTypeOS2WeightClass * self.weightSort if weight else 400))
+        sortedFonts = sorted(self.fonts, key=lambda key: (-self.fonts[key].font.info.openTypeOS2WidthClass * self.widthSort if width else 5, -self.fonts[key].font.info.italicAngle * self.italicSort if italic else 0, self.fonts[key].font.info.openTypeOS2WeightClass * self.weightSort if weight else 400))
         orderedDict = {path:self.fonts.get(path) for path in sortedFonts}
 
         self.sortingSettings = sender.get()
 
         self.fonts = orderedDict
-        self.w.objw.getItem("fontTable").set(dict(use=use,path=path) for (path, (use, font)) in self.fonts.items())
+        self.w.objw.getItem("fontTable").set(dict(use=item.use,path=item.path) for (path, item) in self.fonts.items())
         self.populateItems()
 
 
@@ -1351,8 +1483,10 @@ class Spaceport(Subscriber, ezui.WindowController):
         else:
             new = True
             path = "Preview Location"
-        use,font = self.fonts[path]
-        self.fonts[path] = (new, font)
+        item = self.fonts[path]
+        item.path = path
+        item.use = new
+        self.fonts[path] = item
         self.textFieldCallback(None)
 
 
@@ -1361,9 +1495,10 @@ class Spaceport(Subscriber, ezui.WindowController):
         _temp = list(self.fonts.keys())
         for path in paths:
             opened = OpenFont(path, self.w.objw.getItemValue("openFontWithUIButton"))
-            self.fonts[path] = (False, opened)
+            fontItem = FontItem(path=path, use=False, font=opened)
+            self.fonts[path] = fontItem
             item = dict(
-                use=False,
+                use=fontItem.use,
                 path=path,
             )
             fonts.append(item)
@@ -1375,7 +1510,8 @@ class Spaceport(Subscriber, ezui.WindowController):
         file = GetFile(fileTypes=["ufoz", "ufo", "ufox"])
         if file:
             opened = OpenFont(file)
-            self.fonts[file] = (True, opened)
+            fontItem = FontItem(path=file, use=True, font=opened)
+            self.fonts[file] = fontItem
             self.w.objw.getItem("fontTable").close()
         self.populateItems()
 
@@ -2231,7 +2367,11 @@ class Spaceport(Subscriber, ezui.WindowController):
         items = []
         _glyphRecords = []
 
-        for fontIndex, (path,(use,font)) in enumerate(self.fonts.items()):
+        for fontIndex, (__,fontItem) in enumerate(self.fonts.items()):
+            font = fontItem.font
+            use = fontItem.use
+            path = fontItem.path
+
             if use:
                 index = off = skewAngle = 0
                 location = font.lib.get("location", {})
@@ -2277,7 +2417,7 @@ class Spaceport(Subscriber, ezui.WindowController):
                                 onDisk = False
                         else:
                             if glyph in font.keys():
-                                glyph = font[glyph]
+                                glyph = fontItem.layer[glyph]
 
                         if isinstance(glyph, str):
                             capScale = font.info.capHeight / 750
@@ -2571,7 +2711,7 @@ class Spaceport(Subscriber, ezui.WindowController):
             collection = self.collectionView
             typesetter = collection._documentView._typesetter
             __,(containerWidth, containerHeight) = collection.getNSScrollView().bounds()
-            availableHeight = len([1 for use, font in self.fonts.values() if use]) * typesetter.getLineHeight() * 1.1
+            availableHeight = len([1 for item in self.fonts.values() if item.use]) * typesetter.getLineHeight() * 1.1
 
             mm = {}
             for ii in self.collectionView.get():
@@ -2835,7 +2975,7 @@ class Spaceport(Subscriber, ezui.WindowController):
         rawGlyphName = u2n(ord(rawChar))
         directions = "left right up down".split(" ")
 
-        fontList = [f for p,(u,f) in self.fonts.items() if u]
+        fontList = [item.font for item in list(self.fonts.values()) if item.use]
 
         if not self.typing:
             if char in directions:
@@ -3083,7 +3223,7 @@ class Spaceport(Subscriber, ezui.WindowController):
     def toggleTypingState(self):
         if self.fonts:
             self.typing = not self.typing
-            self.typingFont = list(self.fonts.values())[0][-1]
+            self.typingFont = list(self.fonts.values())[0].font
             if self.typing:
                 cursor = TYPING_CURSOR
             else:
@@ -3124,9 +3264,9 @@ class Spaceport(Subscriber, ezui.WindowController):
 
     def subscribeToGlyphs(self, coalescer:Coalescer) -> None:
         glyphs = []
-        for (__, obj) in self.fonts.values():
+        for item in list(self.fonts.values()):
             try:
-                glyphs.extend(list(set([obj[glyph] for glyph in self.glyphs])))
+                glyphs.extend(list(set([item.font[glyph] for glyph in self.glyphs])))
             except:
                 pass
         self.setAdjunctObjectsToObserve(glyphs)
