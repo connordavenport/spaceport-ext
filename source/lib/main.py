@@ -902,43 +902,73 @@ class Spaceport(Subscriber, ezui.WindowController):
 
 
     def rightMouseDown(self, view, event) -> None:
-
+        rx,ry = event.locationInWindow()
         event = merz.unpackEvent(event)
         self.start = (x,y) = self._convertLocation(event, view)
         hit = self._getItemAtEvent((x,y))
         if hit:
             if hit.font:
-
                 self.layerFontHit = hit
                 content = """
-                Layers:
-                (Layers ...)                @layersButton
-                [ ] Global Layer Settings   @globalLayersButton
+                * HorizontalStack             @layersStack
+                > ({character.cursor.ibeam})  @layersIcon
+                > (Layers ...)                @layersButton
+                -----
+                # *Image                      @localTextIcon
+                # [ ] Global Layer Settings @globalLayersButton
                 """
                 descriptionData=dict(
+                    layersStack=dict(
+                        distribution="fillEqually",
+                        alignment="leading",
+                    ),
+                    localTextIcon=dict(
+                        image=ezui.makeImage(
+                            symbolName="character.cursor.ibeam",
+                            template=True,
+                        ),
+                        symbolConfiguration=dict(
+                            scale="large",
+                            weight="thin",
+                        ),
+                    ),
+                    layersIcon=dict(
+                        image=ezui.makeImage(
+                            symbolName="square.3.layers.3d.top.filled",
+                            template=True,
+                        ),
+                        symbolConfiguration=dict(
+                            scale="large",
+                        ),
+                    ),
                     layersButton=dict(
+                        width=150,
                         items=hit.font.layers.layerOrder or ["default", ]
                     ),
                 )
-                self.contextMenu = ezui.EZPopUp(
+                self.contextMenu = ezui.EZPopover(
                     content=content,
                     descriptionData=descriptionData,
-                    #size="auto",
+                    size="auto",
                     parent=self.w,
+                    behavior="semitransient",
                     controller=self
                 )
-                self.contextMenu.open()
+
+                button = self.contextMenu.getItem("layersButton").getNSPopUpButton()
+                button.setBordered_(False)
+                button.setBackgroundColor_(AppKit.NSColor.clearColor())
+                self.contextMenu.open(location=(rx,ry,1,1))
+
 
     def layersButtonCallback(self, sender):
         if self.layerFontHit:
             for path, font in self.fonts.items():
                 if font.font == self.layerFontHit.font:
                     font.layer = sender.getItems()[sender.get()]
-
-                    self.__cache = []
-
+                    self.__cache = [] # clear the cache so we can load new layers
             self.populateItems()
-                    # item.layerName =
+
 
     # designspace editor notifcations
     designspaceEditorPreviewLocationDidChangeDelay = 0.01
@@ -948,11 +978,11 @@ class Spaceport(Subscriber, ezui.WindowController):
             if len(selectedFonts) == 1:
                 pass
             elif not selectedFonts:
-                if not self.fonts.get("Preview Location")[0]:
+                if not self.fonts.get("Preview Location").use:
                     self.fontTableEditCallback(None) # turn on preview location
                 # grab out dummy instance
                 # selectedFonts = [list(self.fonts.values())[0][-1]]
-                selectedFonts = [self.fonts.get("Preview Location")[-1]]
+                selectedFonts = [self.fonts.get("Preview Location").font]
 
             for item in self.collectionView.get():
                 if item.font == selectedFonts[0]:
@@ -1235,7 +1265,7 @@ class Spaceport(Subscriber, ezui.WindowController):
         for f in AllFonts():
             if f.path not in current:
                 self.fonts[f.path] = FontItem(use=False, font=f)
-        self.fonts = {fi.path:(True,fi.font) for fi in list(self.fonts.values())}
+        self.fonts = {fi.path:FontItem(path=fi.path, use=True, font=fi.font) for fi in list(self.fonts.values())}
         self.w.objw.getItem("fontTable").set(dict(use=fi.use,path=fi.path) for fi in list(self.fonts.values()))
         self.populateItems()
 
@@ -2768,7 +2798,7 @@ class Spaceport(Subscriber, ezui.WindowController):
         x,y = position
         if self.typing:
             hits = self.container.findSublayersIntersectedByRect(
-                (x-100,y-25,100,50),
+                (x,y-25,200,50),
                 onlyAcceptsHit=True,
                 recurse=False
             )
@@ -2780,8 +2810,7 @@ class Spaceport(Subscriber, ezui.WindowController):
             )
         if not hits:
             return None
-        hit = hits[0]
-        return hit
+        return hits[-1] if self.typing else hits[0]
 
 
     def _convertLocation(self, event:dict, view:ezui.views.merzView.MerzView | merz.collectionView.MerzCollectionDocumentView) -> tuple[float, float]:
@@ -2885,17 +2914,39 @@ class Spaceport(Subscriber, ezui.WindowController):
 
 
     def mouseDragged(self, view, event) -> None:
+        tempEvent = event
         if isinstance(view, merz.collectionView.MerzCollectionDocumentView):
-            if self.adjustingBeamPosition:
-                delta = (-event.deltaY() * (1/self.scale)) # calculate accurate new dragged delta with scale
-                event = merz.unpackEvent(event)
-                x, y = self._convertLocation(event,view)
-                if self.command and self.shift:
-                    self.viewSettingsWindow.setItemValue(
-                        "beamPositionSlider",
-                        (self.beamPosition + delta)
-                    )
-                    self.displaySettingsButtonCallback(None, onlyBeam=True)
+            event = merz.unpackEvent(event)
+            x, y = self._convertLocation(event,view)
+
+            if self.typing:
+                hit = self._getItemAtEvent((x,y))
+                if hit and self.shift:
+                    index = self.getMergedIndexFromRawIndex(self.typingIndex)
+                    if hit.font == self.typingFont:
+                        selectionRange = sorted([hit.index, index])
+                        selectionRange[-1] += 1
+
+                        if hit.index > index:
+                            selectionRange[-1] += -1
+
+                        for ii in self.collectionView.get():
+                            ii.selected = False
+                            if ii.font == hit.font:
+                                if ii.index in list(range(*selectionRange)):
+                                    ii.selected = True
+
+
+            else:
+                if self.adjustingBeamPosition:
+                    delta = (-tempEvent.deltaY() * (1/self.scale)) # calculate accurate new dragged delta with scale
+                    x, y = self._convertLocation(event,view)
+                    if self.command and self.shift:
+                        self.viewSettingsWindow.setItemValue(
+                            "beamPositionSlider",
+                            (self.beamPosition + delta)
+                        )
+                        self.displaySettingsButtonCallback(None, onlyBeam=True)
 
 
         elif isinstance(view, ezui.views.merzView.MerzView):
@@ -3081,6 +3132,9 @@ class Spaceport(Subscriber, ezui.WindowController):
                     return
                 if char.lower() == "v":
 
+                    """
+                    we can paste slashed glyph names
+                    """
                     clipboardContents = subprocess.check_output(['pbpaste'], text=True)
                     processed = splitText(clipboardContents, self.font.getCharacterMapping())
 
