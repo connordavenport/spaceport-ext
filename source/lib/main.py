@@ -131,37 +131,6 @@ IBEAM_COLOR:tuple[float,float,float,float] = (.2, .2, .2, 1)
 SELECTION_COLOR:tuple[float,float,float,float] = (0, 0.478, 1, .2)
 ARROW_CURSOR = AppKit.NSCursor.arrowCursor()
 
-class EZSequenceCombo(GlyphSequenceEditComboBox, ezui.tools.ParserMixIn):
-    # https://github.com/typemytype/basicShapingRoboFontExtension/blob/47698796e1b45b074e6489b49c8b7b7ab7493bce/BasicShaping.roboFontExt/lib/CoreTextShaping.py#L167
-    def __init__(
-        self,
-        *args,
-        container=None,
-        controller=None,
-        descriptionData=None,
-        identifier=None,
-        callback=None,
-        **kwargs
-    ):
-        ezui.tools.assignIdentifier(
-            item=self,
-            identifier=identifier,
-            container=container
-        )
-        callback = ezui.tools.findCallback(
-            callback=callback,
-            identifier=identifier,
-            container=container,
-            controller=controller
-        )
-        super().__init__("auto", *args, callback=callback, **kwargs)
-
-# we should move this to the __init__.py once we make one
-try:
-    ezui.tools.classes.registerClass("SequenceCombo", EZSequenceCombo)
-except:
-    pass
-
 
 class GlyphFinderPalette(ezui.WindowController):
 
@@ -212,7 +181,7 @@ class GlyphFinderPalette(ezui.WindowController):
         ns.setFocusRingType_(1)
 
 
-    def insertGlyphCallback(self, input):
+    def insertGlyphCallback(self, input:str) -> None:
         if input:
             returnedItem = input[0]
             if returnedItem in self.glyphMap.keys():
@@ -227,17 +196,17 @@ class GlyphFinderPalette(ezui.WindowController):
             self.w.close()
 
 
-    def insertGlyphButtonCallback(self, sender):
+    def insertGlyphButtonCallback(self, sender) -> None:
         selected = self.w.getItem("glyphFinderTable").getSelectedItems()
         self.insertGlyphCallback(selected)
 
 
-    def glyphFinderTableDoubleClickCallback(self, sender):
+    def glyphFinderTableDoubleClickCallback(self, sender) -> None:
         selected = sender.getSelectedItems()
         self.insertGlyphCallback(selected)
 
 
-    def glyphFinderTextFieldCallback(self, sender):
+    def glyphFinderTextFieldCallback(self, sender) -> None:
         hit = sender.get()
         if self.w.getItemValue("matchingSegmentedButton") == 0:
             accepts = sorted([g for g in self.relative.font.glyphOrder if g.startswith(hit)])
@@ -250,13 +219,13 @@ class GlyphFinderPalette(ezui.WindowController):
         if accepts: self.w.getItem("glyphFinderTable").setSelectedIndexes([0])
 
 
-    def started(self):
+    def started(self) -> None:
         self.w.open()
 
 
 class InterpolationWarningWindow(ezui.WindowController):
 
-    def build(self, parent, relative):
+    def build(self, parent:ezui.EZWindow, relative:Spaceport) -> None:
 
         self.relative = relative
 
@@ -467,7 +436,7 @@ class FontItem(object):
     def getPath(self) -> str:
         return self._path
 
-    def setPath(self, value:str):
+    def setPath(self, value:str) -> None:
         self._path = value
 
     path = property(getPath, setPath)
@@ -475,7 +444,7 @@ class FontItem(object):
     def getUse(self) -> bool:
         return self._use
 
-    def setUse(self, value:bool):
+    def setUse(self, value:bool) -> None:
         self._use = value
 
     use = property(getUse, setUse)
@@ -483,7 +452,7 @@ class FontItem(object):
     def getFont(self) -> str:
         return self._font
 
-    def setFont(self, value:DoodleFont):
+    def setFont(self, value:DoodleFont) -> None:
         if self._layer.name not in value.layerOrder:
             self._layer = value.layers.defaultLayer
         self._font = value
@@ -961,7 +930,7 @@ class Spaceport(Subscriber, ezui.WindowController):
                 self.contextMenu.open(location=(rx,ry,1,1))
 
 
-    def layersButtonCallback(self, sender):
+    def layersButtonCallback(self, sender) -> None:
         if self.layerFontHit:
             for path, font in self.fonts.items():
                 if font.font == self.layerFontHit.font:
