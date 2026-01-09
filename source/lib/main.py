@@ -2921,14 +2921,14 @@ class Spaceport(Subscriber, ezui.WindowController):
 
             if self.typing:
                 hit = self._getItemAtEvent((x,y))
-                if hit and self.shift:
+                if hit: # and self.shift:
                     index = self.getMergedIndexFromRawIndex(self.typingIndex)
                     if hit.font == self.typingFont:
                         selectionRange = sorted([hit.index, index])
-                        selectionRange[-1] += 1
+                        # selectionRange[-1] += 1
 
-                        if hit.index > index:
-                            selectionRange[-1] += -1
+                        if hit.index == len(self.glyphs) - 1:
+                            selectionRange[-1] += 1
 
                         for ii in self.collectionView.get():
                             ii.selected = False
@@ -3127,9 +3127,12 @@ class Spaceport(Subscriber, ezui.WindowController):
                     self.toggleTypingState()
                     return
                 if char.lower() == "a":
-                    print("selecting all")
-                    print(self.typingFont)
+                    for ii in self.collectionView.get():
+                        ii.selected = False
+                        if ii.font == self.typingFont:
+                            ii.selected = True
                     return
+                    
                 if char.lower() == "v":
 
                     """
