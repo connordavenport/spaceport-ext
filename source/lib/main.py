@@ -128,7 +128,7 @@ TYPING_CURSOR = CreateCursor(
     hotSpot=(CURSOR_SIZE/2, CURSOR_SIZE/2)
 )
 CURSOR_COLOR:tuple[float,float,float,float] = (1.0, 0.0, 0.0, 1.0)
-SELECTION_COLOR:tuple[float,float,float,float] = (0.0, 0.0, 0.0, 0.2)
+SELECTION_COLOR:tuple[float,float,float,float] = (0.0, 0.0, 0.0, 0.1)
 ARROW_CURSOR = AppKit.NSCursor.arrowCursor()
 
 
@@ -3008,6 +3008,7 @@ class Spaceport(Subscriber, ezui.WindowController):
 
                         for ii in self.collectionView.get():
                             ii.selected = False
+                            ii.typing = False
                             if ii.font == hit.font:
                                 if ii.index in list(range(*selectionRange)):
                                     ii.selected = True
@@ -3403,7 +3404,7 @@ class Spaceport(Subscriber, ezui.WindowController):
                     self.typingIndex = len(self.holdingGlyphs)-1
                 self.setTypingItem()
 
-            self.showSpaceMatrixButtonCallback(not self.typing)
+            #self.showSpaceMatrixButtonCallback(not self.typing)
             #self.w.matrix.show(not self.typing)
 
 
@@ -3412,6 +3413,7 @@ class Spaceport(Subscriber, ezui.WindowController):
         index = self.getMergedIndexFromRawIndex(self.typingIndex)
         for item in self.collectionView.get():
             item.typing = False
+            item.selected = False
             if item.font == self.typingFont:
                 if item.index == index:
                     item.typing = True
