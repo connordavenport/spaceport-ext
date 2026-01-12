@@ -127,8 +127,8 @@ TYPING_CURSOR = CreateCursor(
     CURSOR_IMAGE,
     hotSpot=(CURSOR_SIZE/2, CURSOR_SIZE/2)
 )
-IBEAM_COLOR:tuple[float,float,float,float] = (.2, .2, .2, 1)
-SELECTION_COLOR:tuple[float,float,float,float] = (0, 0.478, 1, .2)
+CURSOR_COLOR:tuple[float,float,float,float] = (1.0, 0.0, 0.0, 1.0)
+SELECTION_COLOR:tuple[float,float,float,float] = (0.0, 0.0, 0.0, 0.2)
 ARROW_CURSOR = AppKit.NSCursor.arrowCursor()
 
 
@@ -275,19 +275,23 @@ class InterpolationWarningWindow(ezui.WindowController):
 class MerzCollectionViewRGlyphItem(merz.collectionView.MerzCollectionViewItem):
 
     def __init__(self, *args, **kwargs) -> None:
-        self._name:str                 = kwargs.get("name", "")
-        self._font:DoodleFont          = kwargs.get("font")
-        # self._layer:DoodleFont     = self._font.layers.defaultLayer.name or "foreground"
-        self._glyph:RGlyph             = kwargs.get("glyph")
-        self._index:int                = kwargs.get("index", 0)
-        self._onDisk:bool              = kwargs.get("onDisk", True)
-        self._offset:float|int         = kwargs.get("italicOffset", 0)
-        self._skewAngle:float|int      = kwargs.get("skewAngle", 0)
-        self._scaler:float|int         = kwargs.get("scaler", 1)
-        self._location:dict[str,float] = kwargs.get("location", {})
-        self._selected:bool            = False
-        self._isTyping:bool            = False
-        self._selectedVisible:bool     = False
+        self._name:str                    = kwargs.get("name", "")
+        self._font:DoodleFont             = kwargs.get("font")
+        # self._layer:DoodleFont          = self._font.layers.defaultLayer.name or "foreground"
+        self._glyph:RGlyph                = kwargs.get("glyph")
+        self._index:int                   = kwargs.get("index", 0)
+        self._onDisk:bool                 = kwargs.get("onDisk", True)
+        self._offset:float|int            = kwargs.get("italicOffset", 0)
+        self._skewAngle:float|int         = kwargs.get("skewAngle", 0)
+        self._scaler:float|int            = kwargs.get("scaler", 1)
+        self._location:dict[str,float]    = kwargs.get("location", {})
+        self._selected:bool               = False
+        self._isTyping:bool               = False
+        self._selectedVisible:bool        = False
+
+        self._selectionColor:tuple[float] = kwargs.get("selectionColor", SELECTION_COLOR)
+        self._cursorColor:tuple[float]    = kwargs.get("cursorColor", CURSOR_COLOR)
+        self._cursorBlinking:bool         = kwargs.get("cursorBlinking", False)
 
         super().__init__(*args, **kwargs)
 
@@ -341,6 +345,34 @@ class MerzCollectionViewRGlyphItem(merz.collectionView.MerzCollectionViewItem):
 
     selected = property(getSelected, setSelected)
 
+    def getSelectionColor(self) -> tuple[float]:
+        return self._selectionColor
+
+    def setSelectionColor(self, value:tuple[float]) -> None:
+        self._selectionColor = value
+        item = self.getLayer("glyphContainer").getSublayer("selectionIndicator").getSublayer("selectionIndicatorDrawing")
+        if item: item.setFillColor(value)
+
+    selectionColor = property(getSelectionColor, setSelectionColor)
+
+    def getCursorColor(self) -> tuple[float]:
+        return self._cursorColor
+
+    def setCursorColor(self, value:tuple[float]) -> None:
+        self._cursorColor = value
+        self.typing = self._isTyping # we need to reset typing to change color in view
+
+    cursorColor = property(getCursorColor, setCursorColor)
+
+    def getBlinkingCursor(self) -> bool:
+        return self._cursorBlinking
+
+    def setBlinkingCursor(self, value:bool=False) -> None:
+        self._cursorBlinking = value
+        self.typing = self._isTyping # we need to reset typing to change color in view
+
+    cursorBlinking = property(getBlinkingCursor, setBlinkingCursor)
+
     def getTypingItem(self) -> bool:
         return self._isTyping
 
@@ -350,15 +382,16 @@ class MerzCollectionViewRGlyphItem(merz.collectionView.MerzCollectionViewItem):
         layer.setVisible(value)
         if self._isTyping:
             sublayer = layer.getSublayer("typingIndicatorDrawing")
-            sublayer.setFillColor(IBEAM_COLOR)
+            sublayer.setFillColor(self.cursorColor)
             with sublayer.propertyGroup(
                 duration=.5,
                 repeatCount="loop",
                 reverse=True,
                 timing="easeInEaseOut",
             ):
-                sublayer.setFillColor((*IBEAM_COLOR[0:3], .1))
-
+                alpha = .1 if self.cursorBlinking else 1
+                sublayer.setFillColor((*self.cursorColor[0:3], alpha))
+                
     typing = property(getTypingItem, setTypingItem)
 
     def getSelectedVisible(self) -> bool:
@@ -490,6 +523,9 @@ class Spaceport(Subscriber, ezui.WindowController):
         self.foreground:tuple[float,...] = (0, 0, 0, 1)
         self.background:tuple[float,...] = (1, 1, 1, 1)
 
+        self.cursorColor:tuple[float]    = CURSOR_COLOR
+        self.selectionColor:tuple[float] = SELECTION_COLOR
+
         self.showKerning:bool            = False
         self.showMetrics:bool            = False
         self.showLabel:bool              = True
@@ -499,6 +535,7 @@ class Spaceport(Subscriber, ezui.WindowController):
         self.viewInstances:bool          = False
         self.showBeam:bool               = True
         self.designspaceController:bool  = True
+        self.drawFocusRing:bool          = False
 
         self.sortingSettings:list[int]   = []
         self.weightSort:int = 1
@@ -802,9 +839,44 @@ class Spaceport(Subscriber, ezui.WindowController):
         ( {text.alignleft} | {text.aligncenter} | {text.alignright} ) @horzAlignmentSegmentButton
         Vertical Text Alignment (BETA):
         ( {align.vertical.top} | {align.vertical.center} | {align.vertical.bottom} ) @vertAlignmentSegmentButton
+        -----
+        [ ] Blinking Cursor                                           @blinkingCursorButton
+        * HorizontalStack                                             @cursorStack
+        > Cursor Color: 
+        > * ColorWell                                                 @cursorColorWell
+
+        [ ] Focus Ring                                                @focusRingButton
+
+        * HorizontalStack                                             @selectionStack
+        > Selection Color: 
+        > * ColorWell                                                 @selectionColorWell
+
         """
 
         descriptionData = dict(
+            blinkingCursorButton=dict(
+                value=False
+            ),
+            focusRingButton=dict(
+                value=self.drawFocusRing,
+            ),
+            cursorStack=dict(
+                distribution="fillEqually",
+                alignment="leading",
+            ),
+            selectionStack=dict(
+                distribution="fillEqually",
+                alignment="leading",
+            ),
+            cursorColorWell=dict(
+                color=self.cursorColor,
+                width=80,
+            ),
+            selectionColorWell=dict(
+                color=self.selectionColor,
+                width=80,
+
+            ),
             textFormattingButton=dict(
                 selected=CASES.index(self.case)
             ),
@@ -866,6 +938,30 @@ class Spaceport(Subscriber, ezui.WindowController):
         self.styleWindowButtons(self.viewSettingsWindow)
 
         if open: self.viewSettingsWindow.open()
+
+
+    def focusRingButtonCallback(self, sender:Any) -> None:
+        self.drawFocusRing = self.viewSettingsWindow.getItemValue("focusRingButton")
+        self.displaySettingsButtonCallback(None, previewState=self.typing)
+
+
+    def blinkingCursorButtonCallback(self, sender:Any) -> None:
+        for item in self.collectionView.get():
+            item.cursorBlinking = sender.get()
+            
+
+    def cursorColorWellCallback(self, sender:Any) -> None:
+        color = sender.get()
+        for item in self.collectionView.get():
+            item.cursorColor = color
+        self.cursorColor = color
+
+
+    def selectionColorWellCallback(self, sender:Any) -> None:
+        color = sender.get()
+        for item in self.collectionView.get():
+            item.selectionColor = color
+        self.selectionColor = color
 
 
     def rightMouseDown(self, view, event) -> None:
@@ -1943,7 +2039,8 @@ class Spaceport(Subscriber, ezui.WindowController):
         if previewState:
             showMetrics = showLabel = showKerning = showBeam = showStroke = False
             showFill = True
-            borderColor = AppKit.NSColor.keyboardFocusIndicatorColor().colorWithAlphaComponent_(1).CGColor()
+            if self.drawFocusRing:
+                borderColor = AppKit.NSColor.keyboardFocusIndicatorColor().colorWithAlphaComponent_(1).CGColor()
 
         nsScrollView = self.collectionView.getNSScrollView()
         nsScrollView.setWantsLayer_(True)
@@ -2219,15 +2316,15 @@ class Spaceport(Subscriber, ezui.WindowController):
 
                 self.beamController(item)
 
+            cursorWidth = 10
             typingIndicatorLayer = glyphContainer.getSublayer("typingIndicator")
             with typingIndicatorLayer.propertyGroup():
-
                 typingIndicatorLayer.appendRectangleSublayer(
                     name="typingIndicatorDrawing",
-                    position=(15,font.info.descender),
-                    size=(30, abs(font.info.descender) + font.info.ascender),
-                    fillColor=(IBEAM_COLOR),
-                    cornerRadius=15,
+                    position=(-cursorWidth,font.info.descender),
+                    size=(cursorWidth*2, abs(font.info.descender) + font.info.ascender),
+                    fillColor=(self.cursorColor),
+                    cornerRadius=cursorWidth,
                 )
             typingIndicatorLayer.addSublayerSkewTransformation((-skewAngle))
             typingIndicatorLayer.setVisible(False)
