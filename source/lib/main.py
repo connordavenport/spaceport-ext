@@ -2226,14 +2226,14 @@ class Spaceport(Subscriber, ezui.WindowController):
 
                     selectionIndicatorLayer.appendRectangleSublayer(
                         name="selectionIndicatorDrawing",
-                        position=(-30,font.info.descender),
-                        size=(glyph.width+60, abs(font.info.descender) + font.info.ascender),
+                        position=(0,font.info.descender),
+                        size=(glyph.width, abs(font.info.descender) + font.info.ascender),
                         fillColor=self.selectionColor,
-                        cornerRadius=50,
+                        # cornerRadius=50,
                     )
 
                     # # we need to find a way to mitigate the overlapping alpha colors
-                    # ciFilter = AppKit.CIFilter.filterWithName_("CISourceAtopCompositing")
+                    # ciFilter = AppKit.CIFilter.filterWithName_("CIColorBlendMode")
                     # ciFilter.setDefaults()
 
                     # selectionIndicatorLayer.setCompositingMode(ciFilter)
