@@ -113,9 +113,6 @@ ZOOM_OUT_FACTOR:float = getDefault("zoomOutFactor",1.15)
 
 DESIGNSPACE_WIDTH = 300
 
-DETACH_DATA:dict[str:int] = dict(width="fill",height=20, gravity="trailing")
-DETACH_STACK:str          = "*HorizontalStack    @detachStack"
-
 MATRIX_POS:tuple[int,int,int,int] = (0, -48, 0, 48)
 
 CASES:list[str] = ["lower", "title", "upper", "default"]
@@ -382,15 +379,15 @@ class MerzCollectionViewRGlyphItem(merz.collectionView.MerzCollectionViewItem):
         layer.setVisible(value)
         if self._isTyping:
             sublayer = layer.getSublayer("typingIndicatorDrawing")
-            sublayer.setFillColor(self.cursorColor)
+            sublayer.setStrokeColor(self.cursorColor)
             with sublayer.propertyGroup(
                 duration=.5,
                 repeatCount="loop",
                 reverse=True,
                 timing="easeInEaseOut",
             ):
-                alpha = .1 if self.cursorBlinking else 1
-                sublayer.setFillColor((*self.cursorColor[0:3], alpha))
+                alpha = .1 if self.cursorBlinking else self.cursorColor[-1]
+                sublayer.setStrokeColor((*self.cursorColor[0:3], alpha))
                 
     typing = property(getTypingItem, setTypingItem)
 
@@ -764,6 +761,9 @@ class Spaceport(Subscriber, ezui.WindowController):
         self.invertColorsButtonCallback(self.viewSettingsWindow.getItem("invertColorsButton"))
 
         viewPrefs = getExtensionDefault(EXTENSION_KEY + ".view_prefs", fallback=self.viewSettingsWindow.getItemValues())
+        self.cursorColor = viewPrefs.get("cursorColorWell", CURSOR_COLOR)
+        self.selectionColor = viewPrefs.get("selectionColorWell", SELECTION_COLOR)
+
         try: self.viewSettingsWindow.setItemValues(viewPrefs)
         except (AttributeError, KeyError): pass
 
@@ -805,51 +805,53 @@ class Spaceport(Subscriber, ezui.WindowController):
 
     def buildSettingsPopover(self, open:bool=False) -> None:
         self.detached = False
-        content = DETACH_STACK
-        content += """
-        > ({arrow.up.right.circle})                                   @detachSettingsButton
+        content = """
+        *HorizontalStack                                                @detachStack
+        > ({arrow.up.right.circle})                                     @detachSettingsButton
 
-        [X] Multiline                                                 @multilineButton
-        [ ] Show Label                                                @showLabelButton
-        [ ] Show Kerning                                              @showKerningButton
-        [X] Show Metrics                                              @showMetricsButton
-        [ ] Show Control Glyphs                                       @showControlGlyphsButton
-        -----
-        [X] Show Space Matrix                                         @showSpaceMatrixButton
-        * HorizontalStack
-        > ({arrow.trianglehead.swap})                                 @moveSpaceMatrixButton
-        > Matrix Position
-        Beam:
-        * HorizontalStack
-        > [X]                                                         @showBeamButton
-        > --X------                                                   @beamPositionSlider
-        -----
-        Invert Colors:
-        ( {circle.dashed} | {circle.fill} )                           @invertColorsButton
-        Glyph Drawing Options:
-        (( Fill | Stroke ))                                           @displaySettingsButton
-        -----
-        Sorting Order:
-        ( Fonts | Line | Glyph )                                      @sortingButton
-        -----
-        Text Formatting:
-        ( {characters.lowercase} | {textformat.characters} | {characters.uppercase} | None ) @textFormattingButton
-        -----
-        Horizontal Text Alignment:
-        ( {text.alignleft} | {text.aligncenter} | {text.alignright} ) @horzAlignmentSegmentButton
-        Vertical Text Alignment (BETA):
-        ( {align.vertical.top} | {align.vertical.center} | {align.vertical.bottom} ) @vertAlignmentSegmentButton
-        -----
-        [ ] Blinking Cursor                                           @blinkingCursorButton
-        * HorizontalStack                                             @cursorStack
-        > Cursor Color: 
-        > * ColorWell                                                 @cursorColorWell
+        * Box                                                           @displaySettingsBox = VerticalStack
+        > [X] Multiline                                                 @multilineButton
+        > [ ] Show Label                                                @showLabelButton
+        > [ ] Show Kerning                                              @showKerningButton
+        > [X] Show Metrics                                              @showMetricsButton
+        > [ ] Show Control Glyphs                                       @showControlGlyphsButton
 
-        [ ] Focus Ring                                                @focusRingButton
+        * Box                                                           @matrixBox = VerticalStack
+        > [X] Show Space Matrix                                         @showSpaceMatrixButton
+        > * HorizontalStack
+        >> ({arrow.trianglehead.swap})                                  @moveSpaceMatrixButton
+        >> Matrix Position
+        > Beam:
+        > * HorizontalStack
+        >> [X]                                                          @showBeamButton
+        >> --X------                                                    @beamPositionSlider
+        * Box                                                           @colorsBox = VerticalStack
+        > Invert Colors:
+        > ( {circle.dashed} | {circle.fill} )                           @invertColorsButton
+        > Glyph Drawing Options:
+        > (( Fill | Stroke ))                                           @displaySettingsButton
+        
+        * Box                                                           @textLayoutBox = VerticalStack
+        > Sorting Order:
+        > ( Fonts | Line | Glyph )                                      @sortingButton
+        > -----
+        > Text Formatting:
+        > ( {characters.lowercase} | {textformat.characters} | {characters.uppercase} | None ) @textFormattingButton
+        > -----
+        > Horizontal Text Alignment:
+        > ( {text.alignleft} | {text.aligncenter} | {text.alignright} ) @horzAlignmentSegmentButton
+        > Vertical Text Alignment (BETA):
+        > ( {align.vertical.top} | {align.vertical.center} | {align.vertical.bottom} ) @vertAlignmentSegmentButton
 
-        * HorizontalStack                                             @selectionStack
-        > Selection Color: 
-        > * ColorWell                                                 @selectionColorWell
+        * Box                                                           @cursorBox = VerticalStack
+        > [ ] Blinking Cursor                                           @blinkingCursorButton
+        > * HorizontalStack                                             @cursorStack
+        >> Cursor Color: 
+        >> * ColorWell                                                  @cursorColorWell
+        > [ ] Focus Ring                                                @focusRingButton
+        > * HorizontalStack                                             @selectionStack
+        >> Selection Color: 
+        >> * ColorWell                                                  @selectionColorWell
 
         """
 
@@ -875,16 +877,20 @@ class Spaceport(Subscriber, ezui.WindowController):
             selectionColorWell=dict(
                 color=self.selectionColor,
                 width=80,
-
             ),
             textFormattingButton=dict(
                 selected=CASES.index(self.case)
             ),
-            detachSettingsButton=DETACH_DATA,
+            detachSettingsButton=dict(
+                width="fill",
+                height=20,
+                gravity="trailing"
+            ),
             showBeamButton=dict(
                 value=self.showBeam,
             ),
             beamPositionSlider=dict(
+                width=120,
                 minValue=0,
                 maxValue=self.upm,
                 value=self.beamPosition
@@ -928,7 +934,6 @@ class Spaceport(Subscriber, ezui.WindowController):
             controller=self
         )
         self.viewSettingsWindow.getItem("showKerningButton").show(False)
-
         # disable while we work on the functions
         self.viewSettingsWindow.getItem("sortingButton").enable(False)
         self.viewSettingsWindow.getItem("showControlGlyphsButton").enable(False)
@@ -2096,6 +2101,8 @@ class Spaceport(Subscriber, ezui.WindowController):
         skewAngle = kwargs.get("skewAngle")
         off = kwargs.get("italicOffset")
         location = kwargs.get("location", {})
+        cursorColor = kwargs.get("cursorColor", self.cursorColor)
+        selectionColor = kwargs.get("selectionColor", self.selectionColor)
         # location = {_l[0]:_l[1] for _l in location}
 
         item = MerzCollectionViewRGlyphItem(
@@ -2109,6 +2116,8 @@ class Spaceport(Subscriber, ezui.WindowController):
             italicOffset=off,
             scaler=(self.upm/1000),
             location=location,
+            cursorColor=cursorColor,
+            selectionColor=selectionColor,
         )
 
         item.setHeight(self.upm)
@@ -2116,6 +2125,10 @@ class Spaceport(Subscriber, ezui.WindowController):
         glyphContainer = merz.Base()
         item.appendLayer("glyphContainer", glyphContainer)
 
+        glyphContainer.appendBaseSublayer(
+            name="selectionIndicator",
+        )
+        
         glyphContainer.appendBaseSublayer(
             name="descriptorIndicator",
             visible=True,
@@ -2153,9 +2166,6 @@ class Spaceport(Subscriber, ezui.WindowController):
         #     visible=True,
         # )
 
-        glyphContainer.appendBaseSublayer(
-            name="selectionIndicator",
-        )
         glyphContainer.appendBaseSublayer(
             name="typingIndicator",
         )
@@ -2209,11 +2219,34 @@ class Spaceport(Subscriber, ezui.WindowController):
                     )
                 descriptorIndicatorLayer.setVisible(self.showLabel)
 
-            glyphMetricsLayer = glyphContainer.getSublayer("glyphMetrics")
-
-            depth = -75
-
             if name != "NULL":
+
+                selectionIndicatorLayer = glyphContainer.getSublayer("selectionIndicator")
+                with selectionIndicatorLayer.propertyGroup():
+
+                    selectionIndicatorLayer.appendRectangleSublayer(
+                        name="selectionIndicatorDrawing",
+                        position=(-30,font.info.descender),
+                        size=(glyph.width+60, abs(font.info.descender) + font.info.ascender),
+                        fillColor=self.selectionColor,
+                        cornerRadius=50,
+                    )
+
+                    # # we need to find a way to mitigate the overlapping alpha colors
+                    # ciFilter = AppKit.CIFilter.filterWithName_("CISourceAtopCompositing")
+                    # ciFilter.setDefaults()
+
+                    # selectionIndicatorLayer.setCompositingMode(ciFilter)
+                    selectionIndicatorLayer.addSublayerSkewTransformation((-skewAngle))
+
+                    if item in self.selectedItems:
+                        selectionIndicatorLayer.setVisible(True)
+                    else:
+                        selectionIndicatorLayer.setVisible(False)
+                
+                glyphMetricsLayer = glyphContainer.getSublayer("glyphMetrics")
+                depth = -75
+                
                 with glyphMetricsLayer.propertyGroup():
                     for side in ["left", "right"]:
                         if side == "left":
@@ -2287,22 +2320,6 @@ class Spaceport(Subscriber, ezui.WindowController):
                     else:
                         kernIndicatorLayer.setVisible(False)
 
-                selectionIndicatorLayer = glyphContainer.getSublayer("selectionIndicator")
-                with selectionIndicatorLayer.propertyGroup():
-
-                    selectionIndicatorLayer.appendRectangleSublayer(
-                        name="selectionIndicatorDrawing",
-                        position=(0,font.info.descender),
-                        size=(glyph.width, abs(font.info.descender) + font.info.ascender),
-                        fillColor=(SELECTION_COLOR),
-                    )
-                    selectionIndicatorLayer.addSublayerSkewTransformation((-skewAngle))
-
-                    if item in self.selectedItems:
-                        selectionIndicatorLayer.setVisible(True)
-                    else:
-                        selectionIndicatorLayer.setVisible(False)
-
                 glyphFillLayer = glyphContainer.getSublayer("glyphFill")
                 with glyphFillLayer.propertyGroup():
                     glyphFillLayer.setPath(glyph.getRepresentation("merz.CGPath"))
@@ -2316,16 +2333,39 @@ class Spaceport(Subscriber, ezui.WindowController):
 
                 self.beamController(item)
 
-            cursorWidth = 10
+            cursorWidth = 2
             typingIndicatorLayer = glyphContainer.getSublayer("typingIndicator")
             with typingIndicatorLayer.propertyGroup():
-                typingIndicatorLayer.appendRectangleSublayer(
+                # typingIndicatorLayer.appendRectangleSublayer(
+                #     name="typingIndicatorDrawing",
+                #     position=(-cursorWidth,font.info.descender),
+                #     size=(cursorWidth*2, abs(font.info.descender) + font.info.ascender),
+                #     fillColor=(self.cursorColor),
+                #     cornerRadius=cursorWidth,
+                # )
+                cursor = typingIndicatorLayer.appendLineSublayer(
                     name="typingIndicatorDrawing",
-                    position=(-cursorWidth,font.info.descender),
-                    size=(cursorWidth*2, abs(font.info.descender) + font.info.ascender),
-                    fillColor=(self.cursorColor),
-                    cornerRadius=cursorWidth,
+                    startPoint=(0, font.info.descender),
+                    endPoint=(0, font.info.ascender),
+                    strokeWidth=cursorWidth,
+                    strokeColor=self.cursorColor,
+                    strokeCap="round"
                 )
+                # cursor.setStartSymbol(
+                #     dict(
+                #         name="oval",
+                #         size=(cursorWidth*4, cursorWidth*4),
+                #         fillColor=self.cursorColor,
+                #     )
+                # )
+                # cursor.setEndSymbol(
+                #     dict(
+                #         name="oval",
+                #         size=(cursorWidth*4, cursorWidth*4),
+                #         fillColor=self.cursorColor,
+                #     )
+                # )
+                
             typingIndicatorLayer.addSublayerSkewTransformation((-skewAngle))
             typingIndicatorLayer.setVisible(False)
 
@@ -2544,9 +2584,11 @@ class Spaceport(Subscriber, ezui.WindowController):
                     items.append(item)
 
                 # make an empty item so we can type before and after lines
+                tg = RGlyph()
+                tg.width = 100
                 null = self.buildItem(
                     name="NULL",
-                    glyph=RGlyph(),
+                    glyph=tg,
                     font=font,
                     index=index+1,
                     onDisk=False,
@@ -3001,18 +3043,16 @@ class Spaceport(Subscriber, ezui.WindowController):
                     index = self.getMergedIndexFromRawIndex(self.typingIndex)
                     if hit.font == self.typingFont:
                         selectionRange = sorted([hit.index, index])
-                        # selectionRange[-1] += 1
 
-                        if hit.index == len(self.glyphs) - 1:
-                            selectionRange[-1] += 1
-
+                        reset = False
                         for ii in self.collectionView.get():
                             ii.selected = False
-                            ii.typing = False
                             if ii.font == hit.font:
                                 if ii.index in list(range(*selectionRange)):
-                                    ii.selected = True
-
+                                    reset = ii.selected = True
+                                    #ii.typing = False
+                            if reset:
+                                ii.typing = False
 
             else:
                 if self.adjustingBeamPosition:
@@ -3221,8 +3261,10 @@ class Spaceport(Subscriber, ezui.WindowController):
                 if char.lower() == "a":
                     for ii in self.collectionView.get():
                         ii.selected = False
-                        if ii.font == self.typingFont:
+                        if ii.font == self.typingFont and ii.name != "NULL":
                             ii.selected = True
+                        if ii.font == self.typingFont:
+                            ii.typing = False
                     return
                     
                 if char.lower() == "v":
