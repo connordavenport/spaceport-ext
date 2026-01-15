@@ -544,6 +544,8 @@ class Spaceport(Subscriber, ezui.WindowController):
         self.typing:bool   = False
         self.detached:bool = False
 
+        self.kerning:bool  = False
+
         self.typingIndex:int|None        = None
         self.typingFont:DoodleFont|None  = None
 
@@ -614,11 +616,10 @@ class Spaceport(Subscriber, ezui.WindowController):
                 ),
                 # dict(
                 #     identifier="kerning",
-                #     image=ezui.makeImage(imagePath=os.path.join(RESOURCES_f"{PATH, KERNING}.svg"), template=True),
+                #     image=ezui.makeImage(imagePath=os.path.join(RESOURCES_PATH, f"{KERNING}.svg"), template=True),
                 #     text="Kerning",
                 #     template=True,
                 # ),
-
                 dict(
                     identifier="opentype",
                     image=ezui.makeImage(imagePath=os.path.join(RESOURCES_PATH, f"{OPENTYPE}.svg"), template=True),
@@ -792,7 +793,7 @@ class Spaceport(Subscriber, ezui.WindowController):
         self.controlsStackCallback(None)
         self.displaySettingsButtonCallback(None)
         self.showMetricsButtonCallback(None)
-        #self.showKerningButtonCallback(None)
+        self.showKerningButtonCallback(None)
         self.textFieldCallback(None)
 
         if not self.fonts:
@@ -2173,7 +2174,7 @@ class Spaceport(Subscriber, ezui.WindowController):
             name="kernIndicator",
             position=(0, 0),
             size=(0, 0),
-            cornerRadius=3,
+            # cornerRadius=3,
             backgroundColor=(1,0,0,.3),
             visible=True
         )
@@ -2220,29 +2221,6 @@ class Spaceport(Subscriber, ezui.WindowController):
                 descriptorIndicatorLayer.setVisible(self.showLabel)
 
             if name != "NULL":
-
-                selectionIndicatorLayer = glyphContainer.getSublayer("selectionIndicator")
-                with selectionIndicatorLayer.propertyGroup():
-
-                    selectionIndicatorLayer.appendRectangleSublayer(
-                        name="selectionIndicatorDrawing",
-                        position=(0,font.info.descender),
-                        size=(glyph.width, abs(font.info.descender) + font.info.ascender),
-                        fillColor=self.selectionColor,
-                        # cornerRadius=50,
-                    )
-
-                    # # we need to find a way to mitigate the overlapping alpha colors
-                    # ciFilter = AppKit.CIFilter.filterWithName_("CIColorBlendMode")
-                    # ciFilter.setDefaults()
-
-                    # selectionIndicatorLayer.setCompositingMode(ciFilter)
-                    selectionIndicatorLayer.addSublayerSkewTransformation((-skewAngle))
-
-                    if item in self.selectedItems:
-                        selectionIndicatorLayer.setVisible(True)
-                    else:
-                        selectionIndicatorLayer.setVisible(False)
                 
                 glyphMetricsLayer = glyphContainer.getSublayer("glyphMetrics")
                 depth = -75
@@ -2292,33 +2270,67 @@ class Spaceport(Subscriber, ezui.WindowController):
 
                     kern = 0
                     try:
-                        nextGlyph = self.glyphs[index+1]
-                        kern = font.kerning.find((glyph.name, nextGlyph))
+                        prevGlyph = self.glyphs[index-1]
+                        kern = font.kerning.find((prevGlyph, glyph.name))
                     except IndexError:
                         kern = 0
                     if not self.showKerning:
                         kern = 0
 
-                    if kern:
-                        item.setXAdvance(kern)
-                        kernIndicatorLayer.setVisible(True)
+
+                    if kern and self.showKerning:
+                        #kernIndicatorLayer.setVisible(True)
 
                         kernColor = POS_KERN_COLOR if kern > 0 else NEG_KERN_COLOR
+                        x = -kern if kern > 0 else 0
+                        
                         kernIndicatorLayer.appendTextLineSublayer(
+                            name="kernIndicatorTextLayer",
                             text=str(kern),
                             pointSize=7,
-                            position=((abs(kern)/2), 0),
+                            position=((x/2), font.info.descender-120),
                             fillColor=(*kernColor,1),
                             horizontalAlignment="center",
-                            )
+                        )
+                        
+                        shapeLayer = kernIndicatorLayer.appendRectangleSublayer(
+                            name="kernIndicatorShapeLayer",
+                            size=(kern, 40),
+                            position=(x, font.info.descender-100),
+                            fillColor=(*kernColor, .2),
+                        )
+                        kernIndicatorLayer.addSkewTransformation(-skewAngle)
 
-                        x = (glyph.width+kern) if kern < 0 else glyph.width
-                        kernIndicatorLayer.setBackgroundColor((*kernColor, .2))
-                        kernIndicatorLayer.setSize((abs(kern), abs(font.info.descender) + font.info.ascender))
-                        kernIndicatorLayer.setPosition((x, font.info.descender))
-                        kernIndicatorLayer.setVisible(self.showKerning)
+                        # TURN THIS OFF LATER
+                        kernIndicatorLayer.setVisible(False)
+
                     else:
                         kernIndicatorLayer.setVisible(False)
+
+                selectionIndicatorLayer = glyphContainer.getSublayer("selectionIndicator")
+                with selectionIndicatorLayer.propertyGroup():
+                    
+                    selectionIndicatorLayer.appendRectangleSublayer(
+                        name="selectionIndicatorDrawing",
+                        position=(0,font.info.descender),
+                        size=(glyph.width, abs(font.info.descender) + font.info.ascender),
+                        fillColor=self.selectionColor,
+                        # cornerRadius=50,
+                        # zPosition=-1000,
+                    )
+
+                    # # we need to find a way to mitigate the overlapping alpha colors
+                    # ciFilter = AppKit.CIFilter.filterWithName_("CIColorBlendMode")
+                    # ciFilter.setDefaults()
+
+                    # selectionIndicatorLayer.setCompositingMode(ciFilter)
+                    selectionIndicatorLayer.addSublayerSkewTransformation((-skewAngle))
+
+                    if item in self.selectedItems:
+                        selectionIndicatorLayer.setVisible(True)
+                    else:
+                        selectionIndicatorLayer.setVisible(False)
+
 
                 glyphFillLayer = glyphContainer.getSublayer("glyphFill")
                 with glyphFillLayer.propertyGroup():
@@ -2333,7 +2345,8 @@ class Spaceport(Subscriber, ezui.WindowController):
 
                 self.beamController(item)
 
-            cursorWidth = 2
+            cursorWidth = 1
+            triOff = 40
             typingIndicatorLayer = glyphContainer.getSublayer("typingIndicator")
             with typingIndicatorLayer.propertyGroup():
                 # typingIndicatorLayer.appendRectangleSublayer(
@@ -2351,19 +2364,33 @@ class Spaceport(Subscriber, ezui.WindowController):
                     strokeColor=self.cursorColor,
                     strokeCap="round"
                 )
-                # cursor.setStartSymbol(
-                #     dict(
-                #         name="oval",
-                #         size=(cursorWidth*4, cursorWidth*4),
-                #         fillColor=self.cursorColor,
-                #     )
+                # typingIndicatorLayer.appendLineSublayer(
+                #     startPoint=(0, font.info.ascender),
+                #     endPoint=(triOff, font.info.ascender+triOff),
+                #     strokeWidth=cursorWidth,
+                #     strokeColor=self.cursorColor,
+                #     strokeCap="round"
                 # )
-                # cursor.setEndSymbol(
-                #     dict(
-                #         name="oval",
-                #         size=(cursorWidth*4, cursorWidth*4),
-                #         fillColor=self.cursorColor,
-                #     )
+                # typingIndicatorLayer.appendLineSublayer(
+                #     startPoint=(0, font.info.ascender),
+                #     endPoint=(-triOff, font.info.ascender+triOff),
+                #     strokeWidth=cursorWidth,
+                #     strokeColor=self.cursorColor,
+                #     strokeCap="round"
+                # )
+                # typingIndicatorLayer.appendLineSublayer(
+                #     startPoint=(0, font.info.descender),
+                #     endPoint=(triOff, font.info.descender-triOff),
+                #     strokeWidth=cursorWidth,
+                #     strokeColor=self.cursorColor,
+                #     strokeCap="round"
+                # )
+                # typingIndicatorLayer.appendLineSublayer(
+                #     startPoint=(0, font.info.descender),
+                #     endPoint=(-triOff, font.info.descender-triOff),
+                #     strokeWidth=cursorWidth,
+                #     strokeColor=self.cursorColor,
+                #     strokeCap="round"
                 # )
                 
             typingIndicatorLayer.addSublayerSkewTransformation((-skewAngle))
@@ -2467,6 +2494,64 @@ class Spaceport(Subscriber, ezui.WindowController):
             glyphStrokeLayer.addTranslationTransformation((-item.offset, 0), "translate")
             glyphStrokeLayer.setPath(glyph.getRepresentation("merz.CGPath"))
 
+
+            kernIndicatorLayer = glyphContainer.getSublayer("kernIndicator")
+            with kernIndicatorLayer.propertyGroup():
+
+                kern = 0
+                try:
+                    prevGlyph = self.glyphs[item.index-1]
+                    kern = font.kerning.find((prevGlyph, glyph.name))
+                except IndexError: pass
+
+                if item.index > 0:
+                    previous = [ii for ii in self.collectionView.get() if ii.font == item.font and ii.name != "NULL"][item.index - 1]
+                    if previous:
+                        previous.setXAdvance(kern)
+
+                # if nextKern:
+                #     item.setXAdvance(nextKern)
+                # else:
+                #     item.setXAdvance(0)
+
+                if kern and self.showKerning and not self.typing:
+                    #kernIndicatorLayer.setVisible(True)
+                    kernColor = POS_KERN_COLOR if kern > 0 else NEG_KERN_COLOR
+
+                    try:
+                        kernIndicatorLayer.removeSublayer("kernIndicatorTextLayer")
+                    except MerzError: pass
+                    
+                    x = -kern if kern > 0 else 0
+                    kernIndicatorLayer.appendTextLineSublayer(
+                        name="kernIndicatorTextLayer",
+                        text=str(kern),
+                        pointSize=7,
+                        position=((x/2), font.info.descender-120),
+                        fillColor=(*kernColor,1),
+                        horizontalAlignment="center",
+                        )
+
+                    shapeLayer = kernIndicatorLayer.getSublayer("kernIndicatorShapeLayer")
+                    if not shapeLayer:
+                        shapeLayer = kernIndicatorLayer.appendRectangleSublayer(
+                            name="kernIndicatorShapeLayer",
+                            size=(kern, 40),
+                            position=(x, font.info.descender-100),
+                            fillColor=(*kernColor, .2),
+                        )
+                        shapeLayer.addSkewTransformation(-skewAngle)
+                    else:
+                        shapeLayer.setFillColor((*kernColor, .2))
+                        shapeLayer.setSize((kern, 100))
+                        shapeLayer.setPosition((x, font.info.descender-100))
+
+                    # TURN THIS OFF LATER
+                    kernIndicatorLayer.setVisible(True)
+                    
+                else:
+                    kernIndicatorLayer.setVisible(False)
+
             # glyphPointsLayer = glyphContainer.getSublayer("glyphPoints")
             # glyphPointsLayer.clearSublayers()
             # onCurve = 20 * item.scaler
@@ -2487,6 +2572,10 @@ class Spaceport(Subscriber, ezui.WindowController):
 
             self.beamController(item)
 
+            width = glyph.width
+            if self.showKerning:
+                width += nextKern
+                
             selection = glyphContainer.getSublayer("selectionIndicator").getSublayer("selectionIndicatorDrawing")
             selection.setPosition((0,font.info.descender))
             selection.setSize((glyph.width, abs(font.info.descender) + font.info.ascender))
@@ -2527,6 +2616,7 @@ class Spaceport(Subscriber, ezui.WindowController):
                                               ]
                                 if cachedItem:
                                     item = cachedItem[0]
+                                    self.updateItem(item)
                                     if item.name == "NULL":
                                         if self.multiline:
                                             item.setForceBreakAfter(True)
@@ -2604,7 +2694,8 @@ class Spaceport(Subscriber, ezui.WindowController):
 
         items = self.w.getItemValue("collectionView")
         for item in items:
-            self.beamController(item)
+            self.updateItem(item)
+            #self.beamController(item)
 
         self.w.matrix.set(_glyphRecords)
         self.displaySettingsButtonCallback(None, previewState=self.typing)
@@ -2914,7 +3005,7 @@ class Spaceport(Subscriber, ezui.WindowController):
 
     def _getItemAtEvent(self, position:tuple[float,float]=(0.0,0.0)) -> MerzCollectionViewRGlyphItem | None:
         x,y = position
-        if self.typing:
+        if self.typing or self.kerning:
             hits = self.container.findSublayersIntersectedByRect(
                 (x,y-25,200,50),
                 onlyAcceptsHit=True,
@@ -3194,7 +3285,10 @@ class Spaceport(Subscriber, ezui.WindowController):
                     elif char.lower() == "t":
                         self.toggleTypingState()
                         return
-
+                    elif char.lower() == "k":
+                        print("kerning mode not yet implimented")
+                        # self.toggleKerningMode()
+                        return
                     elif char == ";":
                         self.addObjectsCallback(None)
                     elif char == "=":
@@ -3449,6 +3543,11 @@ class Spaceport(Subscriber, ezui.WindowController):
             #self.showSpaceMatrixButtonCallback(not self.typing)
             #self.w.matrix.show(not self.typing)
 
+    def toggleKerningMode(self):
+        if self.fonts:
+            self.kerning = not self.kerning
+            self.displaySettingsButtonCallback(None, previewState=self.kerning)
+            
 
     def setTypingItem(self):
         # set where the typing cursor is
@@ -3463,9 +3562,22 @@ class Spaceport(Subscriber, ezui.WindowController):
                     item.typing = False
 
 
-    def mouseMoved(self, view, event) -> None:
-        pass
-        # print("debug::mouseMoved")
+    # def mouseMoved(self, view, event) -> None:
+    #     if self.kerning:
+    #         event = merz.unpackEvent(event)
+    #         self.start = (x,y) = self._convertLocation(event, view)
+    #         hit = self._getItemAtEvent((x,y))
+    #         if hit:
+    #             if hit.name != "NULL":
+    #                 try:
+    #                     nextName = [ii for ii in self.collectionView.get() if hit.font == ii.font][hit.index-1].name
+    #                 except IndexError:
+    #                     nextName = None
+
+    #                 if nextName:
+    #                     if nextName != "NULL":
+    #                         print(nextName, hit.name)
+
 
 
     def mouseUp(self, view, event) -> None:
@@ -3474,18 +3586,29 @@ class Spaceport(Subscriber, ezui.WindowController):
 
 
     def subscribeToGlyphs(self, coalescer:Coalescer) -> None:
-        glyphs = []
+        objects = []
         for item in list(self.fonts.values()):
+            if item.use:
+                objects.append(item.font.kerning)
             try:
-                glyphs.extend(list(set([item.font[glyph] for glyph in self.glyphs])))
+                objects.extend(list(set([item.font[glyph] for glyph in self.glyphs])))
             except:
                 pass
-        self.setAdjunctObjectsToObserve(glyphs)
+        self.setAdjunctObjectsToObserve(objects)
 
 
     def unsubscribeFromGlyphs(self) -> None:
-        self.clearObservedAdjunctObjects()
+        self.clearObservedAdjunctObjects()  
 
+
+    def adjunctFontKerningDidChange(self, info) -> None:
+        # selectedMatrixItem = self.w.matrix._inputView.getSelected() or RGlyph()
+        items = self.w.getItemValue("collectionView")
+        for item in items:
+            if item.font == info["font"].naked():
+                self.updateItem(item)
+        self.collectionView.set(self.w.getItemValue("collectionView")) # i think that this is the only external-way to reload the view
+        
 
     def adjunctGlyphDidChangeMetrics(self, info) -> None:
         # print(info["glyph"])
