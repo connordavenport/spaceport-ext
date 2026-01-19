@@ -1156,6 +1156,7 @@ class Spaceport(Subscriber, ezui.WindowController):
             self.textFieldCallback(None)
             #self.populateItems()
 
+
     def layersButtonCallback(self, sender:Any) -> None:
         if self.layerFontHit:
             for path, font in self.fonts.items():
@@ -1508,6 +1509,14 @@ class Spaceport(Subscriber, ezui.WindowController):
 
 
     def designspaceSettingsChanged(self, **kwargs) -> None:
+        
+        """
+        to fix, if we need to insert an instance or this function gets called
+        we should first store the .use value to potentially reapply later
+        this might help with adding an instance when not all instances should be 
+        shown in the pre
+        """
+        
         obj = kwargs.get("object", self.operator)
         reset = kwargs.get("reset", False)
 
@@ -1537,7 +1546,7 @@ class Spaceport(Subscriber, ezui.WindowController):
                 if PREVIEW not in self.fonts.keys():
                     # create a temporary instance that we can interpolate on if no fonts are selected
                     temp = internalFontClasses.createFontObject()
-                    temp.info.familyName = PREVIEW
+                    temp.info.familyName   = PREVIEW
                     temp.lib["descriptor"] = "instance"
                     temp.lib["location"]   = obj.findDefault().designLocation
                     obj.makeOneInfo(temp.lib["location"]).extractInfo(temp.info)
@@ -1812,26 +1821,26 @@ class Spaceport(Subscriber, ezui.WindowController):
                     interpolatable.append(axisDescriptor.name)
 
             content += """
-            * HorizontalStack   @axisSelectors
+            * HorizontalStack     @axisSelectors
             """
             content += """
             > x-axis:
-            > ( ...)            @xAxisSelection
+            > ( ...)              @xAxisSelection
             """
             if len(interpolatable) > 1:
                 axes += "y"
                 content += """
                 > y-axis:
-                > ( ...)        @yAxisSelection
+                > ( ...)          @yAxisSelection
             """
 
             content += """
-            * MerzView          @designspaceNav
+            * MerzView            @designspaceNav
 
             # * HorizontalStack
-            # > * Image             @addInstanceImage
+            # > * Image           @addInstanceImage
             
-            (Insert Instance)   @designspaceAddInstance
+            (Add Instance)        @designspaceAddInstance
             """
 
             descriptionData["addInstanceImage"] = dict(
@@ -1884,9 +1893,16 @@ class Spaceport(Subscriber, ezui.WindowController):
 
     def designspaceAddInstanceCallback(self, sender:Any) -> None:
         self.operator.addInstanceDescriptor(
-            designLocation=self.previewLocation
+            designLocation={ax:round(ll,2) for ax,ll in self.previewLocation.items()}
         )
+        newInst = self.operator.instances[-1]
+        newInst.path = newInst.filename
         
+        self.designspaceSettingsChanged(
+                object=self.operator,
+                sources=self.sources,
+                instances=self.instances
+        )
 
     def yAxisSelectionCallback(self, sender:Any) -> None:
         self.yAxis = self.interpolatable[sender.get()]
