@@ -1,3 +1,4 @@
+from inspect import currentframe
 import math
 import os
 import time
@@ -61,8 +62,9 @@ from mojo.UI import GetFile, OpenGlyphWindow, getDefault, splitText
 import subprocess
 from typing import Any, Optional
 from ufoProcessor.ufoOperator import UFOOperator
-from vanilla.vanillaBase import osVersion12_0, osVersionCurrent
+from vanilla.vanillaBase import osVersion12_0, osVersionCurrent, _sizeStyleMap
 from vanilla.vanillaMenuBuilder import VanillaMenuBuilder
+from vanilla import VanillaBaseControl
 
 """
 versioning
@@ -137,6 +139,46 @@ ALL_MODES = "typing spacing kerning".split(" ")
 
 
 PREVIEW = "Preview Location"
+
+
+"""
+FIGURE OUT HOW TO MAKE A PUSHONPUSHOFF BUTTON FOR EZUI
+"""
+# class ButtonTypePushOnPushOff(VanillaBaseControl):
+
+#     nsButtonPushOnPushOff = AppKit.NSButtonTypePushOnPushOff
+#     def __init__(self,
+#             posSize=None,
+#             value=False,
+#             sizeStyle="regular",
+#             callback=None,
+#             identifier=None,
+#             container=None,
+#             controller=None,
+#             descriptionData={}
+#         ):
+
+
+#         self._setupView(self.nsButtonPushOnPushOff, posSize, callback=callback)
+#         self._nsObject.setControlSize_(_sizeStyleMap[sizeStyle])
+#         self.set(value)
+
+#     def getNSButtonPoPo(self):
+#         return self._nsObject
+
+#     def get(self):
+#         """
+#         Get the value of the switch.
+#         """
+#         return self.getNSButtonPoPo().state()
+
+#     def set(self, value):
+#         """
+#         Set the value of the switch.
+#         """
+#         self.getNSButtonPoPo().setState_(value)
+
+
 
 class GlyphFinderPalette(ezui.WindowController):
 
@@ -669,40 +711,29 @@ class Spaceport(Subscriber, ezui.WindowController):
         content = """
         * VerticalStack
         > --------------
-        > * HorizontalStack                 @controlsStack
-        >> ( Typing | Spacing | Kerning)    @modeButton
+        > * HorizontalStack                   @controlsStack
+        >> ( Typing | Spacing | ~ Kerning ~)  @modeButton
         >> -------------
-        >> ---X--- [__](±)                  @pointSizeInputField
-        >> (line height ...)                @lineHeightField
-        >> ({arrow.left.and.right.square})  @zoomToWidth
-        >> ({arrow.up.and.down.square})     @zoomToHeight
+        >> ---X--- [__](±)                    @pointSizeInputField
+        >> (line height ...)                  @lineHeightField
+        >> ({arrow.left.and.right.square})    @zoomToWidth
+        >> ({arrow.up.and.down.square})       @zoomToHeight
         >> ---------------
-        >> ( 􀎥 Unsync Text )               @syncTextButton                    
+        >> ( 􀎥 Unsync Text )                 @syncTextButton                    
         >> ---------------
         >> * HorizontalStack
-        >>> *GlyphSequence                  @leadingTextField
-        >>> *Image                          @trailingLeadingImage
-        >>> *GlyphSequence                  @trailingTextField
+        >>> *GlyphSequence                    @leadingTextField
+        >>> *Image                            @trailingLeadingImage
+        >>> *GlyphSequence                    @trailingTextField
         >> --------------
-        >> ({gearshape})                    @viewOptions
+        >> ({gearshape})                      @viewOptions
         """
         for i in range(4):
             content += f"""
             > --------            @line{i}
             """
         content += """
-        >* HorizontalStack                    
-        >> * MerzCollectionView               @collectionView
-        >> * VerticalStack                    @featureStack
-        >>> GSUB Lookups:
-        >>> (ss01)
-        >>> (ss02)
-        >>> (ss03)
-        >>> (ss04)
-        >>> GPOS Lookups:
-        >>> (kern)
-        >>> (mark)
-        >>> (mkmk)
+        > * MerzCollectionView               @collectionView
         """
         for i in range(4):
             content += f"""
@@ -887,8 +918,6 @@ class Spaceport(Subscriber, ezui.WindowController):
         self.showMetricsButtonCallback(None)
         self.showKerningButtonCallback(None)
         self.textFieldCallback(None)
-        
-        self.w.getItem("featureStack").show(False)
 
         if not self.fonts:
             window = self.buildObjectsSheet()
@@ -911,6 +940,105 @@ class Spaceport(Subscriber, ezui.WindowController):
 
         self.toggleTypingState(mode=currentMode)
         
+
+    def buildFeaturePopover(self) -> None:
+
+        content = """
+        *HorizontalStack                     @detachStack
+        > ({arrow.up.right.circle})          @detachFeaturePanelButton
+
+        > * VerticalStack                    @featureStack
+        >> GSUB Lookups:
+        >> (ss01)                            @ss01Button
+        >> (ss02)                            @ss02Button
+        >> (ss03)                            @ss03Button
+        >> (ss04)                            @ss04Button
+        >> GPOS Lookups:
+        >> (kern)                            @kernButton
+        >> (mark)                            @markButton
+        >> (mkmk)                            @mkmkButton
+        """
+
+        descriptionData = dict(
+            detachFeaturePanelButton=dict(
+                width="fill",
+                height=20,
+                gravity="trailing"
+            ),
+        )
+        self.featurePopover = ezui.EZPopover(
+            size=(100,100),
+            content=content,
+            descriptionData=descriptionData,
+            parent=self.w,
+            # behavior="transient",
+            parentAlignment="right",
+            controller=self
+        )
+
+        """
+        update UI after building
+        """
+        font = AppKit.NSFont.monospacedSystemFontOfSize_weight_(12.0, 0)
+        for item in self.featurePopover.getItems():
+            ii = self.featurePopover.getItem(item)
+            if isinstance(ii, ezui.items.pushButton.PushButton):
+                ii.getNSButton().setFont_(font)
+                ii.getNSButton().setBezelStyle_(AppKit.NSBezelStyleRecessed)
+                ii.getNSButton().setCornerRadius_(5)
+
+        self.featurePopover.open()
+
+
+    # ------------Experimental Feature Button Stuff---------------------
+    # ------------Based on Just vR's FontGoggles UI---------------------
+
+    def styleFeatureButtons(self, button:AppKit.NSButton) -> None:
+
+        currentColor = button.getNSButton().backgroundColor()
+        if currentColor:   
+            try:        
+                r = currentColor.redComponent()
+                g = currentColor.greenComponent()
+                b = currentColor.blueComponent()
+                a = currentColor.alphaComponent()
+                currentColor = (r,g,b,a)
+            except:
+                currentColor = None
+
+        newColor = AppKit.NSColor.redColor()
+        tint = AppKit.NSColor.whiteColor()
+        if currentColor == None:
+            newColor = AppKit.NSColor.greenColor()
+            tint = AppKit.NSColor.blackColor()
+        elif currentColor == (1,0,0,1):
+            newColor = AppKit.NSColor.clearColor()
+
+        txt = button.getTitle()
+        attrTxt = AppKit.NSAttributedString.alloc().initWithString_attributes_(
+            txt, 
+            {
+                AppKit.NSFontAttributeName: AppKit.NSFont.menuBarFontOfSize_(0),
+                AppKit.NSForegroundColorAttributeName : tint
+            }
+        )
+        button.getNSButton().setBackgroundColor_(newColor)
+        button.getNSButton().setBezelStyle_(AppKit.NSBezelStyleRecessed)
+        button.getNSButton().setAttributedTitle_(attrTxt)
+
+    def ss01ButtonCallback(self, sender):
+        self.styleFeatureButtons(sender)
+
+    def ss02ButtonCallback(self, sender):
+        self.styleFeatureButtons(sender)
+
+    def ss03ButtonCallback(self, sender):
+        self.styleFeatureButtons(sender)
+
+    def ss04ButtonCallback(self, sender):
+        self.styleFeatureButtons(sender)
+
+    # ------------------------------------------------------------------
 
     def buildSettingsPopover(self, open:bool=False) -> None:
         self.detached = False
@@ -1808,9 +1936,7 @@ class Spaceport(Subscriber, ezui.WindowController):
 
 
     def opentypeCallback(self, sender:Any) -> None:
-        stack = self.w.getItem("featureStack")
-        v = stack.isVisible()
-        stack.show(not v)
+        self.buildFeaturePopover()
 
 
     def interpolateCallback(self, sender:Any) -> None:
@@ -1912,6 +2038,12 @@ class Spaceport(Subscriber, ezui.WindowController):
             self.interpolationWindow.open()
         else:
             InterpolationWarningWindow(self.w, self)
+
+
+    def detachFeaturePanelButtonCallback(self, sender:Any) -> None:
+        self.featurePopover.getNSPopover().detach()
+        self.featurePopover.getItem("detachFeaturePanelButton").show(False)
+        self.detached = True
 
 
     def detachSettingsButtonCallback(self, sender:Any) -> None:
@@ -3516,8 +3648,8 @@ class Spaceport(Subscriber, ezui.WindowController):
                         self.toggleTypingState()
                         return
                     elif char.lower() == "k":
-                        # print("kerning mode not yet implimented")
-                        self.toggleTypingState(mode="kerning")
+                        print("kerning mode not yet implimented")
+                        # self.toggleTypingState(mode="kerning")
                         return
                     elif char == ";":
                         self.addObjectsCallback(None)
