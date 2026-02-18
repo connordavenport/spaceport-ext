@@ -5,6 +5,7 @@ import time
 
 import AppKit
 import ezui
+from ezui.tools.color import extractColor as NS2RGBA
 import merz
 import yaml
 from collections import UserList
@@ -58,7 +59,7 @@ from mojo.subscriber import (
     registerSubscriberEvent,
     unregisterRoboFontSubscriber,
 )
-from mojo.UI import GetFile, OpenGlyphWindow, getDefault, splitText
+from mojo.UI import GetFile, OpenGlyphWindow, getDefault, splitText, inDarkMode
 import subprocess
 from typing import Any, Optional
 from ufoProcessor.ufoOperator import UFOOperator
@@ -136,48 +137,110 @@ POINT_SIZES:list[str,...]  = ["9", "10", "11", "12", "14", "18", "24", "36", "48
 LINE_HEIGHTS:list[str,...] = ["0.5", "0.6", "0.7", "0.8", "0.9", "1.0", "1.1", "1.2", "1.3", "1.4", "1.5", "1.6", "1.7", "1.8", "1.9", "2.0"]
 
 ALL_MODES = "typing spacing kerning".split(" ")
+REGISTERED = ['aalt', 'abvf', 'abvm', 'abvs', 'afrc', 'akhn', 'apkn', 'blwf', 'blwm', 'blws', 'calt', 'case', 'ccmp', 'cfar', 'chws', 'cjct', 'clig', 'cpct', 'cpsp', 'cswh', 'curs', 'cv01#99', 'c2pc', 'c2sc', 'dist', 'dlig', 'dnom', 'dtls', 'expt', 'falt', 'fin2', 'fin3', 'fina', 'flac', 'frac', 'fwid', 'half', 'haln', 'halt', 'hist', 'hkna', 'hlig', 'hngl', 'hojo', 'hwid', 'init', 'isol', 'ital', 'jalt', 'jp78', 'jp83', 'jp90', 'jp04', 'kern', 'lfbd', 'liga', 'ljmo', 'lnum', 'locl', 'ltra', 'ltrm', 'mark', 'med2', 'medi', 'mgrk', 'mkmk', 'mset', 'nalt', 'nlck', 'nukt', 'numr', 'onum', 'opbd', 'ordn', 'ornm', 'palt', 'pcap', 'pkna', 'pnum', 'pref', 'pres', 'pstf', 'psts', 'pwid', 'qwid', 'rand', 'rclt', 'rkrf', 'rlig', 'rphf', 'rtbd', 'rtla', 'rtlm', 'ruby', 'rvrn', 'salt', 'sinf', 'size', 'smcp', 'smpl', 'ss01#20', 'ssty', 'stch', 'subs', 'sups', 'swsh', 'titl', 'tjmo', 'tnam', 'tnum', 'trad', 'twid', 'unic', 'valt', 'vapk', 'vatu', 'vchw', 'vert', 'vhal', 'vjmo', 'vkna', 'vkrn', 'vpal', 'vrt2', 'vrtr', 'zero']
+FEATURE_TAGS = []
 
+# update feature tags with ranges
+for t in REGISTERED:
+    if "#" in t:
+        pr  = t[:2]
+        s,e = t[2:].split("#")
+        ts  = [f"{pr}{i:0>2}" for i in range(int(s), int(e)+1)]
+        FEATURE_TAGS.extend(ts)
+    else:
+        FEATURE_TAGS.append(t)
 
 PREVIEW = "Preview Location"
 
 
-"""
-FIGURE OUT HOW TO MAKE A PUSHONPUSHOFF BUTTON FOR EZUI
-"""
-# class ButtonTypePushOnPushOff(VanillaBaseControl):
+class FeatureButtonClass(ezui.items.pushButton.PushButton):
 
-#     nsButtonPushOnPushOff = AppKit.NSButtonTypePushOnPushOff
-#     def __init__(self,
-#             posSize=None,
-#             value=False,
-#             sizeStyle="regular",
-#             callback=None,
-#             identifier=None,
-#             container=None,
-#             controller=None,
-#             descriptionData={}
-#         ):
+    states = {
+        "default":AppKit.NSColor.grayColor(),
+        "on":AppKit.NSColor.greenColor(),
+        "off":AppKit.NSColor.redColor(),
+    }
+
+    def __init__(self,
+            tag="",
+            state=list(states.keys())[0],
+            keyEquivalent=None,
+            keyEquivalentModifiers=None,
+            sizeStyle="regular",
+            callback=None,
+            toolTip=None,
+            identifier=None,
+            container=None,
+            controller=None,
+            descriptionData={}
+        ):
+        self._callback = ezui.tools.findCallback(
+            callback=callback,
+            identifier=identifier,
+            container=container,
+            controller=controller
+        )
+
+        self._state = state
+        if tag not in FEATURE_TAGS:
+            if len(tag) < 4:
+                tag = f'{tag:+<4}'.upper()
+            elif len(tag) > 4:
+                tag = tag[0:4].upper()
+            else:
+                tag = "____" # raise error?
+        self._tag = tag
+
+        super().__init__(
+            text=tag,
+            sizeStyle=sizeStyle,
+            callback=self._internalCallback,
+        )
+
+        self.setButtonColor(self.states["default"])
+        self.getNSButton().setFont_(AppKit.NSFont.monospacedSystemFontOfSize_weight_(12.0, 0))
+        self.getNSButton().setBezelStyle_(AppKit.NSBezelStyleRecessed)
+        self.getNSButton().setCornerRadius_(5)
+
+        
+    def setButtonColor(self, color:AppKit.NSColor):
+        textColor = AppKit.NSColor.blackColor() if inDarkMode() else AppKit.NSColor.whiteColor()
+        attrTxt = AppKit.NSAttributedString.alloc().initWithString_attributes_(
+            self._tag, 
+            {
+                AppKit.NSForegroundColorAttributeName : textColor
+            }
+        )
+        self.getNSButton().setBackgroundColor_(color)
+        self.getNSButton().setAttributedTitle_(attrTxt)
 
 
-#         self._setupView(self.nsButtonPushOnPushOff, posSize, callback=callback)
-#         self._nsObject.setControlSize_(_sizeStyleMap[sizeStyle])
-#         self.set(value)
+    def _internalCallback(self, sender):
+        stateKeys = list(self.states.keys())
+        try:
+            self._state = stateKeys[stateKeys.index(self._state)+1] 
+        except IndexError:
+            self._state = stateKeys[0]
+            
+        stateColor = self.states.get(self._state, AppKit.NSColor.clearColor())
+        self.setButtonColor(color=stateColor)
 
-#     def getNSButtonPoPo(self):
-#         return self._nsObject
+        if self._callback is not None:
+            self._callback(self)
 
-#     def get(self):
-#         """
-#         Get the value of the switch.
-#         """
-#         return self.getNSButtonPoPo().state()
+    @property
+    def tag(self):
+        return self._tag
 
-#     def set(self, value):
-#         """
-#         Set the value of the switch.
-#         """
-#         self.getNSButtonPoPo().setState_(value)
+    @property
+    def state(self):
+        return self._state
+    
 
+try: 
+    ezui.tools.classes.registerClass("FeatureToggleButton", FeatureButtonClass)
+except:
+    pass
 
 
 class GlyphFinderPalette(ezui.WindowController):
@@ -949,14 +1012,14 @@ class Spaceport(Subscriber, ezui.WindowController):
 
         > * VerticalStack                    @featureStack
         >> GSUB Lookups:
-        >> (ss01)                            @ss01Button
-        >> (ss02)                            @ss02Button
-        >> (ss03)                            @ss03Button
-        >> (ss04)                            @ss04Button
+        >> *FeatureToggleButton                 @ss01Button
+        >> *FeatureToggleButton                 @ss02Button
+        >> *FeatureToggleButton                 @ss03Button
+        >> *FeatureToggleButton                 @ss04Button
         >> GPOS Lookups:
-        >> (kern)                            @kernButton
-        >> (mark)                            @markButton
-        >> (mkmk)                            @mkmkButton
+        >> *FeatureToggleButton                 @kernButton
+        >> *FeatureToggleButton                 @markButton
+        >> *FeatureToggleButton                 @mkmkButton
         """
 
         descriptionData = dict(
@@ -965,6 +1028,29 @@ class Spaceport(Subscriber, ezui.WindowController):
                 height=20,
                 gravity="trailing"
             ),
+
+            ss01Button=dict(
+                tag="ss01",
+            ),
+            ss02Button=dict(
+                tag="ss02",
+            ),
+            ss03Button=dict(
+                tag="ss03",
+            ),
+            ss04Button=dict(
+                tag="ss04",
+            ),
+            kernButton=dict(
+                tag="kern",
+            ),
+            markButton=dict(
+                tag="mark",
+            ),
+            mkmkButton=dict(
+                tag="mkmk",
+            ),
+
         )
         self.featurePopover = ezui.EZPopover(
             size=(100,100),
@@ -976,67 +1062,20 @@ class Spaceport(Subscriber, ezui.WindowController):
             controller=self
         )
 
-        """
-        update UI after building
-        """
-        font = AppKit.NSFont.monospacedSystemFontOfSize_weight_(12.0, 0)
-        for item in self.featurePopover.getItems():
-            ii = self.featurePopover.getItem(item)
-            if isinstance(ii, ezui.items.pushButton.PushButton):
-                ii.getNSButton().setFont_(font)
-                ii.getNSButton().setBezelStyle_(AppKit.NSBezelStyleRecessed)
-                ii.getNSButton().setCornerRadius_(5)
-
         self.featurePopover.open()
 
 
-    # ------------Experimental Feature Button Stuff---------------------
-    # ------------Based on Just vR's FontGoggles UI---------------------
-
-    def styleFeatureButtons(self, button:AppKit.NSButton) -> None:
-
-        currentColor = button.getNSButton().backgroundColor()
-        if currentColor:   
-            try:        
-                r = currentColor.redComponent()
-                g = currentColor.greenComponent()
-                b = currentColor.blueComponent()
-                a = currentColor.alphaComponent()
-                currentColor = (r,g,b,a)
-            except:
-                currentColor = None
-
-        newColor = AppKit.NSColor.redColor()
-        tint = AppKit.NSColor.whiteColor()
-        if currentColor == None:
-            newColor = AppKit.NSColor.greenColor()
-            tint = AppKit.NSColor.blackColor()
-        elif currentColor == (1,0,0,1):
-            newColor = AppKit.NSColor.clearColor()
-
-        txt = button.getTitle()
-        attrTxt = AppKit.NSAttributedString.alloc().initWithString_attributes_(
-            txt, 
-            {
-                AppKit.NSFontAttributeName: AppKit.NSFont.menuBarFontOfSize_(0),
-                AppKit.NSForegroundColorAttributeName : tint
-            }
-        )
-        button.getNSButton().setBackgroundColor_(newColor)
-        button.getNSButton().setBezelStyle_(AppKit.NSBezelStyleRecessed)
-        button.getNSButton().setAttributedTitle_(attrTxt)
-
     def ss01ButtonCallback(self, sender):
-        self.styleFeatureButtons(sender)
+        print(sender.tag, sender.state)
 
     def ss02ButtonCallback(self, sender):
-        self.styleFeatureButtons(sender)
+        print(sender.tag, sender.state)
 
     def ss03ButtonCallback(self, sender):
-        self.styleFeatureButtons(sender)
+        print(sender.tag, sender.state)
 
     def ss04ButtonCallback(self, sender):
-        self.styleFeatureButtons(sender)
+        print(sender.tag, sender.state)
 
     # ------------------------------------------------------------------
 
@@ -3352,6 +3391,8 @@ class Spaceport(Subscriber, ezui.WindowController):
 
         if self.detached:
             self.viewSettingsWindow.close()
+            self.featurePopover.close()
+            
         setExtensionDefault(EXTENSION_KEY + ".main_prefs", windowSettings)
         self.clearObservedAdjunctObjects()
         self.zoomCoalescer.stop()
