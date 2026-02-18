@@ -124,12 +124,16 @@ TYPING_CURSOR = CreateCursor(
     CURSOR_IMAGE,
     hotSpot=(CURSOR_SIZE/2, CURSOR_SIZE/2)
 )
+
 CURSOR_COLOR:tuple[float,float,float,float] = (1.0, 0.0, 0.0, 1.0)
 SELECTION_COLOR:tuple[float,float,float,float] = (0.0, 0.0, 0.0, 0.1)
 ARROW_CURSOR = AppKit.NSCursor.arrowCursor()
+KERNING_CURSOR = AppKit.NSCursor.resizeLeftRightCursor()
 
 POINT_SIZES:list[str,...]  = ["9", "10", "11", "12", "14", "18", "24", "36", "48", "72", "144", "288"]
 LINE_HEIGHTS:list[str,...] = ["0.5", "0.6", "0.7", "0.8", "0.9", "1.0", "1.1", "1.2", "1.3", "1.4", "1.5", "1.6", "1.7", "1.8", "1.9", "2.0"]
+
+ALL_MODES = "typing spacing kerning".split(" ")
 
 
 PREVIEW = "Preview Location"
@@ -666,14 +670,14 @@ class Spaceport(Subscriber, ezui.WindowController):
         * VerticalStack
         > --------------
         > * HorizontalStack                 @controlsStack
-        >> ( Typing Mode )                  @modeButton
+        >> ( Typing | Spacing | Kerning)    @modeButton
         >> -------------
         >> ---X--- [__](±)                  @pointSizeInputField
         >> (line height ...)                @lineHeightField
         >> ({arrow.left.and.right.square})  @zoomToWidth
         >> ({arrow.up.and.down.square})     @zoomToHeight
         >> ---------------
-        >> ( 􀎥 Unsync Text )                 @syncTextButton                    
+        >> ( 􀎥 Unsync Text )               @syncTextButton                    
         >> ---------------
         >> * HorizontalStack
         >>> *GlyphSequence                  @leadingTextField
@@ -687,7 +691,18 @@ class Spaceport(Subscriber, ezui.WindowController):
             > --------            @line{i}
             """
         content += """
-        >* MerzCollectionView               @collectionView
+        >* HorizontalStack                    
+        >> * MerzCollectionView               @collectionView
+        >> * VerticalStack                    @featureStack
+        >>> GSUB Lookups:
+        >>> (ss01)
+        >>> (ss02)
+        >>> (ss03)
+        >>> (ss04)
+        >>> GPOS Lookups:
+        >>> (kern)
+        >>> (mark)
+        >>> (mkmk)
         """
         for i in range(4):
             content += f"""
@@ -701,9 +716,13 @@ class Spaceport(Subscriber, ezui.WindowController):
             fontToLoad = fontToLoad.naked()
 
         descriptionData = dict(
-
+            
+            featureStack=dict(
+                width=125,    
+            ),
+            
             modeButton=dict(
-                width=100,
+                # width=100,
             ),
 
             syncTextButton=dict(
@@ -797,8 +816,12 @@ class Spaceport(Subscriber, ezui.WindowController):
 
         button = self.w.getItem("lineHeightField").getNSPopUpButton()
         button.setBezelStyle_(AppKit.NSInlineBezelStyle)
-        for name in "syncTextButton modeButton".split(" "):
-            self.w.getItem(name).getNSButton().setBezelStyle_(AppKit.NSInlineBezelStyle)
+        # for name in "syncTextButton modeButton".split(" "):
+
+        self.w.getItem("syncTextButton").enable(self.typing)
+        self.w.getItem("syncTextButton").getNSButton().setBezelStyle_(AppKit.NSInlineBezelStyle)
+        self.w.getItem("modeButton").getNSSegmentedButton().setBordered_(False)
+
 
         ns = self.w.getItem("pointSizeInputField")._textField.getNSTextField()
         ns.setBordered_(False)
@@ -864,6 +887,8 @@ class Spaceport(Subscriber, ezui.WindowController):
         self.showMetricsButtonCallback(None)
         self.showKerningButtonCallback(None)
         self.textFieldCallback(None)
+        
+        self.w.getItem("featureStack").show(False)
 
         if not self.fonts:
             window = self.buildObjectsSheet()
@@ -875,7 +900,16 @@ class Spaceport(Subscriber, ezui.WindowController):
 
 
     def modeButtonCallback(self, sender):
-        self.toggleTypingState()
+        currentMode = ALL_MODES[sender.get()]
+
+        # kerning state is binary
+        # typing state is on if typing otherwise it means spacing
+        
+        # self.kerning = True if currentMode == "kerning" else False
+        # if not self.kerning:
+        #     self.typing = True if currentMode == "typing" else False
+
+        self.toggleTypingState(mode=currentMode)
         
 
     def buildSettingsPopover(self, open:bool=False) -> None:
@@ -1774,7 +1808,9 @@ class Spaceport(Subscriber, ezui.WindowController):
 
 
     def opentypeCallback(self, sender:Any) -> None:
-        pass
+        stack = self.w.getItem("featureStack")
+        v = stack.isVisible()
+        stack.show(not v)
 
 
     def interpolateCallback(self, sender:Any) -> None:
@@ -3480,8 +3516,8 @@ class Spaceport(Subscriber, ezui.WindowController):
                         self.toggleTypingState()
                         return
                     elif char.lower() == "k":
-                        print("kerning mode not yet implimented")
-                        # self.toggleKerningMode()
+                        # print("kerning mode not yet implimented")
+                        self.toggleTypingState(mode="kerning")
                         return
                     elif char == ";":
                         self.addObjectsCallback(None)
@@ -3743,14 +3779,37 @@ class Spaceport(Subscriber, ezui.WindowController):
         return mergedIndex + offset
 
 
-    def toggleTypingState(self):
-        if self.fonts:
+    def determineMode(self, mode:str|None=None) -> None:
+        self.kerning = False
+        if not mode:
             self.typing = not self.typing
+            if self.typing:
+                mode = "typing"
+            else:
+                mode = "spacing"
+        else:
+            if mode == "typing":
+                self.typing = True
+            elif mode == "spacing":
+                self.typing = False
+            elif mode == "kerning":
+                self.typing = False
+                self.kerning = True
+        return mode
+        
+
+    def toggleTypingState(self, mode:str|None=None) -> None:
+        if self.fonts:
+            mode = self.determineMode(mode)
+
             self.typingFont = list(self.fonts.values())[0].font
             if self.typing:
                 cursor = TYPING_CURSOR
             else:
                 cursor = ARROW_CURSOR
+            if self.kerning:
+                cursor = KERNING_CURSOR
+
             scrollView = self.collectionView.getNSScrollView()
             scrollView.setDocumentCursor_(cursor)
             self.displaySettingsButtonCallback(None, previewState=self.typing)
@@ -3759,17 +3818,12 @@ class Spaceport(Subscriber, ezui.WindowController):
                     self.typingIndex = len(self.holdingGlyphs)-1
                 self.setTypingItem()
 
-            title = "Spacing Mode" if self.typing else "Typing Mode"
-            self.w.getItem("modeButton").getNSButton().setTitle_(title)
+            self.w.getItem("modeButton").set(ALL_MODES.index(mode))
+            self.w.getItem("syncTextButton").enable(self.typing)
 
             #self.showSpaceMatrixButtonCallback(not self.typing)
             #self.w.matrix.show(not self.typing)
 
-    def toggleKerningMode(self):
-        if self.fonts:
-            self.kerning = not self.kerning
-            self.displaySettingsButtonCallback(None, previewState=self.kerning)
-            
 
     def setTypingItem(self):
         # set where the typing cursor is
