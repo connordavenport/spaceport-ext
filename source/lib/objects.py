@@ -6,6 +6,7 @@ from lib.fontObjects.doodleFont import DoodleFont
 from lib.fontObjects.doodleGlyph import DoodleGlyph
 from lib.fontObjects.doodleLayer import DoodleLayer
 from mojo.roboFont import AllFonts, CurrentFont, RFont, RGlyph, internalFontClasses
+from mojo.UI import inDarkMode
 
 
 class FeatureButtonClass(ezui.items.pushButton.PushButton):

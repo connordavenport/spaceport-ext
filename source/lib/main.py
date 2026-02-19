@@ -59,7 +59,7 @@ from mojo.subscriber import (
     registerSubscriberEvent,
     unregisterRoboFontSubscriber,
 )
-from mojo.UI import GetFile, OpenGlyphWindow, getDefault, splitText, inDarkMode
+from mojo.UI import GetFile, OpenGlyphWindow, getDefault, splitText
 import subprocess
 from typing import Any, Optional
 from ufoProcessor.ufoOperator import UFOOperator
