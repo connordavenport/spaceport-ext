@@ -408,7 +408,7 @@ class Spaceport(Subscriber, ezui.WindowController):
         try: self.w.setItemValues(mainPrefs)
         except (AttributeError, KeyError): pass
 
-        holding = getExtensionDefault(constants.EXTENSION_KEY + ".text", [])
+        holding = getExtensionDefault(constants.EXTENSION_KEY + ".text", "S p a c e P o r t".split(" "))
         if holding:
             self.holdingGlyphs = holding
 
@@ -427,7 +427,7 @@ class Spaceport(Subscriber, ezui.WindowController):
         self.w.open()
 
 
-    def modeButtonCallback(self, sender):
+    def modeButtonCallback(self, sender:Any) -> None:
         currentMode = constants.ALL_MODES[sender.get()]
 
         # kerning state is binary
