@@ -1146,12 +1146,13 @@ class Spaceport(Subscriber, ezui.WindowController):
                 sources = kwargs.get("sources", obj.getFonts())
                 instances = kwargs.get("instances", obj.instances)
                 # remove designspace items
-                fontsDict = list(self.fonts.items())
-                for (_path, _fontItem) in fontsDict:
+                parsing = list(self.fonts.values())
+                for _fontItem in parsing:
                     # if _view:
+                    _path = _fontItem.path
                     if _path in [p.path for (p,_) in self.sources]:
                         del self.fonts[_path]
-                        self._fontFolder[_path] = (_fontItem.use, _fontItem.font)
+                        self._fontFolder[_path] = objects.FontItem(path=_path, use=_fontItem.use, font=_fontItem.font)
 
                 # temporarily disable font previews when changing sources
 
@@ -1282,7 +1283,7 @@ class Spaceport(Subscriber, ezui.WindowController):
     def refreshOrderButtonCallback(self) -> None:
         reordered = [item["path"] for item in self.w.objw.getItemValue("fontTable")]
         if reordered != list(self.fonts.keys()):
-            self.fonts = {item["path"]:(item["use"],self.fonts[item["path"]].font) for item in self.w.objw.getItemValue("fontTable")}
+            #self.fonts = {item["path"]:(item["use"],self.fonts[item["path"]].font) for item in self.w.objw.getItemValue("fontTable")}
             tempDict = {}
             for item in self.w.objw.getItemValue("fontTable"):
                 fontItem = objects.FontItem(path=item["path"], use=item["use"], font=self.fonts[item["path"]].font)
