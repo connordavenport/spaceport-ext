@@ -1079,7 +1079,7 @@ class Spaceport(Subscriber, ezui.WindowController):
         current = self.fonts.keys()
         for f in AllFonts():
             if f.path not in current:
-                self.fonts[f.path] = objects.FontItem(use=False, font=f)
+                self.fonts[f.path] = objects.FontItem(path=f.path, use=False, font=f)
         self.fonts = {fi.path:objects.FontItem(path=fi.path, use=True, font=fi.font) for fi in list(self.fonts.values())}
         self.w.objw.getItem("fontTable").set(dict(use=fi.use,path=fi.path) for fi in list(self.fonts.values()))
         self.populateItems()
@@ -3466,6 +3466,59 @@ class Spaceport(Subscriber, ezui.WindowController):
 
     def unsubscribeFromGlyphs(self) -> None:
         self.clearObservedAdjunctObjects()  
+
+    """
+    why the hell will this not register!?!
+
+    def designspaceEditorDidOpenDesignspace(self, info) -> None:
+        operator = info["designspace"]
+        if operator:
+            self.designspaces[operator.path] = (False,operator)
+
+            try:
+                self.w.objw.getItem("designspaceTable").set(dict(use=use, path=path) for path,(use,__) in self.designspaces.items())
+            except AttributeError:
+                pass # this will raise an error if the objects window is not open
+            self.populateItems()
+
+
+    def designspaceEditorDidCloseDesignspace(self, info) -> None:
+        operator = info["designspace"]
+        if operator:
+            if operator.path in self.designspaces.keys():
+                
+                del self.designspaces[operator.path]
+
+                try:
+                    self.w.objw.getItem("designspaceTable").set(dict(use=use, path=path) for path,(use,__) in self.designspaces.items())
+                except AttributeError:
+                    pass # this will raise an error if the objects window is not open
+                self.populateItems()
+    """
+
+    def fontDocumentDidOpen(self, info) -> None:
+        font = info["font"]
+        if font:
+            self.fonts[font.path] = objects.FontItem(path=font.path, use=False, font=font)
+            
+            try:
+                self.w.objw.getItem("fontTable").set(dict(use=fi.use, path=fi.path) for fi in list(self.fonts.values()))
+            except AttributeError:
+                pass # this will raise an error if the objects window is not open
+            self.populateItems()
+        
+
+    def fontDocumentWillClose(self, info) -> None:
+        font = info["font"]
+        if font.path in self.fonts.keys():
+            del self.fonts[font.path]
+
+            self.fonts = {fi.path:objects.FontItem(path=fi.path, use=fi.use, font=fi.font) for fi in list(self.fonts.values())}
+            try:
+                self.w.objw.getItem("fontTable").set(dict(use=fi.use,path=fi.path) for fi in list(self.fonts.values()))
+            except AttributeError:
+                pass # this will raise an error if the objects window is not open
+            self.populateItems()
 
 
     def adjunctFontKerningDidChange(self, info) -> None:
