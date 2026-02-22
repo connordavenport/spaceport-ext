@@ -784,56 +784,6 @@ class Spaceport(Subscriber, ezui.WindowController):
             self.populateItems()
 
 
-    # designspace editor notifcations
-    designspaceEditorPreviewLocationDidChangeDelay = 0.01
-    def designspaceEditorPreviewLocationDidChange(self, notification) -> None:
-        if self.designspaceController or self.internalPreview:
-            selectedFonts = list(set([i.font for i in self.selectedItems if not i.onDisk]))
-            if len(selectedFonts) == 1:
-                pass
-            elif not selectedFonts:
-                if not self.fonts.get(constants.PREVIEW).use:
-                    self.fontTableEditCallback(None) # turn on preview location
-                # grab out dummy instance
-                # selectedFonts = [list(self.fonts.values())[0][-1]]
-                selectedFonts = [self.fonts.get(constants.PREVIEW).font]
-
-            for item in self.collectionView.get():
-                if item.font == selectedFonts[0]:
-                    self.updateItem(item, updatedLocation=notification["location"])
-        self.collectionView.set(self.w.getItemValue("collectionView")) # i think that this is the only external-way to reload the view
-        self.collectionView._documentView.set(self.w.getItemValue("collectionView"))
-
-
-    def designspaceEditorInstancesDidChangeSelection(self, notification) -> None:
-        if self.designspaceController and self.viewInstances:
-            operator = notification["designspace"]
-            self.instances = notification["selectedItems"]
-            self.designspaceSettingsChanged(
-                    object=operator,
-                    sources=self.sources,
-                    instances=self.instances
-            )
-
-
-    def designspaceEditorSourcesDidChangeSelection(self, notification) -> None:
-        if self.designspaceController and self.viewSources:
-            operator = notification["designspace"]
-            sources = notification["selectedItems"]
-            reformated = []
-            fs = operator.getFonts()
-            locations = [s.designLocation for s in sources]
-            for (ff,ll) in fs:
-                if ll in locations:
-                    reformated.append((ff,ll))
-            self.sources = reformated
-            self.designspaceSettingsChanged(
-                    object=operator,
-                    sources=self.sources,
-                    instances=self.instances
-            )
-
-
     def openSourcesCheckboxCallback(self, sender:Any) -> None:
         self.openSources = sender.get()
 
@@ -1320,7 +1270,7 @@ class Spaceport(Subscriber, ezui.WindowController):
                 holding = getattr(self, f"{newItem}Sort")
                 setattr(self, f"{newItem}Sort", -holding)
 
-        sortedFonts = sorted(self.fonts, key=lambda key: (-self.fonts[key].font.info.openTypeOS2WidthClass * self.widthSort if width else 5, -self.fonts[key].font.info.italicAngle * self.italicSort if italic else 0, self.fonts[key].font.info.openTypeOS2WeightClass * self.weightSort if weight else 400))
+        sortedFonts = sorted(self.fonts, key=lambda key: (-(self.fonts[key].font.info.openTypeOS2WidthClass or 5) * self.widthSort if width else 5, -(self.fonts[key].font.info.italicAngle or 0) * self.italicSort if italic else 0, (self.fonts[key].font.info.openTypeOS2WeightClass or 400 ) * self.weightSort if weight else 400))
         orderedDict = {path:self.fonts.get(path) for path in sortedFonts}
 
         self.sortingSettings = sender.get()
@@ -1693,6 +1643,7 @@ class Spaceport(Subscriber, ezui.WindowController):
                     output += f"/{glyphName} "
         return output
 
+
     def textFieldCallback(self, sender:Any) -> None:
         self.typingCoalescer.restart()
         self.unsubscribeFromGlyphs()
@@ -1761,6 +1712,7 @@ class Spaceport(Subscriber, ezui.WindowController):
             alignment=alignment,
             inset=(inset, inset)
         )
+
 
     def invertColorsButtonCallback(self, sender:Any) -> None:
         self.invert = self.viewSettingsWindow.getItemValue("invertColorsButton")
@@ -2749,13 +2701,16 @@ class Spaceport(Subscriber, ezui.WindowController):
             lineHeight=self.lineHeight
         )
 
+
     def zoomToWidthCallback(self, sender:Any) -> None:
         self.zoomCoalescerManager()
         self._zoomToFit("width")
 
+
     def zoomToHeightCallback(self, sender:Any) -> None:
         self.zoomCoalescerManager()
         self._zoomToFit("height")
+
 
     def _zoomToFit(self, direction:str) -> None:
         if self.multiline:
@@ -3452,6 +3407,90 @@ class Spaceport(Subscriber, ezui.WindowController):
         # print("debug::mouseUp")
 
 
+    # subscriber events 
+
+    # designspace editor notifcations
+    """
+    why the hell will the open/close not register!?!
+    """
+
+    def designspaceEditorDidOpenDesignspace(self, notification) -> None:
+        print(notification)
+        operator = notification["designspace"]
+        if operator:
+            self.designspaces[operator.path] = (False,operator)
+
+            try:
+                self.w.objw.getItem("designspaceTable").set(dict(use=False, path=path) for path in list(self.designspaces.keys()))
+            except AttributeError:
+                pass # this will raise an error if the objects window is not open
+            self.populateItems()
+
+
+    def designspaceEditorDidCloseDesignspace(self, notification) -> None:
+        print(notification)
+        operator = notification["designspace"]
+        if operator:
+            if operator.path in self.designspaces.keys():
+                
+                del self.designspaces[operator.path]
+
+                try:
+                    self.w.objw.getItem("designspaceTable").set(dict(use=use, path=path) for path,(use,__) in self.designspaces.items())
+                except AttributeError:
+                    pass # this will raise an error if the objects window is not open
+                self.populateItems()
+
+
+    designspaceEditorPreviewLocationDidChangeDelay = 0.01
+    def designspaceEditorPreviewLocationDidChange(self, notification) -> None:
+        if self.designspaceController or self.internalPreview:
+            selectedFonts = list(set([i.font for i in self.selectedItems if not i.onDisk]))
+            if len(selectedFonts) == 1:
+                pass
+            elif not selectedFonts:
+                if not self.fonts.get(constants.PREVIEW).use:
+                    self.fontTableEditCallback(None) # turn on preview location
+                # grab out dummy instance
+                # selectedFonts = [list(self.fonts.values())[0][-1]]
+                selectedFonts = [self.fonts.get(constants.PREVIEW).font]
+
+            for item in self.collectionView.get():
+                if item.font == selectedFonts[0]:
+                    self.updateItem(item, updatedLocation=notification["location"])
+        self.collectionView.set(self.w.getItemValue("collectionView")) # i think that this is the only external-way to reload the view
+        self.collectionView._documentView.set(self.w.getItemValue("collectionView"))
+
+
+    def designspaceEditorInstancesDidChangeSelection(self, notification) -> None:
+        if self.designspaceController and self.viewInstances:
+            operator = notification["designspace"]
+            self.instances = notification["selectedItems"]
+            self.designspaceSettingsChanged(
+                    object=operator,
+                    sources=self.sources,
+                    instances=self.instances
+            )
+
+
+    def designspaceEditorSourcesDidChangeSelection(self, notification) -> None:
+        if self.designspaceController and self.viewSources:
+            operator = notification["designspace"]
+            sources = notification["selectedItems"]
+            reformated = []
+            fs = operator.getFonts()
+            locations = [s.designLocation for s in sources]
+            for (ff,ll) in fs:
+                if ll in locations:
+                    reformated.append((ff,ll))
+            self.sources = reformated
+            self.designspaceSettingsChanged(
+                    object=operator,
+                    sources=self.sources,
+                    instances=self.instances
+            )
+
+
     def subscribeToGlyphs(self, coalescer:Coalescer) -> None:
         objects = []
         for item in list(self.fonts.values()):
@@ -3467,34 +3506,6 @@ class Spaceport(Subscriber, ezui.WindowController):
     def unsubscribeFromGlyphs(self) -> None:
         self.clearObservedAdjunctObjects()  
 
-    """
-    why the hell will this not register!?!
-
-    def designspaceEditorDidOpenDesignspace(self, info) -> None:
-        operator = info["designspace"]
-        if operator:
-            self.designspaces[operator.path] = (False,operator)
-
-            try:
-                self.w.objw.getItem("designspaceTable").set(dict(use=use, path=path) for path,(use,__) in self.designspaces.items())
-            except AttributeError:
-                pass # this will raise an error if the objects window is not open
-            self.populateItems()
-
-
-    def designspaceEditorDidCloseDesignspace(self, info) -> None:
-        operator = info["designspace"]
-        if operator:
-            if operator.path in self.designspaces.keys():
-                
-                del self.designspaces[operator.path]
-
-                try:
-                    self.w.objw.getItem("designspaceTable").set(dict(use=use, path=path) for path,(use,__) in self.designspaces.items())
-                except AttributeError:
-                    pass # this will raise an error if the objects window is not open
-                self.populateItems()
-    """
 
     def fontDocumentDidOpen(self, info) -> None:
         font = info["font"]
