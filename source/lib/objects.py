@@ -7,7 +7,9 @@ from lib.fontObjects.doodleGlyph import DoodleGlyph
 from lib.fontObjects.doodleLayer import DoodleLayer
 from mojo.roboFont import AllFonts, CurrentFont, RFont, RGlyph, internalFontClasses
 from mojo.UI import inDarkMode
-
+from fontTools.fontBuilder import FontBuilder
+from typing import BinaryIO
+import io
 
 class FeatureButtonClass(ezui.items.pushButton.PushButton):
 
@@ -127,7 +129,19 @@ class MerzCollectionViewRGlyphItem(merz.collectionView.MerzCollectionViewItem):
         self._cursorColor:tuple[float]    = kwargs.get("cursorColor", constants.CURSOR_COLOR)
         self._cursorBlinking:bool         = kwargs.get("cursorBlinking", False)
 
+        # from FeaturePreview model
+        # self.advanceWidth = 0
+        # self.advanceHeight = 0
+        # if glyph is not None:
+        #     self.advanceWidth = glyph.width
+        #     self.advanceHeight = glyph.height
+        # self.xPlacement = xPlacement
+        # self.yPlacement = yPlacement
+        # self.xAdvance = xAdvance - self.advanceWidth
+        # self.yAdvance = yAdvance - self.advanceHeight
+
         super().__init__(*args, **kwargs)
+
 
     def getName(self) -> str:
         return self._name
@@ -293,13 +307,53 @@ class MerzCollectionViewRGlyphItem(merz.collectionView.MerzCollectionViewItem):
 class FontItem(object):
     # custom item so we can store more attributes with fonts we are using
     def __init__(self, **kwargs) -> None:
-        self._path:str          = kwargs.get("path")
-        self._use:bool          = kwargs.get("use")
-        self._font:DoodleFont   = kwargs.get("font")
+        self._path:str            = kwargs.get("path")
+        self._use:bool            = kwargs.get("use")
+        self._font:DoodleFont     = kwargs.get("font")
         if isinstance(self._font, RFont): self._font = self._font.naked()
-        self._layer:DoodleLayer = kwargs.get("layer", self._font.layers.defaultLayer)
-        self._text:str|None     = None
-        self._localText:bool    = False
+        self._layer:DoodleLayer   = kwargs.get("layer", self._font.layers.defaultLayer)
+        self._text:str|None       = None
+        self._localText:bool      = False
+  
+        # adapted from FeaturePreview
+        self.cmap:dict            = dict()
+        self.reverse_cmap:dict    = dict()
+        self.source:TTFont|None   = None
+        self.binary:BinaryIO|None = None
+
+
+    def compileCMAP(self):
+        # adapted from FeaturePreview
+        font = self._font
+        self.cmap = {uni: names[0] for uni, names in font.unicodeData.items()}
+        # add all glyphs, even the un encoded ones at a high unicode...
+        # see https://github.com/harfbuzz/uharfbuzz/issues/22
+        unicodeOffset = 0x110000
+        unencodedCount = 0
+        for glyph in font:
+            if not glyph.unicodes:
+                self.cmap[unicodeOffset + unencodedCount] = glyph.name
+                unencodedCount += 1
+        self.reverseCMAP = {name: uni for uni, name in self.cmap.items()}
+
+
+    def compileBinaryFont(self):
+        # adapted from FeaturePreview
+        font = self._font
+        glyphOrder = sorted(set(font.glyphOrder) | set(self.cmap.values()))
+
+        ff = FontBuilder(int(round(font.info.unitsPerEm)), isTTF=True)
+        ff.setupGlyphOrder(glyphOrder)
+        if self.cmap:
+            ff.setupCharacterMap(self.cmap)
+        # ff.addOpenTypeFeatures(self._getFeatureText(font))
+        ff.setupHorizontalMetrics({gn: (int(round(font[gn].width)), int(round(font[gn].height))) for gn in glyphOrder})
+        ff.setupHorizontalHeader(ascent=int(round(font.info.ascender)), descent=int(round(font.info.descender)))
+        data = io.BytesIO()
+        ff.save(data)
+        self.source = ff.font
+        self.bin = data.getvalue()
+
 
     def getPath(self) -> str:
         return self._path

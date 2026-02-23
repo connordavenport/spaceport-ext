@@ -67,10 +67,14 @@ from vanilla.vanillaBase import osVersion12_0, osVersionCurrent, _sizeStyleMap
 from vanilla.vanillaMenuBuilder import VanillaMenuBuilder
 from vanilla import VanillaBaseControl
 
+from importlib import reload
 # load internal modules
 import constants
+reload(constants)
 import windows
+reload(windows)
 import objects
+reload(objects)
 
 
 class Spaceport(Subscriber, ezui.WindowController):
