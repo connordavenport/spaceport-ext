@@ -63,7 +63,7 @@ class GlyphFinderPalette(ezui.WindowController):
             else:
                 self.relative.typingIndex += 1
             self.relative.setTypingItem()
-            self.relative.textFieldCallback(None)
+            self.relative.updateCharacterString()
             self.w.close()
 
 

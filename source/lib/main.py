@@ -104,7 +104,9 @@ class Spaceport(Subscriber, ezui.WindowController):
         self.viewInstances:bool          = False
         self.showBeam:bool               = True
         self.designspaceController:bool  = True
-        self.drawFocusRing:bool          = False
+        self.drawFocusRing:bool          = True
+        self.tintedBackground:bool       = False
+        self.splitFontOrdering:bool      = False
 
         self.sortingSettings:list[int]   = []
         self.weightSort:int = 1
@@ -115,6 +117,7 @@ class Spaceport(Subscriber, ezui.WindowController):
         self.previewLocation:dict[str,float] = dict()
 
         self.typing:bool   = False
+        self.split:bool    = False
         self.detached:bool = False
         self.locked:bool   = True
 
@@ -215,7 +218,7 @@ class Spaceport(Subscriber, ezui.WindowController):
         * VerticalStack
         > --------------
         > * HorizontalStack                   @controlsStack
-        >> ( Typing | Spacing | ~ Kerning ~)  @modeButton
+        >> ( Typing | Spacing | ~ Kerning ~ | Split)  @modeButton
         >> -------------
         >> ---X--- [__](±)                    @pointSizeInputField
         >> (line height ...)                  @lineHeightField
@@ -420,7 +423,7 @@ class Spaceport(Subscriber, ezui.WindowController):
         self.displaySettingsButtonCallback(None)
         self.showMetricsButtonCallback(None)
         self.showKerningButtonCallback(None)
-        self.textFieldCallback(None)
+        self.updateCharacterString()
 
         if not self.fonts:
             window = self.buildObjectsSheet()
@@ -441,7 +444,11 @@ class Spaceport(Subscriber, ezui.WindowController):
         # if not self.kerning:
         #     self.typing = True if currentMode == "typing" else False
 
+        # if self.split and currentMode == "typing":
+        #     self.toggleTypingState(mode="spacing")
+
         self.toggleTypingState(mode=currentMode)
+        # self.populate()
         
 
     def buildFeaturePopover(self) -> None:
@@ -546,6 +553,7 @@ class Spaceport(Subscriber, ezui.WindowController):
         >> Cursor Color: 
         >> * ColorWell                                                  @cursorColorWell
         > [ ] Focus Ring                                                @focusRingButton
+        # > [ ] Tinted Typing Background                                  @tintedBackgroundButton
         > * HorizontalStack                                             @selectionStack
         >> Selection Color: 
         >> * ColorWell                                                  @selectionColorWell
@@ -554,6 +562,9 @@ class Spaceport(Subscriber, ezui.WindowController):
 
         descriptionData = dict(
             blinkingCursorButton=dict(
+                value=False
+            ),
+            tintedBackgroundButton=dict(
                 value=False
             ),
             focusRingButton=dict(
@@ -644,6 +655,11 @@ class Spaceport(Subscriber, ezui.WindowController):
 
     def focusRingButtonCallback(self, sender:Any) -> None:
         self.drawFocusRing = self.viewSettingsWindow.getItemValue("focusRingButton")
+        self.displaySettingsButtonCallback(None, previewState=self.typing)
+
+
+    def tintedBackgroundButtonCallback(self, sender:Any) -> None:
+        self.tintedBackground = self.viewSettingsWindow.getItemValue("tintedBackgroundButton")
         self.displaySettingsButtonCallback(None, previewState=self.typing)
 
 
@@ -753,30 +769,22 @@ class Spaceport(Subscriber, ezui.WindowController):
         self.w.getItem("syncTextButton").getNSButton().setTitle_(title)
 
         if self.fonts:
+
+            currentTypingText = next((f.text for f in self.fonts.values() if f.font == self.typingFont and f.localText), self.glyphs)
+
             for path, font in self.fonts.items():
-                if self.locked:
+                if self.locked: # all lines are the same and synced
                     font.localText = False
                     font.text = None
-                else:
+                    self.holdingGlyphs = currentTypingText # reset the glyphs to the current typing field
+
+                else: # all lines are individually controlled
                     font.localText = True
-                    font.text = self.glyphs
+                    font.text = currentTypingText.copy()
+
+                self.fonts[path] = font
                     
-            self.textFieldCallback(None)
-
-
-    def localTextButtonCallback(self, sender:Any) -> None:
-        if self.layerFontHit:
-            for path, font in self.fonts.items():
-                if font.font == self.layerFontHit.font:
-                    if sender.get():
-                        font.localText = True
-                        font.text = self.glyphs
-                    else:
-                        font.localText = False
-                        font.text = None
-
-            self.textFieldCallback(None)
-            #self.populateItems()
+            self.updateCharacterString()
 
 
     def layersButtonCallback(self, sender:Any) -> None:
@@ -785,7 +793,7 @@ class Spaceport(Subscriber, ezui.WindowController):
                 if font.font == self.layerFontHit.font:
                     font.layer = sender.getItems()[sender.get()]
                     self.__cache = [] # clear the cache so we can load new layers
-            self.populateItems()
+            self.populate()
 
 
     def openSourcesCheckboxCallback(self, sender:Any) -> None:
@@ -833,7 +841,7 @@ class Spaceport(Subscriber, ezui.WindowController):
 
     def textFormattingButtonCallback(self, sender:Any) -> None:
         self.case = constants.CASES[sender.get()]
-        self.textFieldCallback(None)
+        self.updateCharacterString()
 
 
     def showSpaceMatrixButtonCallback(self, sender:Any) -> None:
@@ -870,6 +878,7 @@ class Spaceport(Subscriber, ezui.WindowController):
         for name, item in window.getItems().items():
             if isinstance(item, ezui.items.segmentButton.SegmentButton):
                 item.getNSSegmentedButton().setSegmentStyle_(AppKit.NSSegmentStyleRoundRect)
+
 
     def buildObjectsSheet(self) -> None:
 
@@ -1036,7 +1045,7 @@ class Spaceport(Subscriber, ezui.WindowController):
                 self.fonts[f.path] = objects.FontItem(path=f.path, use=False, font=f)
         self.fonts = {fi.path:objects.FontItem(path=fi.path, use=True, font=fi.font) for fi in list(self.fonts.values())}
         self.w.objw.getItem("fontTable").set(dict(use=fi.use,path=fi.path) for fi in list(self.fonts.values()))
-        self.populateItems()
+        self.populate()
 
 
     def fontTableAddRemoveButtonAddCallback(self, sender:Any) -> None:
@@ -1081,14 +1090,12 @@ class Spaceport(Subscriber, ezui.WindowController):
 
 
     def designspaceSettingsChanged(self, **kwargs) -> None:
-        
         """
         to fix, if we need to insert an instance or this function gets called
         we should first store the .use value to potentially reapply later
         this might help with adding an instance when not all instances should be 
         shown in the pre
         """
-        
         obj = kwargs.get("object", self.operator)
         reset = kwargs.get("reset", False)
 
@@ -1169,7 +1176,7 @@ class Spaceport(Subscriber, ezui.WindowController):
             self.w.objw.getItem("fontTable").set(dict(use=fontItem.use,path=fontItem.path) for fontItem in list(self.fonts.values()))
         except AttributeError:
             pass
-        self.populateItems()
+        self.populate()
 
 
     def designspaceTableEditCallback(self, sender:Any) -> None:
@@ -1189,9 +1196,9 @@ class Spaceport(Subscriber, ezui.WindowController):
                                         reset=False if view else True
         )
 
-        self.textFieldCallback(None)
+        self.updateCharacterString()
         #self.w.objw.getItem("fontTable").set(dict(use=use,path=path) for (path, (use, font)) in self.fonts.items())
-        self.populateItems()
+        self.populate()
 
 
     def setMainFont(self, operator=None, setText=False) -> None:
@@ -1243,7 +1250,7 @@ class Spaceport(Subscriber, ezui.WindowController):
                 fontItem = objects.FontItem(path=item["path"], use=item["use"], font=self.fonts[item["path"]].font)
                 tempDict[item["path"]] = fontItem
             self.fonts = tempDict
-            self.populateItems()
+            self.populate()
 
 
     def sortFontListButtonCallback(self, sender:Any) -> None:
@@ -1281,7 +1288,7 @@ class Spaceport(Subscriber, ezui.WindowController):
 
         self.fonts = orderedDict
         self.w.objw.getItem("fontTable").set(dict(use=item.use,path=item.path) for (path, item) in self.fonts.items())
-        self.populateItems()
+        self.populate()
 
 
     def fontTableEditCallback(self, sender:Any) -> None:
@@ -1295,7 +1302,7 @@ class Spaceport(Subscriber, ezui.WindowController):
         item.path = path
         item.use = new
         self.fonts[path] = item
-        self.textFieldCallback(None)
+        self.updateCharacterString()
 
 
     def fontTableCreateItemsForDroppedPathsCallback(self, sender, paths) -> list[dict]:
@@ -1321,7 +1328,7 @@ class Spaceport(Subscriber, ezui.WindowController):
             fontItem = objects.FontItem(path=file, use=True, font=opened)
             self.fonts[file] = fontItem
             self.w.objw.getItem("fontTable").close()
-        self.populateItems()
+        self.populate()
 
 
     def fontTableDeleteCallback(self, sender:Any) -> None:
@@ -1471,12 +1478,26 @@ class Spaceport(Subscriber, ezui.WindowController):
 
 
     def designspaceAddInstanceCallback(self, sender:Any) -> None:
+        """
+        This is not perfect as it takes a second to register the new instance
+        but there isnt much we can do here. very low priority to fix
+        """
         self.operator.addInstanceDescriptor(
             designLocation={ax:round(ll,2) for ax,ll in self.previewLocation.items()}
         )
         newInst = self.operator.instances[-1]
         newInst.path = newInst.filename
         
+        if self.designspaceController and self.viewInstances:
+            for dspw in AllDesignspaceWindows():
+                if dspw.operator == CurrentDesignspace():
+                    selected = dspw.instances.list.getSelection()
+                    selected.append(len(self.operator.instances)-1)
+                    dspw.instances.list.setSelection(selected)
+        else:
+            if self.viewInstances:
+                self.instances = self.operator.instances
+
         self.designspaceSettingsChanged(
                 object=self.operator,
                 sources=self.sources,
@@ -1514,21 +1535,21 @@ class Spaceport(Subscriber, ezui.WindowController):
         infoGlyph = info["glyph"]
         if infoGlyph is not None and self.currentGlyph is not None:
             if infoGlyph.name != self.currentGlyph.name:
-                self.textFieldCallback(None)
+                self.updateCharacterString()
         else:
             if self.currentSelection != CurrentFont().selectedGlyphNames:
                 if constants.SELECTEDGLYPHS_CHAR in self.holdingGlyphs:
-                    self.textFieldCallback(None)
+                    self.updateCharacterString()
         self.currentGlyph = CurrentGlyph()
         self.currentSelection = CurrentFont().selectedGlyphNames
 
 
     def leadingTextFieldCallback(self, sender:Any) -> None:
-        self.textFieldCallback(None)
+        self.updateCharacterString()
 
 
     def trailingTextFieldCallback(self, sender:Any) -> None:
-        self.textFieldCallback(None)
+        self.updateCharacterString()
 
 
     def validateGlyphNames(self, glyphNames:list[str]) -> list[str | None]:
@@ -1648,14 +1669,13 @@ class Spaceport(Subscriber, ezui.WindowController):
         return output
 
 
-    def textFieldCallback(self, sender:Any) -> None:
+    def updateCharacterString(self) -> None:
         self.typingCoalescer.restart()
         self.unsubscribeFromGlyphs()
         if self.font:
 
             # if not hasattr(self, 'rawGlyphList') or not self.rawGlyphList:
                 # self.rawGlyphList = self.holdingGlyphs[:]
-
             ee = [f for f in self.fonts.values() if f.font == self.typingFont and f.localText]
             if ee:
                 ef = ee[0]
@@ -1676,7 +1696,6 @@ class Spaceport(Subscriber, ezui.WindowController):
                         holding.append(name)
                         holding.extend(pst)
 
-
             if ee:
                 ef = ee[0]
                 ef.text = holding
@@ -1685,7 +1704,7 @@ class Spaceport(Subscriber, ezui.WindowController):
             else:
                 self.glyphs = holding
                 
-            self.populateItems()
+            self.populate()
             self.scale = self.w.getItemValue("pointSizeInputField") / self.upm
 
 
@@ -1763,7 +1782,7 @@ class Spaceport(Subscriber, ezui.WindowController):
         self.multiline = self.viewSettingsWindow.getItemValue("multilineButton")
         self.w.getItem("zoomToWidth").enable(self.multiline)
         self.displaySettingsButtonCallback(None)
-        self.populateItems()
+        self.populate()
 
 
     def beamPositionSliderCallback(self, sender:Any) -> None:
@@ -1779,7 +1798,7 @@ class Spaceport(Subscriber, ezui.WindowController):
     def showKerningButtonCallback(self, sender:Any) -> None:
         self.showKerning = self.viewSettingsWindow.getItemValue("showKerningButton")
         self.displaySettingsButtonCallback(None)
-        self.populateItems()
+        self.populate()
 
 
     def displaySettingsButtonCallback(self, sender, onlyBeam=False, previewState=False) -> None:
@@ -1798,17 +1817,33 @@ class Spaceport(Subscriber, ezui.WindowController):
         showFill = self.showFill
         showStroke = self.showStroke
 
+        backgroundColor = self.background
+
         borderColor = AppKit.NSColor.clearColor()
         if previewState:
             showMetrics = showLabel = showKerning = showBeam = showStroke = False
             showFill = True
-            #if self.drawFocusRing:
-            borderColor = AppKit.NSColor.colorWithCalibratedRed_green_blue_alpha_(*self.cursorColor).CGColor()
+            if self.drawFocusRing:
+                borderColor = AppKit.NSColor.colorWithCalibratedRed_green_blue_alpha_(*self.cursorColor).CGColor()
 
+            if self.tintedBackground:
+                def make_rgb_transparent(rgb, bg_rgb, alpha):
+                    # https://stackoverflow.com/questions/33371939/calculate-rgb-equivalent-of-base-colors-with-alpha-of-0-5-over-white-background
+                    return [alpha * c1 + (1 - alpha) * c2
+                            for (c1, c2) in zip(rgb, bg_rgb)]
+
+                blended = make_rgb_transparent(self.cursorColor[:3], (1,1,1), .075)
+                backgroundColor = AppKit.NSColor.colorWithCalibratedRed_green_blue_alpha_(*blended, 1)
+                
+        if self.split:
+            showLabel = False
+
+        self.collectionView.setBackgroundColor(backgroundColor)
+        
         nsScrollView = self.collectionView.getNSScrollView()
         nsScrollView.setWantsLayer_(True)
         nsScrollView.layer().setBorderColor_(borderColor)
-        nsScrollView.layer().setBorderWidth_(1)
+        nsScrollView.layer().setBorderWidth_(2)
         nsScrollView.layer().setCornerRadius_(5)
 
         items = self.w.getItemValue("collectionView")
@@ -2344,11 +2379,89 @@ class Spaceport(Subscriber, ezui.WindowController):
                 if item.skewAngle: selection.addSublayerSkewTransformation((-item.skewAngle))
 
 
+    def populate(self) -> None:
+        if self.split:
+            self.populateSplitOrdering()
+        else:
+            self.populateItems()
+        
+
+    def populateSplitOrdering(self) -> None:
+        """
+        Pretty much a duplicated populateItems() that allows
+        for glyph > font ordering instead of font > glyph 
+        """
+        items = []
+        _glyphRecords = []
+        objects = self.glyphs
+        for index, glyphName in enumerate(objects):
+            for fontIndex, (__,fontItem) in enumerate(self.fonts.items()):
+                font = fontItem.font
+                path = fontItem.path
+                glyph = glyphName # reload glyph as the glyphName during the loop
+
+                if fontItem.use:
+                    index = off = skewAngle = 0
+                    location = font.lib.get("location", {})
+
+                    scaler = font.info.unitsPerEm/1000
+
+                    item = None
+                    if not item:
+                        onDisk = True
+                        skewAngle = getattr(font.info, "italicAngle") or 0
+                        off = font.lib.get("com.typemytype.robofont.italicSlantOffset", 0)
+                        if font.lib.get("descriptor") == "instance":
+                            _temp = glyph
+                            location = font.lib.get("location")
+                            mathGlyph = self.operator.makeOneGlyph(glyph, location, decomposeComponents=True)
+                            if mathGlyph is not None:
+                                glyph = internalFontClasses.createGlyphObject()
+                                mathGlyph.extractGlyph(glyph)
+                                glyph = font.insertGlyph(glyph, name=_temp)
+                                onDisk = False
+                        
+                        else:
+                            # if the UI is open, we can allow editing
+                            if not self.fontIsOpen(font.path):
+                                onDisk = False
+
+                            if glyph in font.keys():
+                                glyph = fontItem.layer[glyph]
+                            
+                        if isinstance(glyph, str):
+                            capScale = font.info.capHeight / 750
+                            glyph = RGlyph()
+                            glyph.readGlyphFromString('<?xml version="1.0" encoding="UTF-8"?><glyph name="IGNORE" format="2"><advance width="893"/><outline><contour><point x="117" y="703" type="curve" smooth="yes"/><point x="79" y="664"/><point x="70" y="612"/><point x="70" y="542" type="curve" smooth="yes"/><point x="70" y="535" type="line"/><point x="127" y="535" type="line"/><point x="127" y="544" type="line" smooth="yes"/><point x="127" y="592"/><point x="133" y="636"/><point x="158" y="661" type="curve" smooth="yes"/><point x="183" y="687"/><point x="228" y="694"/><point x="276" y="694" type="curve" smooth="yes"/><point x="287" y="694" type="line"/><point x="287" y="750" type="line"/><point x="278" y="750" type="line" smooth="yes"/><point x="209" y="750"/><point x="156" y="741"/></contour><contour><point x="338" y="694" type="line"/><point x="554" y="694" type="line"/><point x="554" y="750" type="line"/><point x="338" y="750" type="line"/></contour><contour><point x="776" y="703" type="curve" smooth="yes"/><point x="737" y="742"/><point x="684" y="750"/><point x="613" y="750" type="curve" smooth="yes"/><point x="606" y="750" type="line"/><point x="606" y="694" type="line"/><point x="618" y="694" type="line" smooth="yes"/><point x="665" y="694"/><point x="709" y="686"/><point x="734" y="661" type="curve" smooth="yes"/><point x="760" y="636"/><point x="766" y="593"/><point x="766" y="546" type="curve" smooth="yes"/><point x="766" y="535" type="line"/><point x="823" y="535" type="line"/><point x="823" y="540" type="line" smooth="yes"/><point x="823" y="612"/><point x="814" y="665"/></contour><contour><point x="766" y="266" type="line"/><point x="823" y="266" type="line"/><point x="823" y="483" type="line"/><point x="766" y="483" type="line"/></contour><contour><point x="776" y="47" type="curve" smooth="yes"/><point x="814" y="86"/><point x="823" y="138"/><point x="823" y="210" type="curve" smooth="yes"/><point x="823" y="215" type="line"/><point x="766" y="215" type="line"/><point x="766" y="204" type="line" smooth="yes"/><point x="766" y="158"/><point x="759" y="114"/><point x="734" y="89" type="curve" smooth="yes"/><point x="709" y="64"/><point x="665" y="57"/><point x="618" y="57" type="curve" smooth="yes"/><point x="606" y="57" type="line"/><point x="606" y="0" type="line"/><point x="613" y="0" type="line" smooth="yes"/><point x="684" y="0"/><point x="737" y="9"/></contour><contour><point x="338" y="0" type="line"/><point x="554" y="0" type="line"/><point x="554" y="57" type="line"/><point x="338" y="57" type="line"/></contour><contour><point x="117" y="47" type="curve" smooth="yes"/><point x="156" y="9"/><point x="209" y="0"/><point x="280" y="0" type="curve" smooth="yes"/><point x="287" y="0" type="line"/><point x="287" y="57" type="line"/><point x="274" y="57" type="line" smooth="yes"/><point x="228" y="57"/><point x="184" y="64"/><point x="158" y="89" type="curve" smooth="yes"/><point x="133" y="114"/><point x="127" y="158"/><point x="127" y="204" type="curve" smooth="yes"/><point x="127" y="215" type="line"/><point x="70" y="215" type="line"/><point x="70" y="210" type="line" smooth="yes"/><point x="70" y="138"/><point x="78" y="86"/></contour><contour><point x="70" y="266" type="line"/><point x="127" y="266" type="line"/><point x="127" y="483" type="line"/><point x="70" y="483" type="line"/></contour><contour><point x="438" y="291" type="curve" smooth="yes"/><point x="456" y="291"/><point x="467" y="302"/><point x="467" y="316" type="curve" smooth="yes"/><point x="467" y="319"/><point x="467" y="321"/><point x="467" y="323" type="curve" smooth="yes"/><point x="467" y="347"/><point x="480" y="362"/><point x="510" y="382" type="curve" smooth="yes"/><point x="550" y="410"/><point x="577" y="434"/><point x="577" y="480" type="curve" smooth="yes"/><point x="577" y="546"/><point x="519" y="583"/><point x="450" y="583" type="curve" smooth="yes"/><point x="381" y="583"/><point x="335" y="548"/><point x="325" y="509" type="curve" smooth="yes"/><point x="324" y="503"/><point x="323" y="495"/><point x="323" y="489" type="curve" smooth="yes"/><point x="323" y="473"/><point x="335" y="464"/><point x="347" y="464" type="curve" smooth="yes"/><point x="360" y="464"/><point x="368" y="470"/><point x="373" y="479" type="curve" smooth="yes"/><point x="379" y="488" type="line"/><point x="391" y="515"/><point x="415" y="534"/><point x="448" y="534" type="curve" smooth="yes"/><point x="489" y="534"/><point x="515" y="512"/><point x="515" y="478" type="curve" smooth="yes"/><point x="515" y="449"/><point x="498" y="435"/><point x="461" y="409" type="curve" smooth="yes"/><point x="430" y="387"/><point x="410" y="365"/><point x="410" y="327" type="curve" smooth="yes"/><point x="410" y="324"/><point x="410" y="321"/><point x="410" y="319" type="curve" smooth="yes"/><point x="410" y="300"/><point x="420" y="291"/></contour><contour><point x="437" y="170" type="curve" smooth="yes"/><point x="459" y="170"/><point x="478" y="188"/><point x="478" y="210" type="curve" smooth="yes"/><point x="478" y="232"/><point x="460" y="249"/><point x="437" y="249" type="curve" smooth="yes"/><point x="415" y="249"/><point x="397" y="232"/><point x="397" y="210" type="curve" smooth="yes"/><point x="397" y="188"/><point x="415" y="170"/></contour></outline></glyph>')
+                            glyph.scaleBy(capScale)
+                            glyph.width *= capScale
+
+                        if not isinstance(glyph, RGlyph):
+                            glyph = RGlyph(glyph)
+
+                        item = self.buildItem(
+                                        name=glyph.name,
+                                        glyph=glyph,
+                                        font=font,
+                                        index=index,
+                                        onDisk=onDisk,
+                                        skewAngle=skewAngle,
+                                        italicOffset=off,
+                                        location=font.lib.get("location", {}),
+                                        scaler=scaler,
+                                )
+
+                        items.append(item)
+
+        self.collectionView.set(items)
+
+        self.w.matrix.set([])
+        self.displaySettingsButtonCallback(None, previewState=self.typing)
+
+
     def populateItems(self, reload:bool=False) -> None:
         items = []
         _glyphRecords = []
-
-        isLocalTyping = [f.font for f in self.fonts.values() if f.font == self.typingFont and f.localText]
 
         for fontIndex, (__,fontItem) in enumerate(self.fonts.items()):
             font = fontItem.font
@@ -2365,6 +2478,7 @@ class Spaceport(Subscriber, ezui.WindowController):
 
                 scaler = font.info.unitsPerEm/1000
                 for index, glyph in enumerate(objects):
+
                     item = None
                     if self.__cache:
                         if len(self.__cache) >= index+1:
@@ -2407,7 +2521,7 @@ class Spaceport(Subscriber, ezui.WindowController):
                                 onDisk = False
                         
                         else:
-                            # if the UI is not open, we can allow editing
+                            # if the UI is open, we can allow editing
                             if not self.fontIsOpen(font.path):
                                 onDisk = False
 
@@ -2854,16 +2968,16 @@ class Spaceport(Subscriber, ezui.WindowController):
                             for temporary in self.collectionView.get():
                                 if temporary not in self.selectedItems:
                                     temporary.selected = False
-                        if clickCount == 2:
+                        if clickCount == 2 and hit.onDisk:
                             try:
                                 OpenGlyphWindow(selectedGlyph)
                             except:
                                 selectedGlyph.copyToPasteboard()
 
                     else:
-                        self.typingIndex = hit.index
-                        self.typingFont  = hit.font
-                        selectedGlyph    = hit.glyph
+                        self.typingIndex   = hit.index
+                        self.typingFont    = hit.font
+                        selectedGlyph      = hit.glyph
                         self.selectedItems = [hit]
                 else:
                     self.selectedItems = []
@@ -2886,14 +3000,15 @@ class Spaceport(Subscriber, ezui.WindowController):
                             self.selectedItems.append(temporary)
                             temporary.selected = True
 
-            # only set the matrix for one font at a time, the selected one.
-            if len(set([hits.glyph.font for hits in self.selectedItems])) == 1 and selectedGlyph:
-                records = [GlyphRecord(item.glyph.naked()) for item in self.collectionView.get() if item.glyph.font == selectedGlyph.font]
-                self.w.matrix.set(records)
+            if not self.split:
+                # only set the matrix for one font at a time, the selected one.
+                if len(set([hits.glyph.font for hits in self.selectedItems])) == 1 and selectedGlyph:
+                    records = [GlyphRecord(item.glyph.naked()) for item in self.collectionView.get() if item.glyph.font == selectedGlyph.font]
+                    self.w.matrix.set(records)
 
-            elif multiFontSelect:
-                records = [GlyphRecord(item.glyph.naked()) for item in self.selectedItems]
-                self.w.matrix.set(records)
+                elif multiFontSelect:
+                    records = [GlyphRecord(item.glyph.naked()) for item in self.selectedItems]
+                    self.w.matrix.set(records)
 
 
     def mouseDragged(self, view, event) -> None:
@@ -3099,13 +3214,17 @@ class Spaceport(Subscriber, ezui.WindowController):
                         self.zoom(direction="out")
         else:
             selectedIdxs = self.selectedIndexesToDelete
-            fontObj = [f for f in self.fonts.values() if f.font == self.typingFont and f.localText]
-            if fontObj:
-                ff = fontObj[0]
-                text = ff.text
-            else:
+            typingFontObject = [f for f in self.fonts.values() if f.font == self.typingFont and f.localText]
+            
+            if self.locked:
                 text = self.holdingGlyphs
-
+            else:
+                if typingFontObject:
+                    ff = typingFontObject[0]
+                    text = ff.text
+                else:
+                    text = []
+                
             if rawEvent.keyCode() == 51:
                 deleting = True
                 if self.command:
@@ -3113,7 +3232,6 @@ class Spaceport(Subscriber, ezui.WindowController):
                     text = []
                 else:
                     if self.typingIndex > 0:
-
                         """
                         enable multi-selection delete
                         get length of selection and lowest index
@@ -3163,7 +3281,7 @@ class Spaceport(Subscriber, ezui.WindowController):
                         text.insert(self.typingIndex + i, item)
                     self.typingIndex += len(processed)
                     # text = self.rawGlyphList
-                    self.textFieldCallback(None)
+                    self.updateCharacterString()
                     return
 
                 elif char == "/":
@@ -3187,12 +3305,14 @@ class Spaceport(Subscriber, ezui.WindowController):
                     else:
                         if self.typingIndex > 0:
                             self.typingIndex -= 1
+                
                 elif char == "right":
                     if self.command:
                         self.typingIndex = len(text)
                     else:
                         if self.typingIndex < len(text):
                             self.typingIndex += 1
+                
                 elif char == "up":
                     if self.typingFont != fontList[0]:
                         prev = itemList[fontList.index(self.typingFont) - 1]
@@ -3200,12 +3320,12 @@ class Spaceport(Subscriber, ezui.WindowController):
                         tt = prev.text if prev.localText else self.glyphs
                         if self.typingIndex >= len(tt):
                             self.typingIndex = len(tt)
-
+                
                 elif char == "down":
                     if self.typingFont != fontList[-1]:
-                        next = itemList[fontList.index(self.typingFont) + 1]
-                        self.typingFont = next.font
-                        tt = next.text if next.localText else self.glyphs
+                        nextLine = itemList[fontList.index(self.typingFont) + 1]
+                        self.typingFont = nextLine.font
+                        tt = nextLine.text if nextLine.localText else self.glyphs
                         if self.typingIndex >= len(tt):
                             self.typingIndex = len(tt)
 
@@ -3213,17 +3333,23 @@ class Spaceport(Subscriber, ezui.WindowController):
                 pass
 
             if adding:
+                # make sure to never let the index go negative
+                if self.typingIndex < 0:
+                    self.typingIndex = 0
+
                 if self.typingIndex < len(text):
                     self.typingIndex += 1
 
-            if fontObj:
-                ff = fontObj[0]
-                ff.text = text
-            else:
+            if self.locked:
                 self.holdingGlyphs = text
+            else:
+                if typingFontObject:
+                    ff = typingFontObject[0]
+                    ff.text = text
+                    self.fonts[ff.path] = ff
 
             if adding or deleting:
-                self.textFieldCallback(None)
+                self.updateCharacterString()
 
             self.setTypingItem()
 
@@ -3236,8 +3362,11 @@ class Spaceport(Subscriber, ezui.WindowController):
 
     def deleteSelectedIndexes(self, indexes:list[int,...], textList:list[str,...]) -> None:
         if not indexes:
-            textList.pop(self.typingIndex - 1)
-            self.typingIndex -= 1
+            try:
+                textList.pop(self.typingIndex - 1)
+                self.typingIndex -= 1
+            except IndexError: # if we have no text dont delete anything
+                pass
         else:
             for idx in indexes:        
                 textList.pop(idx)
@@ -3331,6 +3460,7 @@ class Spaceport(Subscriber, ezui.WindowController):
 
     def determineMode(self, mode:str|None=None) -> None:
         self.kerning = False
+        self.split = False
         if not mode:
             self.typing = not self.typing
             if self.typing:
@@ -3345,6 +3475,9 @@ class Spaceport(Subscriber, ezui.WindowController):
             elif mode == "kerning":
                 self.typing = False
                 self.kerning = True
+            elif mode == "split":
+                self.typing = False
+                self.split = True
         return mode
         
 
@@ -3373,6 +3506,7 @@ class Spaceport(Subscriber, ezui.WindowController):
 
             #self.showSpaceMatrixButtonCallback(not self.typing)
             #self.w.matrix.show(not self.typing)
+            self.populate()
 
 
     def setTypingItem(self):
@@ -3428,7 +3562,7 @@ class Spaceport(Subscriber, ezui.WindowController):
                 self.w.objw.getItem("designspaceTable").set(dict(use=False, path=path) for path in list(self.designspaces.keys()))
             except AttributeError:
                 pass # this will raise an error if the objects window is not open
-            self.populateItems()
+            self.populate()
 
 
     def designspaceEditorDidCloseDesignspace(self, notification) -> None:
@@ -3443,7 +3577,7 @@ class Spaceport(Subscriber, ezui.WindowController):
                     self.w.objw.getItem("designspaceTable").set(dict(use=use, path=path) for path,(use,__) in self.designspaces.items())
                 except AttributeError:
                     pass # this will raise an error if the objects window is not open
-                self.populateItems()
+                self.populate()
 
 
     designspaceEditorPreviewLocationDidChangeDelay = 0.01
@@ -3520,7 +3654,7 @@ class Spaceport(Subscriber, ezui.WindowController):
                 self.w.objw.getItem("fontTable").set(dict(use=fi.use, path=fi.path) for fi in list(self.fonts.values()))
             except AttributeError:
                 pass # this will raise an error if the objects window is not open
-            self.populateItems()
+            self.populate()
         
 
     def fontDocumentWillClose(self, info) -> None:
@@ -3533,7 +3667,7 @@ class Spaceport(Subscriber, ezui.WindowController):
                 self.w.objw.getItem("fontTable").set(dict(use=fi.use,path=fi.path) for fi in list(self.fonts.values()))
             except AttributeError:
                 pass # this will raise an error if the objects window is not open
-            self.populateItems()
+            self.populate()
 
 
     def adjunctFontKerningDidChange(self, info) -> None:
