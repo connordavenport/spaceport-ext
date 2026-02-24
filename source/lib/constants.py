@@ -12,7 +12,11 @@ adds alpha to anything less than 0.1.0
 adds beta to anything less than 1.0.0
 """
 
-MACOS_VERSION = float(platform.mac_ver()[0])
+MACOS_VERSION = platform.mac_ver()[0]
+if MACOS_VERSION.count(".") > 1:
+    major, minor, superMinor = MACOS_VERSION.split(".", 2)
+    MACOS_VERSION = ".".join((major, minor))
+MACOS_VERSION = float(MACOS_VERSION)
 
 FALLBACK_VERSION = "0.000"
 INFO_YAML = os.path.abspath(os.path.join(__file__, "../../../", "info.yaml"))
