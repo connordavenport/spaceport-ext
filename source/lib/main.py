@@ -3014,6 +3014,9 @@ class SpacePort(Subscriber, ezui.WindowController):
                     records = [GlyphRecord(item.glyph.naked()) for item in self.collectionView.get() if item.glyph.font == selectedGlyph.font]
                     self.w.matrix.set(records)
 
+                    #self.w.matrix.setSelection([index for index, record in enumerate(records) if record.glyph in [i.glyph for i in self.selectedItems]])
+
+
                 elif multiFontSelect:
                     records = [GlyphRecord(item.glyph.naked()) for item in self.selectedItems]
                     self.w.matrix.set(records)

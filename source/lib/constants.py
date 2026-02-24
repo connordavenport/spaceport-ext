@@ -2,7 +2,7 @@ import yaml
 import os
 from mojo.UI import getDefault
 from AppKit import NSCursor
-
+import plistlib
 from mojo.roboFont import CreateCursor
 
 """
@@ -12,11 +12,19 @@ adds beta to anything less than 1.0.0
 """
 FALLBACK_VERSION = "0.000"
 INFO_YAML = os.path.abspath(os.path.join(__file__, "../../../", "info.yaml"))
+INFO_PLST = os.path.abspath(os.path.join(__file__, "../../", "info.plist"))
 if os.path.exists(INFO_YAML):
+    # also if there is a yaml, this means we are in dev env
     with open(INFO_YAML, mode="r") as file:
         info = yaml.safe_load(file)
+elif os.path.exists(INFO_PLST):
+    # also check if there is a plist, this means we are in an extension
+    with open(INFO_PLST, 'rb') as file:
+        info = plistlib.load(file)
 else:
+    # nothing found, fallback to 0.000
     info = dict(version=FALLBACK_VERSION)
+
 EXTENSION_VERSION = info.get("version", FALLBACK_VERSION)
 major, minor_patch = EXTENSION_VERSION.split(".")
 minor_patch = minor_patch.zfill(3)
