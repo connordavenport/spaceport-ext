@@ -76,7 +76,6 @@ reload(windows)
 import objects
 reload(objects)
 
-
 class SpacePort(Subscriber, ezui.WindowController):
 
     debug = True
@@ -130,14 +129,13 @@ class SpacePort(Subscriber, ezui.WindowController):
 
         self.layerFontHit = None  # update type hits
 
-        self.currentGlyph:RGlyph             = CurrentGlyph()
-        self.currentSelection:list[str,...]  = []
-        self.font:RFont                      = CurrentFont()
+        self.currentGlyph:RGlyph                     = CurrentGlyph()
+        self.currentSelection:list[str,...]          = []
+        self.font:RFont                              = CurrentFont()
         self.fonts:dict[str,objects.FontItem]        = dict()
         self._fontFolder:dict[str,objects.FontItem]  = dict()
-        self.glyphs:list[str,...]            = []
-        self.holdingGlyphs:list[str,...]     = []
-        self.rawGlyphList:list[str,...]      = []
+        self.glyphs:list[str,...]                    = []
+        self.holdingGlyphs:list[str,...]             = []
 
         for f in AllFonts():
             f.lib["descriptor"] = ""
@@ -1454,6 +1452,9 @@ class SpacePort(Subscriber, ezui.WindowController):
                 controller=self
             )
             self.interpolationWindow.open()
+            view = self.interpolationWindow.getItem("designspaceNav")
+            self._placeSourcesInstancesInView(view.getMerzContainer(), self.operator)
+
         else:
             windows.InterpolationWarningWindow(self.w, self)
 
@@ -1504,14 +1505,24 @@ class SpacePort(Subscriber, ezui.WindowController):
                 instances=self.instances
         )
 
+        view = self.interpolationWindow.getItem("designspaceNav")
+        self._placeSourcesInstancesInView(view.getMerzContainer(), self.operator)
+
+
     def yAxisSelectionCallback(self, sender:Any) -> None:
         self.yAxis = self.interpolatable[sender.get()]
-        self._convertViewLocationToDesignspaceLocation((self.x,self.y))
+        self._convertViewPositionToDesignspaceLocation((self.x,self.y))
+
+        view = self.interpolationWindow.getItem("designspaceNav")
+        self._placeSourcesInstancesInView(view.getMerzContainer(), self.operator)
 
 
     def xAxisSelectionCallback(self, sender:Any) -> None:
         self.xAxis = self.interpolatable[sender.get()]
-        self._convertViewLocationToDesignspaceLocation((self.x,self.y))
+        self._convertViewPositionToDesignspaceLocation((self.x,self.y))
+
+        view = self.interpolationWindow.getItem("designspaceNav")
+        self._placeSourcesInstancesInView(view.getMerzContainer(), self.operator)
 
 
     def contentCallback(self, sender:Any) -> None:
@@ -1522,7 +1533,7 @@ class SpacePort(Subscriber, ezui.WindowController):
         """
         if isinstance(sender.get(), dict):
             if "xAxisSelection" in sender.get().keys():
-                self._convertViewLocationToDesignspaceLocation((self.x,self.y))
+                self._convertViewPositionToDesignspaceLocation((self.x,self.y))
 
 
     @property
@@ -1674,8 +1685,6 @@ class SpacePort(Subscriber, ezui.WindowController):
         self.unsubscribeFromGlyphs()
         if self.font:
 
-            # if not hasattr(self, 'rawGlyphList') or not self.rawGlyphList:
-                # self.rawGlyphList = self.holdingGlyphs[:]
             ee = [f for f in self.fonts.values() if f.font == self.typingFont and f.localText]
             if ee:
                 ef = ee[0]
@@ -1683,7 +1692,6 @@ class SpacePort(Subscriber, ezui.WindowController):
             else:
                 raw = self.holdingGlyphs
             glyphNames = self.validateGlyphNames(raw)
-            # self.rawGlyphList = raw[:]
 
             font = self.font
             holding = []
@@ -3052,10 +3060,14 @@ class SpacePort(Subscriber, ezui.WindowController):
             self.wasDragging = True
             container = view.getMerzContainer()
 
-            container.clearSublayers()
-
             event = merz.unpackEvent(event)
             x, y = self._convertLocation(event,view)
+
+            self._placeSourcesInstancesInView(container, self.operator)
+
+            dotFill = (0,0,0,1)
+            if x < 20 or x > 280 or y < 20 or 280 < y:
+                dotFill = (0,0,0,.3)
 
             container.appendLineSublayer(
                 startPoint=(x,0),
@@ -3069,19 +3081,41 @@ class SpacePort(Subscriber, ezui.WindowController):
                 strokeColor=(0,0,0,.2),
                 strokeWidth=1,
                 )
-
             container.appendOvalSublayer(
                 position=(x,y),
-                size=(10,10),
+                size=(6,6),
                 anchor=(.5,.5),
-                fillColor=(0.2,0.2,0.2,1),
+                fillColor=dotFill,
+                strokeColor=dotFill,
+                #strokeWidth=1,
+            )
+
+            self._convertViewPositionToDesignspaceLocation((x,y))
+            self.x = x
+            self.y = y
+
+
+    def _placeSourcesInstancesInView(self, container, operator):
+        container.clearSublayers()
+        for source in operator.sources:
+            sP = self._convertDesignspaceLocationToViewPosition(source.location)
+            container.appendOvalSublayer(
+                position=sP,
+                size=(7,7),
+                anchor=(.5,.5),
+                fillColor=(.2,.2,.2,1),
                 strokeColor=(0,0,0,1),
                 strokeWidth=1,
             )
 
-            self._convertViewLocationToDesignspaceLocation((x,y))
-            self.x = x
-            self.y = y
+        for instance in operator.instances:
+            iP = self._convertDesignspaceLocationToViewPosition(instance.location)
+            container.appendOvalSublayer(
+                position=iP,
+                size=(5,5),
+                anchor=(.5,.5),
+                fillColor=(.6,.6,.6,1),
+            )
 
 
     @property
@@ -3099,17 +3133,34 @@ class SpacePort(Subscriber, ezui.WindowController):
         return location
 
 
-    def _convertViewLocationToDesignspaceLocation(self, position:tuple[float, float]):
+    def _convertDesignspaceLocationToViewPosition(self, location:dict[str, float]):
+        buffer = 20
+        position = []
+        x = location.get(self.xAxis)
+        ny = y = location.get(self.yAxis, 150)
+
+        desc = [a for a in self.operator.axes if a.name == self.xAxis][0]
+        minimum, default, maximum = self.operator.getAxisExtremes(desc)
+        nx = remap(x, minimum, maximum, buffer, 300-buffer, True)
+        if self.yAxis:
+            desc = [a for a in self.operator.axes if a.name == self.yAxis][0]
+            minimum, default, maximum = self.operator.getAxisExtremes(desc)
+            ny = remap(y, minimum, maximum, buffer, 300-buffer, True)
+        return (nx,ny)
+
+
+    def _convertViewPositionToDesignspaceLocation(self, position:tuple[float, float]):
+        buffer = 20
         x,y = position
         location = self.currentLocation
         desc = [a for a in self.operator.axes if a.name == self.xAxis][0]
         minimum, default, maximum = self.operator.getAxisExtremes(desc)
-        nx = remap(x, 0, 300, minimum, maximum, True)
+        nx = remap(x, buffer, 300-buffer, minimum, maximum, True)
         location[self.xAxis] = nx
         if self.yAxis:
             desc = [a for a in self.operator.axes if a.name == self.yAxis][0]
             minimum, default, maximum = self.operator.getAxisExtremes(desc)
-            ny = remap(y, 0, 300, minimum, maximum, True)
+            ny = remap(y, buffer, 300-buffer, minimum, maximum, True)
             location[self.yAxis] = ny
 
         self.previewLocation = location
@@ -3280,7 +3331,6 @@ class SpacePort(Subscriber, ezui.WindowController):
                     for i, item in enumerate(processed):
                         text.insert(self.typingIndex + i, item)
                     self.typingIndex += len(processed)
-                    # text = self.rawGlyphList
                     self.updateCharacterString()
                     return
 
@@ -3704,3 +3754,4 @@ class SpacePort(Subscriber, ezui.WindowController):
 
 if __name__ == "__main__":
     registerRoboFontSubscriber(SpacePort)
+    # ShowProfile(SpacePort)
