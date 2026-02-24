@@ -103,8 +103,8 @@ class SpacePort(Subscriber, ezui.WindowController):
         self.viewInstances:bool          = False
         self.showBeam:bool               = True
         self.designspaceController:bool  = True
-        self.drawFocusRing:bool          = True
-        self.tintedBackground:bool       = False
+        #self.drawFocusRing:bool          = True
+        self.tintedBackground:bool       = True
         self.splitFontOrdering:bool      = False
 
         self.sortingSettings:list[int]   = []
@@ -550,8 +550,8 @@ class SpacePort(Subscriber, ezui.WindowController):
         > * HorizontalStack                                             @cursorStack
         >> Cursor Color: 
         >> * ColorWell                                                  @cursorColorWell
-        > [ ] Focus Ring                                                @focusRingButton
-        # > [ ] Tinted Typing Background                                  @tintedBackgroundButton
+        # > [ ] Focus Ring                                                @focusRingButton
+        > [ ] Tinted Typing Background                                  @tintedBackgroundButton
         > * HorizontalStack                                             @selectionStack
         >> Selection Color: 
         >> * ColorWell                                                  @selectionColorWell
@@ -563,11 +563,11 @@ class SpacePort(Subscriber, ezui.WindowController):
                 value=False
             ),
             tintedBackgroundButton=dict(
-                value=False
+                value=self.tintedBackground
             ),
-            focusRingButton=dict(
-                value=self.drawFocusRing,
-            ),
+            # focusRingButton=dict(
+            #     value=self.drawFocusRing,
+            # ),
             cursorStack=dict(
                 distribution="fillEqually",
                 alignment="leading",
@@ -651,9 +651,9 @@ class SpacePort(Subscriber, ezui.WindowController):
         if open: self.viewSettingsWindow.open()
 
 
-    def focusRingButtonCallback(self, sender:Any) -> None:
-        self.drawFocusRing = self.viewSettingsWindow.getItemValue("focusRingButton")
-        self.displaySettingsButtonCallback(None, previewState=self.typing)
+    # def focusRingButtonCallback(self, sender:Any) -> None:
+    #     self.drawFocusRing = self.viewSettingsWindow.getItemValue("focusRingButton")
+    #     self.displaySettingsButtonCallback(None, previewState=self.typing)
 
 
     def tintedBackgroundButtonCallback(self, sender:Any) -> None:
@@ -1831,8 +1831,8 @@ class SpacePort(Subscriber, ezui.WindowController):
         if previewState:
             showMetrics = showLabel = showKerning = showBeam = showStroke = False
             showFill = True
-            if self.drawFocusRing:
-                borderColor = AppKit.NSColor.colorWithCalibratedRed_green_blue_alpha_(*self.cursorColor).CGColor()
+            # if self.drawFocusRing:
+            #     borderColor = AppKit.NSColor.colorWithCalibratedRed_green_blue_alpha_(*self.cursorColor).CGColor()
 
             if self.tintedBackground:
                 def make_rgb_transparent(rgb, bg_rgb, alpha):
