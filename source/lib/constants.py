@@ -4,12 +4,16 @@ from mojo.UI import getDefault
 from AppKit import NSCursor
 import plistlib
 from mojo.roboFont import CreateCursor
+import platform
 
 """
 versioning
 adds alpha to anything less than 0.1.0
 adds beta to anything less than 1.0.0
 """
+
+MACOS_VERSION = float(platform.mac_ver()[0])
+
 FALLBACK_VERSION = "0.000"
 INFO_YAML = os.path.abspath(os.path.join(__file__, "../../../", "info.yaml"))
 INFO_PLST = os.path.abspath(os.path.join(__file__, "../../", "info.plist"))

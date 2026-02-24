@@ -355,8 +355,9 @@ class SpacePort(Subscriber, ezui.WindowController):
 
         self.w.getItem("syncTextButton").enable(self.typing)
         self.w.getItem("syncTextButton").getNSButton().setBezelStyle_(AppKit.NSInlineBezelStyle)
-        self.w.getItem("modeButton").getNSSegmentedButton().setBordered_(False)
-
+        if constants.MACOS_VERSION >= 26: 
+            # we can only set borderless segmented buttons if >= tahoe  
+            self.w.getItem("modeButton").getNSSegmentedButton().setBordered_(False)
 
         ns = self.w.getItem("pointSizeInputField")._textField.getNSTextField()
         ns.setBordered_(False)
