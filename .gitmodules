@@ -1,0 +1,3 @@
+[submodule "source/lib/featurePreviewRoboFontExtension"]
+	path = source/lib/featurePreviewRoboFontExtension
+	url = https://github.com/typemytype/featurePreviewRoboFontExtension
