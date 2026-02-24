@@ -77,7 +77,7 @@ import objects
 reload(objects)
 
 
-class Spaceport(Subscriber, ezui.WindowController):
+class SpacePort(Subscriber, ezui.WindowController):
 
     debug = True
 
@@ -337,7 +337,7 @@ class Spaceport(Subscriber, ezui.WindowController):
         )
 
         self.w = ezui.EZWindow(
-            title=f"Spaceport v{constants.EXTENSION_VERSION}",
+            title=f"SpacePort v{constants.EXTENSION_VERSION}",
             toolbar=toolbar,
             content=content,
             descriptionData=descriptionData,
@@ -3703,4 +3703,4 @@ class Spaceport(Subscriber, ezui.WindowController):
 
 
 if __name__ == "__main__":
-    registerRoboFontSubscriber(Spaceport)
+    registerRoboFontSubscriber(SpacePort)
