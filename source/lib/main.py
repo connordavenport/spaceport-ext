@@ -393,7 +393,7 @@ class SpacePort(Subscriber, ezui.WindowController):
         self.selectionColor = viewPrefs.get("selectionColorWell", constants.SELECTION_COLOR)
 
         try: self.viewSettingsWindow.setItemValues(viewPrefs)
-        except (AttributeError, KeyError): pass
+        except: pass
 
         windowSettings = self.w.getItemValues()
         for name,field in windowSettings.items():
