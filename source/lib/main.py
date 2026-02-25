@@ -2520,6 +2520,8 @@ class SpacePort(Subscriber, ezui.WindowController):
 
             try:
                 objects = [gs.glyph.name for gs in fontItem._featureFont.process(objects)]
+                self.subscribeToGlyphs(None, objects)
+
             except AttributeError:
                 pass # featureFont not loaded yet
 
@@ -3725,13 +3727,17 @@ class SpacePort(Subscriber, ezui.WindowController):
             )
 
 
-    def subscribeToGlyphs(self, coalescer:Coalescer) -> None:
+    def subscribeToGlyphs(self, coalescer:Coalescer, glyphs:list[str,...]=[]) -> None:
         objects = []
         for item in list(self.fonts.values()):
             if item.use:
                 objects.append(item.font.kerning)
             try:
-                objects.extend(list(set([item.font[glyph] for glyph in self.glyphs])))
+                grs = self.glyphs.copy()
+                if glyphs: 
+                    grs.extend(glyphs)
+
+                objects.extend(list(set([item.font[glyph] for glyph in grs])))
             except:
                 pass
         self.setAdjunctObjectsToObserve(objects)
