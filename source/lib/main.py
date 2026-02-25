@@ -137,6 +137,12 @@ class SpacePort(Subscriber, ezui.WindowController):
         self.glyphs:list[str,...]                    = []
         self.holdingGlyphs:list[str,...]             = []
 
+        self.gsubLookups:set[str,...]                = set()
+        self.gposLookups:set[str,...]                = set()
+
+        self.lookups:dict[str,str]                  = dict()
+
+
         for f in AllFonts():
             f.lib["descriptor"] = ""
             fontItem = objects.FontItem(
@@ -145,6 +151,12 @@ class SpacePort(Subscriber, ezui.WindowController):
                 path=f.path,
             )
             self.fonts[f.path] = fontItem
+            self.gsubLookups.update(fontItem._gsub)
+            self.gposLookups.update(fontItem._gpos)
+
+            self.lookups.update({pos:"default" for pos in self.gposLookups})
+            self.lookups.update({sub:"default" for sub in self.gsubLookups})
+
 
         self.internalPreview:bool = False
         self.designspaces:dict[str,tuple[bool,UFOOperator]] = dict()
@@ -470,7 +482,7 @@ class SpacePort(Subscriber, ezui.WindowController):
         """
 
 
-        for i in "ss01 ss02 ss03 ss04".split(" "):
+        for i in self.gsubLookups:
             content += f"""
             >> *FeatureToggleButton @{i}FeaButton
             """
@@ -480,11 +492,16 @@ class SpacePort(Subscriber, ezui.WindowController):
         >> GPOS Lookups:
         """
         
-        for i in "kern mark mkmk".split(" "):
+        for i in self.gposLookups:
             content += f"""
             >> *FeatureToggleButton @{i}FeaButton
             """
             descriptionData[f"{i}FeaButton"] = dict(tag=i)
+
+        content += """
+        >> ----
+        >> ( 􀊯 Reload Features) @reloadFeatureButton
+        """
 
         self.featurePopover = ezui.EZPopover(
             size=(100,100),
@@ -496,13 +513,34 @@ class SpacePort(Subscriber, ezui.WindowController):
             controller=self
         )
 
+        self.featurePopover.getItem("reloadFeatureButton").getNSButton().setBezelStyle_(AppKit.NSInlineBezelStyle)
         self.featurePopover.open()
 
 
+    def reloadFeatureButtonCallback(self, sender):
+        print("reload not implimented yet...")
+
+
     def featureStackCallback(self, sender):
+        # featureFont = list(self.fonts.values())[0]._featureFont
         for button in sender.getItems():
             obj = self.featurePopover.getItem(button)
-            print(button, obj.tag, obj.state)
+            try:
+                self.lookups[obj.tag] = obj.state
+
+                for font in self.fonts.values():
+                    featureFont = font._featureFont
+                    if obj.state == "on":
+                        featureFont.setFeatureState(obj.tag, True)
+                    else:
+                        featureFont.setFeatureState(obj.tag, False)
+
+            except AttributeError:
+                pass
+
+        self.populate()
+        # print(" ".join([gs.glyph.name for gs in featureFont.process(self.glyphs)]))
+
 
     # ------------------------------------------------------------------
 
@@ -2480,6 +2518,11 @@ class SpacePort(Subscriber, ezui.WindowController):
                 objects = fontItem.text
             else:
                 objects = self.glyphs
+
+            try:
+                objects = [gs.glyph.name for gs in fontItem._featureFont.process(objects)]
+            except AttributeError:
+                pass # featureFont not loaded yet
 
             if fontItem.use:
                 index = off = skewAngle = 0

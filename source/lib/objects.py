@@ -10,6 +10,8 @@ from mojo.UI import inDarkMode
 from fontTools.fontBuilder import FontBuilder
 from typing import BinaryIO
 import io
+from featurePreviewLib.source.lib import featurePreview
+
 
 class FeatureButtonClass(ezui.items.pushButton.PushButton):
 
@@ -128,17 +130,6 @@ class MerzCollectionViewRGlyphItem(merz.collectionView.MerzCollectionViewItem):
         self._selectionColor:tuple[float] = kwargs.get("selectionColor", constants.SELECTION_COLOR)
         self._cursorColor:tuple[float]    = kwargs.get("cursorColor", constants.CURSOR_COLOR)
         self._cursorBlinking:bool         = kwargs.get("cursorBlinking", False)
-
-        # from FeaturePreview model
-        # self.advanceWidth = 0
-        # self.advanceHeight = 0
-        # if glyph is not None:
-        #     self.advanceWidth = glyph.width
-        #     self.advanceHeight = glyph.height
-        # self.xPlacement = xPlacement
-        # self.yPlacement = yPlacement
-        # self.xAdvance = xAdvance - self.advanceWidth
-        # self.yAdvance = yAdvance - self.advanceHeight
 
         super().__init__(*args, **kwargs)
 
@@ -314,46 +305,18 @@ class FontItem(object):
         self._layer:DoodleLayer   = kwargs.get("layer", self._font.layers.defaultLayer)
         self._text:str|None       = None
         self._localText:bool      = False
-  
-        # adapted from FeaturePreview
-        self.cmap:dict            = dict()
-        self.reverse_cmap:dict    = dict()
-        self.source:TTFont|None   = None
-        self.binary:BinaryIO|None = None
+        self._gsub:list[str]  = []
 
+        self._featureFont         = None
 
-    def compileCMAP(self):
-        # adapted from FeaturePreview
-        font = self._font
-        self.cmap = {uni: names[0] for uni, names in font.unicodeData.items()}
-        # add all glyphs, even the un encoded ones at a high unicode...
-        # see https://github.com/harfbuzz/uharfbuzz/issues/22
-        unicodeOffset = 0x110000
-        unencodedCount = 0
-        for glyph in font:
-            if not glyph.unicodes:
-                self.cmap[unicodeOffset + unencodedCount] = glyph.name
-                unencodedCount += 1
-        self.reverseCMAP = {name: uni for uni, name in self.cmap.items()}
-
-
-    def compileBinaryFont(self):
-        # adapted from FeaturePreview
-        font = self._font
-        glyphOrder = sorted(set(font.glyphOrder) | set(self.cmap.values()))
-
-        ff = FontBuilder(int(round(font.info.unitsPerEm)), isTTF=True)
-        ff.setupGlyphOrder(glyphOrder)
-        if self.cmap:
-            ff.setupCharacterMap(self.cmap)
-        # ff.addOpenTypeFeatures(self._getFeatureText(font))
-        ff.setupHorizontalMetrics({gn: (int(round(font[gn].width)), int(round(font[gn].height))) for gn in glyphOrder})
-        ff.setupHorizontalHeader(ascent=int(round(font.info.ascender)), descent=int(round(font.info.descender)))
-        data = io.BytesIO()
-        ff.save(data)
-        self.source = ff.font
-        self.bin = data.getvalue()
-
+        try:
+            self._featureFont = featurePreview.FeatureFont(self._font)
+            self._gsub = self._featureFont.gsub.getFeatureList()
+            self._gpos = self._featureFont.gpos.getFeatureList()
+        except:
+            self._gsub = []
+            self._gpos = []
+            
 
     def getPath(self) -> str:
         return self._path
