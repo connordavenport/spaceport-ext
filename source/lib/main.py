@@ -481,8 +481,7 @@ class SpacePort(Subscriber, ezui.WindowController):
         >> GSUB Lookups:
         """
 
-
-        for i in self.gsubLookups:
+        for i in sorted(self.gsubLookups):
             content += f"""
             >> *FeatureToggleButton @{i}FeaButton
             """
@@ -492,7 +491,7 @@ class SpacePort(Subscriber, ezui.WindowController):
         >> GPOS Lookups:
         """
         
-        for i in self.gposLookups:
+        for i in sorted(self.gposLookups):
             content += f"""
             >> *FeatureToggleButton @{i}FeaButton
             """
