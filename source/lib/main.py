@@ -499,6 +499,7 @@ class SpacePort(Subscriber, ezui.WindowController):
 
         content += """
         >> ----
+        >> ( 􀆙 Turn Off)        @turnOffFeaturesButton
         >> ( 􀊯 Reload Features) @reloadFeatureButton
         """
 
@@ -512,8 +513,24 @@ class SpacePort(Subscriber, ezui.WindowController):
             controller=self
         )
 
+        self.featurePopover.getItem("turnOffFeaturesButton").getNSButton().setBezelStyle_(AppKit.NSInlineBezelStyle)
         self.featurePopover.getItem("reloadFeatureButton").getNSButton().setBezelStyle_(AppKit.NSInlineBezelStyle)
+
         self.featurePopover.open()
+
+
+    def turnOffFeaturesButtonCallback(self, sender):
+        for item in self.featurePopover.getItems():
+
+            if item.endswith("FeaButton"):
+                button = self.featurePopover.getItem(item)
+                tag = str(button.tag)
+                self.lookups[tag] = "default"
+                button.state      = "default"
+                for font in self.fonts.values():
+                    font._featureFont.setFeatureState(tag, False)
+            
+        self.populate()
 
 
     def reloadFeatureButtonCallback(self, sender):

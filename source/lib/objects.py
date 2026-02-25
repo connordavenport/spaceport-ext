@@ -99,9 +99,14 @@ class FeatureButtonClass(ezui.items.pushButton.PushButton):
     def tag(self):
         return self._tag
 
-    @property
-    def state(self):
+    def _getState(self) -> str:
         return self._state
+
+    def _setState(self, value:str):
+        self._state = value
+        self.setButtonColor(self.states[self._state])
+
+    state = property(_getState, _setState)
     
 
 try: 
