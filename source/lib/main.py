@@ -228,7 +228,7 @@ class SpacePort(Subscriber, ezui.WindowController):
         * VerticalStack
         > --------------
         > * HorizontalStack                   @controlsStack
-        >> ( Typing | Spacing | ~ Kerning ~ | Split)  @modeButton
+        >> ( Typing | Spacing | ~ Kerning ~ ) @modeButton
         >> -------------
         >> ---X--- [__](±)                    @pointSizeInputField
         >> (line height ...)                  @lineHeightField
@@ -590,7 +590,7 @@ class SpacePort(Subscriber, ezui.WindowController):
         
         * Box                                                           @textLayoutBox = VerticalStack
         > Sorting Order:
-        > ( Fonts | Line | Glyph )                                      @sortingButton
+        > ( X Font X | Glyph )                                          @sortingButton
         > -----
         > Text Formatting:
         > ( {characters.lowercase} | {textformat.characters} | {characters.uppercase} | None ) @textFormattingButton
@@ -696,7 +696,7 @@ class SpacePort(Subscriber, ezui.WindowController):
         )
         self.viewSettingsWindow.getItem("showKerningButton").show(False)
         # disable while we work on the functions
-        self.viewSettingsWindow.getItem("sortingButton").enable(False)
+        # self.viewSettingsWindow.getItem("sortingButton").enable(False)
         self.viewSettingsWindow.getItem("showControlGlyphsButton").enable(False)
         self.viewSettingsWindow.getItem("vertAlignmentSegmentButton").enable(False)
         self.viewSettingsWindow.getItem("showSpaceMatrixButton").enable(not self.typing)
@@ -709,6 +709,10 @@ class SpacePort(Subscriber, ezui.WindowController):
     # def focusRingButtonCallback(self, sender:Any) -> None:
     #     self.drawFocusRing = self.viewSettingsWindow.getItemValue("focusRingButton")
     #     self.displaySettingsButtonCallback(None, previewState=self.typing)
+
+    def sortingButtonCallback(self, sender:Any) -> None:
+        self.split = True if sender.get() == 1 else False
+        self.populate()
 
 
     def tintedBackgroundButtonCallback(self, sender:Any) -> None:
@@ -1362,7 +1366,7 @@ class SpacePort(Subscriber, ezui.WindowController):
         fonts = []
         _temp = list(self.fonts.keys())
         for path in paths:
-            opened = OpenFont(path, self.w.objw.getItemValue("openFontWithUIButton"))
+            opened = OpenFont(path)
             fontItem = objects.FontItem(path=path, use=False, font=opened)
             self.fonts[path] = fontItem
             item = dict(
@@ -2514,6 +2518,12 @@ class SpacePort(Subscriber, ezui.WindowController):
                                         scaler=scaler,
                                 )
 
+                        if fontIndex == len(self.fonts) - 1:
+                            if self.multiline:
+                                item.setForceBreakAfter(True)
+                            else:
+                                item.setForceBreakAfter(False)
+
                         items.append(item)
 
         self.collectionView.set(items)
@@ -3590,9 +3600,9 @@ class SpacePort(Subscriber, ezui.WindowController):
             elif mode == "kerning":
                 self.typing = False
                 self.kerning = True
-            elif mode == "split":
-                self.typing = False
-                self.split = True
+            # elif mode == "split":
+            #     self.typing = False
+            #     self.split = True
         return mode
         
 
