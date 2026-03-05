@@ -144,7 +144,7 @@ class SpacePort(Subscriber, ezui.WindowController):
 
 
         for f in AllFonts():
-            f.lib["descriptor"] = ""
+            f.lib[constants.EXTENSION_KEY + ".descriptor"] = ""
             fontItem = objects.FontItem(
                 font=f,
                 use=f==CurrentFont(),
@@ -1184,13 +1184,13 @@ class SpacePort(Subscriber, ezui.WindowController):
                     # create a temporary instance that we can interpolate on if no fonts are selected
                     temp = internalFontClasses.createFontObject()
                     temp.info.familyName   = constants.PREVIEW
-                    temp.lib["descriptor"] = "instance"
-                    temp.lib["location"]   = obj.findDefault().designLocation
-                    obj.makeOneInfo(temp.lib["location"]).extractInfo(temp.info)
+                    temp.lib[constants.EXTENSION_KEY + ".descriptor"] = "instance"
+                    temp.lib[constants.EXTENSION_KEY + ".location"]   = dict(obj.findDefault().designLocation)
+                    obj.makeOneInfo(temp.lib[constants.EXTENSION_KEY + ".location"]).extractInfo(temp.info)
 
-                    libMutator = obj.getLibEntryMutator(obj.getLocationType(temp.lib["location"])[2])
+                    libMutator = obj.getLibEntryMutator(obj.getLocationType(temp.lib[constants.EXTENSION_KEY + ".location"])[2])
                     if libMutator:
-                        lib = libMutator.makeInstance(temp.lib["location"])
+                        lib = libMutator.makeInstance(temp.lib[constants.EXTENSION_KEY + ".location"])
                         temp.lib["com.typemytype.robofont.italicSlantOffset"] = lib.get("com.typemytype.robofont.italicSlantOffset", 0)
 
                     items = list(self.fonts.items())
@@ -1202,8 +1202,8 @@ class SpacePort(Subscriber, ezui.WindowController):
                     for source,locationData in sources:
                         if source.path in openFonts.keys():
                             source = openFonts.get(source.path)
-                        source.lib["descriptor"] = "source"
-                        source.lib["location"]   = locationData
+                        source.lib[constants.EXTENSION_KEY + ".descriptor"] = "source"
+                        source.lib[constants.EXTENSION_KEY + ".location"]   = dict(locationData)
 
                         fi = objects.FontItem(path=source.path, use=True, font=source)
                         self.fonts[source.path] = fi
@@ -1211,8 +1211,8 @@ class SpacePort(Subscriber, ezui.WindowController):
                 if self.viewInstances:
                     for instance in instances:
                         inst = internalFontClasses.createFontObject()
-                        inst.lib["descriptor"] = "instance"
-                        inst.lib["location"]   = instance.designLocation
+                        inst.lib[constants.EXTENSION_KEY + ".descriptor"] = "instance"
+                        inst.lib[constants.EXTENSION_KEY + ".location"]   = dict(instance.designLocation)
                         obj.makeOneInfo(instance.designLocation).extractInfo(inst.info)
 
                         libMutator = obj.getLibEntryMutator(obj.getLocationType(instance.designLocation)[2])
@@ -2282,7 +2282,7 @@ class SpacePort(Subscriber, ezui.WindowController):
                 # infoMutator = self.operator.makeOneInfo(loc)
                 # item.skewAngle = infoMutator.italicAngle
                 item.font.info.italicAngle = item.skewAngle
-                item.font.lib["location"] = loc
+                item.font.lib[constants.EXTENSION_KEY + ".location"] = dict(loc)
 
                 libMutator = self.operator.getLibEntryMutator(self.operator.getLocationType(loc)[2])
                 if libMutator:
