@@ -1,3 +1,6 @@
+# menuTitle : SpacePort
+# shortCut  : command+control+s
+
 from inspect import currentframe
 import math
 import os
@@ -1186,6 +1189,7 @@ class SpacePort(Subscriber, ezui.WindowController):
                     temp.info.familyName   = constants.PREVIEW
                     temp.lib[constants.EXTENSION_KEY + ".descriptor"] = "instance"
                     temp.lib[constants.EXTENSION_KEY + ".location"]   = dict(obj.findDefault().designLocation)
+                    
                     obj.makeOneInfo(temp.lib[constants.EXTENSION_KEY + ".location"]).extractInfo(temp.info)
 
                     libMutator = obj.getLibEntryMutator(obj.getLocationType(temp.lib[constants.EXTENSION_KEY + ".location"])[2])
@@ -2063,7 +2067,8 @@ class SpacePort(Subscriber, ezui.WindowController):
             elif font.lib.get("descriptor") == "instance":
                 locationData += f' i: {" ".join(formatted)}'
             else:
-                locationData += f"    {os.path.basename(item.font.path)}"
+                if item.font.path:
+                    locationData += f"    {os.path.basename(item.font.path)}"
 
             descriptorIndicatorLayer = glyphContainer.getSublayer("descriptorIndicator")
             with descriptorIndicatorLayer.propertyGroup():
@@ -2278,11 +2283,12 @@ class SpacePort(Subscriber, ezui.WindowController):
         if item.name != "NULL":
             # print(self.operator, loc)
             if loc:
+                loc = dict(loc)
                 item.location = loc
                 # infoMutator = self.operator.makeOneInfo(loc)
                 # item.skewAngle = infoMutator.italicAngle
                 item.font.info.italicAngle = item.skewAngle
-                item.font.lib[constants.EXTENSION_KEY + ".location"] = dict(loc)
+                item.font.lib[constants.EXTENSION_KEY + ".location"] = loc
 
                 libMutator = self.operator.getLibEntryMutator(self.operator.getLocationType(loc)[2])
                 if libMutator:
@@ -2469,7 +2475,8 @@ class SpacePort(Subscriber, ezui.WindowController):
 
                 if fontItem.use:
                     index = off = skewAngle = 0
-                    location = font.lib.get("location", {})
+                    location = font.lib.get(constants.EXTENSION_KEY + ".location", {})
+                    print(location)
 
                     scaler = font.info.unitsPerEm/1000
 
@@ -2480,7 +2487,7 @@ class SpacePort(Subscriber, ezui.WindowController):
                         off = font.lib.get("com.typemytype.robofont.italicSlantOffset", 0)
                         if font.lib.get("descriptor") == "instance":
                             _temp = glyph
-                            location = font.lib.get("location")
+                            location = font.lib.get(constants.EXTENSION_KEY + ".location")
                             mathGlyph = self.operator.makeOneGlyph(glyph, location, decomposeComponents=True)
                             if mathGlyph is not None:
                                 glyph = internalFontClasses.createGlyphObject()
@@ -2495,6 +2502,8 @@ class SpacePort(Subscriber, ezui.WindowController):
 
                             if glyph in font.keys():
                                 glyph = fontItem.layer[glyph]
+
+                        print(glyph)
                             
                         if isinstance(glyph, str):
                             capScale = font.info.capHeight / 750
@@ -2514,7 +2523,7 @@ class SpacePort(Subscriber, ezui.WindowController):
                                         onDisk=onDisk,
                                         skewAngle=skewAngle,
                                         italicOffset=off,
-                                        location=font.lib.get("location", {}),
+                                        location=font.lib.get(constants.EXTENSION_KEY + ".location", {}),
                                         scaler=scaler,
                                 )
 
@@ -2554,10 +2563,12 @@ class SpacePort(Subscriber, ezui.WindowController):
 
             if fontItem.use:
                 index = off = skewAngle = 0
-                location = font.lib.get("location", {})
+                location = font.lib.get(constants.EXTENSION_KEY + ".location", {})
 
                 scaler = font.info.unitsPerEm/1000
-                for index, glyph in enumerate(objects):
+                for index, glyphName in enumerate(objects):
+
+                    glyph = glyphName
 
                     item = None
                     if self.__cache:
@@ -2591,7 +2602,7 @@ class SpacePort(Subscriber, ezui.WindowController):
                         off = font.lib.get("com.typemytype.robofont.italicSlantOffset", 0)
                         if font.lib.get("descriptor") == "instance":
                             _temp = glyph
-                            location = font.lib.get("location")
+                            location = font.lib.get(constants.EXTENSION_KEY + ".location")
                             mathGlyph = self.operator.makeOneGlyph(glyph, location, decomposeComponents=True)
                             if mathGlyph is not None:
                                 glyph = internalFontClasses.createGlyphObject()
@@ -2619,14 +2630,14 @@ class SpacePort(Subscriber, ezui.WindowController):
                             glyph = RGlyph(glyph)
 
                         item = self.buildItem(
-                                        name=glyph.name,
+                                        name=glyphName,
                                         glyph=glyph,
                                         font=font,
                                         index=index,
                                         onDisk=onDisk,
                                         skewAngle=skewAngle,
                                         italicOffset=off,
-                                        location=font.lib.get("location", {}),
+                                        location=font.lib.get(constants.EXTENSION_KEY + ".location", {}),
                                         scaler=scaler,
                                 )
 
@@ -2645,7 +2656,7 @@ class SpacePort(Subscriber, ezui.WindowController):
                     onDisk=False,
                     skewAngle=skewAngle,
                     italicOffset=off,
-                    location=font.lib.get("location", {}),
+                    location=font.lib.get(constants.EXTENSION_KEY + ".location", {}),
                     scaler=scaler,
                 )
                 items.append(null)
