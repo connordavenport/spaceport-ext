@@ -1,6 +1,7 @@
 # menuTitle : SpacePort
 # shortCut  : command+control+s
 
+import enum
 from inspect import currentframe
 import math
 import os
@@ -2766,7 +2767,7 @@ class SpacePort(Subscriber, ezui.WindowController):
                 # through glyph line
 
                 if isEmpty and previous:
-                    left = previous.getRayLeftMargin(self.beamPosition, item.skewAngle) or 0
+                    left =  previous.getRayLeftMargin(self.beamPosition, item.skewAngle) or 0
                     left -= previous.width
 
                 beamIndicatorLayer.appendLineSublayer(
@@ -3825,9 +3826,15 @@ class SpacePort(Subscriber, ezui.WindowController):
         if info["glyph"].name != selectedMatrixItem.name:
             self.w.matrix._glyphWidthChanged(info)
         items = self.w.getItemValue("collectionView")
-        for item in items:
+        for index, item in enumerate(items):
             if item.glyph == info["glyph"]:
                 self.updateItem(item)
+
+                # update previous glyph item's metrics too
+                if index != 0:
+                    previousItem = items[index-1]
+                    self.updateItem(previousItem)
+
         self.collectionView.set(self.w.getItemValue("collectionView")) # i think that this is the only external-way to reload the view
 
 
