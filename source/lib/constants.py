@@ -68,6 +68,8 @@ NEG_KERN_COLOR:tuple[float,...] = (1.0, 0.0, 0.0)
 ZOOM_IN_FACTOR:float = getDefault("zoomInFactor",.85)
 ZOOM_OUT_FACTOR:float = getDefault("zoomOutFactor",1.15)
 
+BUFFER = 25
+
 DESIGNSPACE_WIDTH = 300
 
 MATRIX_POS:tuple[int,int,int,int] = (0, -48, 0, 48)

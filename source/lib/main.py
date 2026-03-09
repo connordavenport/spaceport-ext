@@ -1991,16 +1991,16 @@ class SpacePort(Subscriber, ezui.WindowController):
         item.appendLayer("glyphContainer", glyphContainer)
 
         glyphContainer.appendBaseSublayer(
+            name="glyphMetrics",
+            visible=True,
+        )
+
+        glyphContainer.appendBaseSublayer(
             name="selectionIndicator",
         )
         
         glyphContainer.appendBaseSublayer(
             name="descriptorIndicator",
-            visible=True,
-        )
-
-        glyphContainer.appendBaseSublayer(
-            name="glyphMetrics",
             visible=True,
         )
 
@@ -2043,12 +2043,13 @@ class SpacePort(Subscriber, ezui.WindowController):
             visible=True
         )
 
+
         glyphContainer.appendBaseSublayer(
             name="beamIndicator",
             visible=True,
             acceptsHit=True,
         )
-
+        
         # item.appendLayer("selectionIndicator", selectionLayer)
 
         with item.propertyGroup():
@@ -2069,7 +2070,7 @@ class SpacePort(Subscriber, ezui.WindowController):
                 locationData += f' i: {" ".join(formatted)}'
             else:
                 if item.font.path:
-                    locationData += f"    {os.path.basename(item.font.path)}"
+                    locationData += f"{os.path.basename(item.font.path)}"
 
             descriptorIndicatorLayer = glyphContainer.getSublayer("descriptorIndicator")
             with descriptorIndicatorLayer.propertyGroup():
@@ -2078,26 +2079,26 @@ class SpacePort(Subscriber, ezui.WindowController):
                         font="SFMono-Regular",
                         text=locationData,
                         pointSize=8,
-                        position=(-50,-250*item.scaler),
+                        position=(0,(font.info.ascender+constants.BUFFER)*item.scaler),
                         fillColor=(*self.foreground[0:3], .5),
                         horizontalAlignment="left",
                         verticalAlignment="center",
-                        anchor=(.5,.5)
+                        anchor=(.5,.5),
                     )
                 descriptorIndicatorLayer.setVisible(self.showLabel)
 
             if name != "NULL":
                 
                 glyphMetricsLayer = glyphContainer.getSublayer("glyphMetrics")
-                depth = -75
+                depth = -100
                 
                 with glyphMetricsLayer.propertyGroup():
                     for side in ["left", "right"]:
                         if side == "left":
-                            start = (0,0)
+                            start = (0,font.info.ascender)
                             end = (0, depth)
                         else:
-                            start = (glyph.width,0)
+                            start = (glyph.width,font.info.ascender)
                             end = (glyph.width, depth)
 
                         val = round(getattr(glyph, f"angled{side.title()}Margin"))
@@ -2116,14 +2117,14 @@ class SpacePort(Subscriber, ezui.WindowController):
                             startPoint=start,
                             endPoint=end,
                             strokeWidth=1,
-                            strokeColor=(.2,.2,.2,1),
+                            strokeColor=(.75,.75,.75,1),
                             strokeCap="round"
                             )
                     width = glyphMetricsLayer.appendTextLineSublayer(
                         name="glyphWidthSublayer",
                         text=str(glyph.width),
                         pointSize=7,
-                        position=(round(glyph.width/2),round(depth/2)),
+                        position=(round(glyph.width/2),round(depth*.7)),
                         fillColor=(.2,.2,.2,1),
                         horizontalAlignment="center",
                         padding=(0,7),
@@ -2143,6 +2144,9 @@ class SpacePort(Subscriber, ezui.WindowController):
                     if not self.showKerning:
                         kern = 0
 
+                    if not kern and index != 0:
+                        rightMarginLine = glyphMetricsLayer.getSublayer("glyphMetricsLeftLinesSublayer")
+                        rightMarginLine.setVisible(False)
 
                     if kern and self.showKerning:
                         #kernIndicatorLayer.setVisible(True)
@@ -2312,7 +2316,7 @@ class SpacePort(Subscriber, ezui.WindowController):
                                 text=f" 􀤒 {' '.join(formatted)}",
                                 font="SFMono-Regular",
                                 pointSize=8,
-                                position=(-50,-200*item.scaler),
+                                position=(0,(font.info.ascender+constants.BUFFER)*item.scaler),
                                 fillColor=(0.5819, 0.2157, 1.0, 1.0),
                                 horizontalAlignment="left",
                                 verticalAlignment="center",
@@ -2321,14 +2325,14 @@ class SpacePort(Subscriber, ezui.WindowController):
             skewAngle = item.skewAngle
             item.setWidth(glyph.width)
 
-            depth = -75
+            depth = -100
             with glyphMetricsLayer.propertyGroup():
                 for side in ["left", "right"]:
                     if side == "left":
-                        start = (0,0)
+                        start = (0,font.info.ascender)
                         end = (0, depth)
                     else:
-                        start = (glyph.width,0)
+                        start = (glyph.width,font.info.ascender)
                         end = (glyph.width, depth)
 
                     val = round(getattr(glyph, f"angled{side.title()}Margin"))
@@ -2345,7 +2349,7 @@ class SpacePort(Subscriber, ezui.WindowController):
                 wd = glyphMetricsLayer.getSublayer("glyphWidthSublayer")
                 if wd:
                     wd.setText(str(glyph.width))
-                    wd.setPosition((round(glyph.width/2),round(depth/2)))
+                    wd.setPosition((round(glyph.width/2),round(depth*.7)))
 
             glyphFillLayer = glyphContainer.getSublayer("glyphFill")
             #with glyphFillLayer.propertyGroup():    # for some reason this wont work inside a property group
@@ -2686,7 +2690,13 @@ class SpacePort(Subscriber, ezui.WindowController):
         glyph = item.glyph
         font = item.font
         beamIndicatorLayer = item.getLayer("glyphContainer").getSublayer("beamIndicator")
+
+        textLayer = None
+        for layer in beamIndicatorLayer.getSublayers():
+            if layer.getName() == "beamIndicatorLayerText":
+                textLayer = layer
         beamIndicatorLayer.clearSublayers()
+        if textLayer is not None: beamIndicatorLayer.appendSublayer(textLayer)
 
         if self.collectionView.get():
             # beamIndicatorLayer.addTranslationTransformation(value=(-off,0))
@@ -2694,15 +2704,15 @@ class SpacePort(Subscriber, ezui.WindowController):
 
             with beamIndicatorLayer.propertyGroup():
                 try:
-                    next = [ii for ii in self.collectionView.get() if item.font == ii.font][item.index+1].glyph
+                    nextItem = [ii for ii in self.collectionView.get() if item.font == ii.font][item.index+1]
                 except IndexError:
-                    next = None
+                    nextItem = None
 
-                previous = None
+                previousItem = None
                 try:
-                    previous = [ii for ii in self.collectionView.get() if item.font == ii.font][item.index-1].glyph
+                    previousItem = [ii for ii in self.collectionView.get() if item.font == ii.font][item.index-1]
                 except IndexError:
-                    previous = None
+                    previousItem = None
 
                 right = glyph.getRayRightMargin(self.beamPosition, item.skewAngle) or 0
                 left = glyph.getRayLeftMargin(self.beamPosition, item.skewAngle) or 0
@@ -2766,9 +2776,9 @@ class SpacePort(Subscriber, ezui.WindowController):
 
                 # through glyph line
 
-                if isEmpty and previous:
-                    left =  previous.getRayLeftMargin(self.beamPosition, item.skewAngle) or 0
-                    left -= previous.width
+                if isEmpty and previousItem:
+                    left =  previousItem.glyph.getRayLeftMargin(self.beamPosition, item.skewAngle) or 0
+                    left -= previousItem.glyph.width
 
                 beamIndicatorLayer.appendLineSublayer(
                     startPoint=(left+transformed, self.beamPosition),
@@ -2777,24 +2787,25 @@ class SpacePort(Subscriber, ezui.WindowController):
                     strokeWidth=.75,
                     )
 
-                if next is not None:
-                    if next.contours or next.components:
-                        nextLeft = next.getRayLeftMargin(self.beamPosition, item.skewAngle) or 0
+                if nextItem is not None:
+                    if nextItem.glyph.contours or nextItem.glyph.components:
+                        nextItemLeft = nextItem.glyph.getRayLeftMargin(self.beamPosition, item.skewAngle) or 0
                         if font.info.familyName == constants.PREVIEW:
-                            nextLeft -= item.offset
+                            nextItemLeft -= item.offset
 
                         if not isEmpty:
                             beamIndicatorLayer.appendLineSublayer(
-                                startPoint=((glyph.width - right)+transformed, self.beamPosition),
-                                endPoint=((glyph.width + nextLeft)+transformed, self.beamPosition),
+                                startPoint=((glyph.width - right) +transformed, self.beamPosition),
+                                endPoint=((glyph.width + nextItemLeft)+transformed, self.beamPosition),
                                 strokeColor=(1,.2,0,1),
                                 strokeWidth=.75,
                             )
-                            if nextLeft:
-                                beamIndicatorLayer.appendTextLineSublayer(
-                                    text=str(round(right + nextLeft)),
+                            if nextItemLeft:
+                                beamText = nextItem.getLayer("glyphContainer").getSublayer("beamIndicator").appendTextLineSublayer(
+                                    name="beamIndicatorLayerText",
+                                    text=str(round(right + nextItemLeft)),
                                     font="SFMono-Regular",
-                                    position=((glyph.width - right) + ((right + nextLeft)/2)+transformed, self.beamPosition),
+                                    position=(0, self.beamPosition),
                                     fillColor=(1,.2,0,1),
                                     pointSize=10,
                                     backgroundColor=(1,.2,0,.2),
@@ -2803,11 +2814,13 @@ class SpacePort(Subscriber, ezui.WindowController):
                                     verticalAlignment="bottom",
                                     padding=(3,1),
                                 )
-
+                                beamText.setVisible(self.showBeam)
+                            else:
+                                nextItem.getLayer("glyphContainer").getSublayer("beamIndicator").clearSublayers()
                         else:
                             beamIndicatorLayer.appendLineSublayer(
                                 startPoint=((glyph.width - right)+transformed, self.beamPosition),
-                                endPoint=((glyph.width + nextLeft)+transformed, self.beamPosition),
+                                endPoint=((glyph.width + nextItemLeft)+transformed, self.beamPosition),
                                 strokeColor=(1,.2,0,.4),
                                 strokeWidth=.75,
                             )
@@ -2903,6 +2916,15 @@ class SpacePort(Subscriber, ezui.WindowController):
                 pass
         ###
         if scale: self.zoomEnded(None)
+
+        for item in self.collectionView.get():
+            glyphContainer = item.getLayer("glyphContainer")
+            textLayer = glyphContainer.getSublayer("beamIndicator").getSublayer("beamIndicatorLayerText")
+            if textLayer:
+                if self.pointSize <= 40:
+                    textLayer.setVisible(False)
+                else:
+                    textLayer.setVisible(True)
 
 
     def zoomEnded(self, coalescer:Coalescer) -> None:
