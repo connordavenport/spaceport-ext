@@ -110,6 +110,7 @@ class SpacePort(Subscriber, ezui.WindowController):
         #self.drawFocusRing:bool          = True
         self.tintedBackground:bool       = True
         self.splitFontOrdering:bool      = False
+        self.invert:bool                 = False
 
         self.sortingSettings:list[int]   = []
         self.weightSort:int = 1
@@ -402,7 +403,7 @@ class SpacePort(Subscriber, ezui.WindowController):
         self.buildSettingsPopover()
 
         #contentViewController
-        self.viewSettingsWindow.getItem("invertColorsButton").set(0)
+        # self.viewSettingsWindow.getItem("invertColorsButton").set(0)
         self.invertColorsButtonCallback(self.viewSettingsWindow.getItem("invertColorsButton"))
 
         viewPrefs = getExtensionDefault(constants.EXTENSION_KEY + ".view_prefs", fallback=self.viewSettingsWindow.getItemValues())
@@ -587,8 +588,7 @@ class SpacePort(Subscriber, ezui.WindowController):
         >> [X]                                                          @showBeamButton
         >> --X------                                                    @beamPositionSlider
         * Box                                                           @colorsBox = VerticalStack
-        > Invert Colors:
-        > ( {circle.dashed} | {circle.fill} )                           @invertColorsButton
+        > ( 􀅈 Invert Colors )                                          @invertColorsButton
         > Glyph Drawing Options:
         > (( Fill | Stroke ))                                           @displaySettingsButton
         
@@ -716,6 +716,17 @@ class SpacePort(Subscriber, ezui.WindowController):
 
     def sortingButtonCallback(self, sender:Any) -> None:
         self.split = True if sender.get() == 1 else False
+        # self.showBeam = not self.showBeam
+        if self.split:
+            self.w.matrix.setShowBeam(False)
+            self.viewSettingsWindow.setItemValue("showBeamButton", False)
+        else:
+            self.w.matrix.setShowBeam(self.showBeam)
+            self.viewSettingsWindow.setItemValue("showBeamButton", self.showBeam)
+
+        items = self.w.getItemValue("collectionView")
+        for item in items:
+            self.beamController(item)
         self.populate()
 
 
@@ -1810,9 +1821,10 @@ class SpacePort(Subscriber, ezui.WindowController):
 
 
     def invertColorsButtonCallback(self, sender:Any) -> None:
-        self.invert = self.viewSettingsWindow.getItemValue("invertColorsButton")
-        foregroundColor = [(0,0,0,1), (1,1,1,1)][self.invert]
-        backgroundColor = [AppKit.NSColor.whiteColor(), AppKit.NSColor.blackColor()][self.invert]
+        #self.invert = self.viewSettingsWindow.getItemValue("invertColorsButton")
+        self.invert = not self.invert
+        foregroundColor = [(1,1,1,1), (0,0,0,1)][self.invert]
+        backgroundColor = [AppKit.NSColor.blackColor(), AppKit.NSColor.whiteColor()][self.invert]
 
         self.collectionView.setBackgroundColor(backgroundColor)
         items = self.w.getItemValue("collectionView")
@@ -1832,6 +1844,22 @@ class SpacePort(Subscriber, ezui.WindowController):
                 glyphFillLayer.setFillColor((*foregroundColor[:3], .2))
             else:
                 glyphFillLayer.setFillColor(foregroundColor)
+
+            ####
+            glyphMetricsLayer = glyphContainer.getSublayer("glyphMetrics")
+            for side in ["left", "right"]:
+                margin = glyphMetricsLayer.getSublayer(f"glyph{side.title()}MetricsValueSublayer")
+                if margin: margin.setFillColor((*foregroundColor[0:3],.8))
+                line = glyphMetricsLayer.getSublayer(f"glyphMetrics{side.title()}LinesSublayer")
+                if line: line.setStrokeColor((*foregroundColor[0:3],.25))
+            width = glyphMetricsLayer.getSublayer("glyphWidthSublayer")
+            if width: width.setFillColor((*foregroundColor[0:3],.8))
+
+            if item.index == 0:
+                descriptorIndicatorLayer = glyphContainer.getSublayer("descriptorIndicator")
+                if descriptorIndicatorLayer:
+                    descriptorIndicatorLayer.getSublayer("descriptorIndicatorTextLayer").setFillColor((*foregroundColor[0:3], .5))
+            ####
 
             glyphStrokeLayer.setStrokeColor(foregroundColor)
             glyphStrokeLayer.setVisible(self.showStroke)
@@ -1880,9 +1908,8 @@ class SpacePort(Subscriber, ezui.WindowController):
         self.showPoints    = 2 in values
 
         self.beamPosition  = self.viewSettingsWindow.getItemValue("beamPositionSlider")
-        self.showBeam      = self.viewSettingsWindow.getItemValue("showBeamButton")
 
-        showBeam = self.showBeam
+        showBeam = self.viewSettingsWindow.getItemValue("showBeamButton")
         showMetrics = self.showMetrics
         showLabel = self.showLabel
         showKerning = self.showKerning
@@ -2062,20 +2089,18 @@ class SpacePort(Subscriber, ezui.WindowController):
                 name="descender"
             )
             
-            locationData  = ""
-            formatted = [f'{axis}:{value}' for axis,value in location.items()]
-            if font.lib.get("descriptor") == "source":
-                locationData += f' s: {" ".join(formatted)}'
-            elif font.lib.get("descriptor") == "instance":
-                locationData += f' i: {" ".join(formatted)}'
-            else:
-                if item.font.path:
-                    locationData += f"{os.path.basename(item.font.path)}"
+            locationData  = f"{item.font.info.familyName} {item.font.info.styleName}"
+            formatted = [f'{axis.title()} ({value})' for axis,value in location.items()]
+            if font.lib.get(constants.EXTENSION_KEY + ".descriptor") == "source":
+                locationData += f', Source {", ".join(formatted)}'
+            elif font.lib.get(constants.EXTENSION_KEY + ".descriptor") == "instance":
+                locationData += f', Instance {", ".join(formatted)}'
 
             descriptorIndicatorLayer = glyphContainer.getSublayer("descriptorIndicator")
             with descriptorIndicatorLayer.propertyGroup():
                 if item.index == 0:
                     descriptorIndicatorLayer.appendTextLineSublayer(
+                        name="descriptorIndicatorTextLayer",
                         font="SFMono-Regular",
                         text=locationData,
                         pointSize=8,
@@ -2108,7 +2133,7 @@ class SpacePort(Subscriber, ezui.WindowController):
                                 text=str(val),
                                 pointSize=7,
                                 position=(start[0],round(depth/2)),
-                                fillColor=(.2,.2,.2,1),
+                                fillColor=(*self.foreground[0:3],.8),
                                 horizontalAlignment=side,
                                 padding=(5,0),
                                 )
@@ -2117,7 +2142,7 @@ class SpacePort(Subscriber, ezui.WindowController):
                             startPoint=start,
                             endPoint=end,
                             strokeWidth=1,
-                            strokeColor=(.75,.75,.75,1),
+                            strokeColor=(*self.foreground[0:3],.25),
                             strokeCap="round"
                             )
                     width = glyphMetricsLayer.appendTextLineSublayer(
@@ -2125,7 +2150,7 @@ class SpacePort(Subscriber, ezui.WindowController):
                         text=str(glyph.width),
                         pointSize=7,
                         position=(round(glyph.width/2),round(depth*.7)),
-                        fillColor=(.2,.2,.2,1),
+                        fillColor=(*self.foreground[0:3],.8),
                         horizontalAlignment="center",
                         padding=(0,7),
                         )
@@ -2311,9 +2336,11 @@ class SpacePort(Subscriber, ezui.WindowController):
                     with descriptionLayer.propertyGroup():
                         descriptionLayer.clearSublayers()
                         if item.index == 0:
-                            formatted = [f"{axis}:{round(value,3)}" for axis,value in loc.items()]
+                            formatted = [f"{axis.title()} ({round(value,1)})" for axis,value in loc.items()]
+                            styleName = " {item.font.info.styleName}" if item.font.info.styleName else ""
+                            formattedText = f"{item.font.info.familyName}{styleName}, {', '.join(formatted)} 􀤒"
                             descriptionLayer.appendTextLineSublayer(
-                                text=f" 􀤒 {' '.join(formatted)}",
+                                text=formattedText,
                                 font="SFMono-Regular",
                                 pointSize=8,
                                 position=(0,(font.info.ascender+constants.BUFFER)*item.scaler),
@@ -2322,6 +2349,7 @@ class SpacePort(Subscriber, ezui.WindowController):
                                 verticalAlignment="center",
                                 anchor=(.5,.5),
                             )
+
             skewAngle = item.skewAngle
             item.setWidth(glyph.width)
 
@@ -2481,7 +2509,6 @@ class SpacePort(Subscriber, ezui.WindowController):
                 if fontItem.use:
                     index = off = skewAngle = 0
                     location = font.lib.get(constants.EXTENSION_KEY + ".location", {})
-                    print(location)
 
                     scaler = font.info.unitsPerEm/1000
 
@@ -2490,7 +2517,7 @@ class SpacePort(Subscriber, ezui.WindowController):
                         onDisk = True
                         skewAngle = getattr(font.info, "italicAngle") or 0
                         off = font.lib.get("com.typemytype.robofont.italicSlantOffset", 0)
-                        if font.lib.get("descriptor") == "instance":
+                        if font.lib.get(constants.EXTENSION_KEY + ".descriptor") == "instance":
                             _temp = glyph
                             location = font.lib.get(constants.EXTENSION_KEY + ".location")
                             mathGlyph = self.operator.makeOneGlyph(glyph, location, decomposeComponents=True)
@@ -2507,8 +2534,6 @@ class SpacePort(Subscriber, ezui.WindowController):
 
                             if glyph in font.keys():
                                 glyph = fontItem.layer[glyph]
-
-                        print(glyph)
                             
                         if isinstance(glyph, str):
                             capScale = font.info.capHeight / 750
@@ -2584,7 +2609,7 @@ class SpacePort(Subscriber, ezui.WindowController):
                                                for _item in self.w.getItemValue("collectionView")
                                                if font == _item.font
                                                and
-                                               glyph == _item.glyph.name
+                                               glyphName == _item.glyph.name
                                                and
                                                index == _item.index
                                               ]
@@ -2605,7 +2630,7 @@ class SpacePort(Subscriber, ezui.WindowController):
                         onDisk = True
                         skewAngle = getattr(font.info, "italicAngle") or 0
                         off = font.lib.get("com.typemytype.robofont.italicSlantOffset", 0)
-                        if font.lib.get("descriptor") == "instance":
+                        if font.lib.get(constants.EXTENSION_KEY + ".descriptor") == "instance":
                             _temp = glyph
                             location = font.lib.get(constants.EXTENSION_KEY + ".location")
                             mathGlyph = self.operator.makeOneGlyph(glyph, location, decomposeComponents=True)
@@ -2690,6 +2715,8 @@ class SpacePort(Subscriber, ezui.WindowController):
         glyph = item.glyph
         font = item.font
         beamIndicatorLayer = item.getLayer("glyphContainer").getSublayer("beamIndicator")
+
+        willShow = self.showBeam if not self.split else False
 
         textLayer = None
         for layer in beamIndicatorLayer.getSublayers():
@@ -2814,7 +2841,7 @@ class SpacePort(Subscriber, ezui.WindowController):
                                     verticalAlignment="bottom",
                                     padding=(3,1),
                                 )
-                                beamText.setVisible(self.showBeam)
+                                beamText.setVisible(willShow)
                             else:
                                 nextItem.getLayer("glyphContainer").getSublayer("beamIndicator").clearSublayers()
                         else:
@@ -2825,7 +2852,10 @@ class SpacePort(Subscriber, ezui.WindowController):
                                 strokeWidth=.75,
                             )
 
-                beamIndicatorLayer.setVisible(self.showBeam)
+                if self.split:
+                    beamIndicatorLayer.setVisible(False)
+                else:    
+                    beamIndicatorLayer.setVisible(willShow)
 
 
     def acceptsFirstResponder(self, sender:Any) -> bool:
