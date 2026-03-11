@@ -1804,19 +1804,24 @@ class SpacePort(Subscriber, ezui.WindowController):
         lineHeight = float(constants.LINE_HEIGHTS[lineHeightIndex])
         alignment = ("left", "center", "right")[viewSettings["horzAlignmentSegmentButton"]]
         scale = pointSize / self.upm
+        #scaledLineHeight = self.upm * lineHeight * scale
         lineHeight = self.upm * lineHeight * scale
-        inset = pointSize * 0.2
+        #lineHeight = scaledLineHeight if not self.showLabel else (scaledLineHeight*1.15)
+
+        inset = pointSize * 0.5
         minInset = 10
         maxInset = 30
         if inset < minInset:
             inset = minInset
         elif inset > maxInset:
             inset = maxInset
+
+        #insetY = inset if not self.showLabel else inset*1.15
         self.collectionView.setLayoutProperties(
             scale=scale,
             lineHeight=lineHeight,
             alignment=alignment,
-            inset=(inset, inset)
+            inset=(inset, inset*1.2)
         )
 
 
@@ -1876,6 +1881,7 @@ class SpacePort(Subscriber, ezui.WindowController):
     def showLabelButtonCallback(self, sender:Any) -> None:
         self.showLabel = self.viewSettingsWindow.getItemValue("showLabelButton")
         self.displaySettingsButtonCallback(None)
+        self.controlsStackCallback(None)
 
 
     def multilineButtonCallback(self, sender:Any) -> None:
@@ -2909,6 +2915,8 @@ class SpacePort(Subscriber, ezui.WindowController):
 
         typesetter = self.collectionView._documentView._typesetter
 
+        #lineHeight = self.lineHeight if not self.showLabel else (self.lineHeight*1.15)
+
         ### thanks tal, you're the BEST
         self.collectionView.getMerzContainer().setContainerScale(self.scale)
         typesetterScale = 1 / self.scale
@@ -2960,7 +2968,7 @@ class SpacePort(Subscriber, ezui.WindowController):
     def zoomEnded(self, coalescer:Coalescer) -> None:
         self.collectionView.setLayoutProperties(
             scale=self.scale,
-            lineHeight=self.lineHeight
+            lineHeight=self.lineHeight # if not self.showLabel else (self.lineHeight*1.15)
         )
 
 
@@ -3138,6 +3146,7 @@ class SpacePort(Subscriber, ezui.WindowController):
                 self.setTypingItem()
 
             if multiFontSelect:
+                self.selectedItems = []
                 for temporary in self.collectionView.get():
                     if temporary.index == hit.index:
                         if temporary.name == hit.name:
@@ -3393,6 +3402,17 @@ class SpacePort(Subscriber, ezui.WindowController):
                         items = self.w.getItemValue("collectionView")
                         for item in items:
                             self.beamController(item)
+
+                    elif char.lower() == "m":
+                        # callback will set global
+                        metricsSetting = self.viewSettingsWindow.getItemValue("showMetricsButton")
+                        self.viewSettingsWindow.setItemValue("showMetricsButton", not metricsSetting)
+                        self.showMetricsButtonCallback(None)
+
+                    elif char.lower() == "l":
+                        showSetting = self.viewSettingsWindow.getItemValue("showLabelButton")
+                        self.viewSettingsWindow.setItemValue("showLabelButton", not showSetting)
+                        self.showLabelButtonCallback(None)
 
                     elif char == getDefault("glyphViewZoomInKey", "z"):
                         # zoom in
