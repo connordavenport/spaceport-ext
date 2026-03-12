@@ -2122,21 +2122,32 @@ class SpacePort(Subscriber, ezui.WindowController):
             )
             
             locationData  = f"{item.font.info.familyName} {item.font.info.styleName}"
+            color = None
             formatted = [f'{axis.title()} ({value})' for axis,value in location.items()]
             if font.lib.get(constants.EXTENSION_KEY + ".descriptor") == "source":
                 locationData += f', Source {", ".join(formatted)}'
+                color = constants.SOURCE_COLOR
             elif font.lib.get(constants.EXTENSION_KEY + ".descriptor") == "instance":
                 locationData += f', Instance {", ".join(formatted)}'
+                color = constants.INSTANCE_COLOR
 
             descriptorIndicatorLayer = glyphContainer.getSublayer("descriptorIndicator")
+
             with descriptorIndicatorLayer.propertyGroup():
                 if item.index == 0:
+                    descriptorIndicatorLayer.appendOvalSublayer(
+                        name="descriptorIndicatorDotLayer",
+                        size=(60, 60),
+                        position=(0,(font.info.ascender+constants.BUFFER)*item.scaler),
+                        fillColor=color,
+                        )
+
                     descriptorIndicatorLayer.appendTextLineSublayer(
                         name="descriptorIndicatorTextLayer",
                         font="SFMono-Regular",
                         text=locationData,
                         pointSize=8,
-                        position=(0,(font.info.ascender+constants.BUFFER)*item.scaler),
+                        position=(100,(font.info.ascender+constants.BUFFER)*item.scaler),
                         fillColor=(*self.foreground[0:3], .5),
                         horizontalAlignment="left",
                         verticalAlignment="center",
@@ -2215,7 +2226,7 @@ class SpacePort(Subscriber, ezui.WindowController):
                         #kernIndicatorLayer.setVisible(True)
                         kernColor = constants.POS_KERN_COLOR if kern > 0 else constants.NEG_KERN_COLOR
                         
-                        alpha = .3 if kern == 0 else 1
+                        alpha = 0 if kern == 0 else 1
 
                         x = -kern if kern > 0 else 0
                         
@@ -2372,13 +2383,20 @@ class SpacePort(Subscriber, ezui.WindowController):
                         if item.index == 0:
                             formatted = [f"{axis.title()} ({round(value,1)})" for axis,value in loc.items()]
                             styleName = " {item.font.info.styleName}" if item.font.info.styleName else ""
-                            formattedText = f"{item.font.info.familyName}{styleName}, {', '.join(formatted)} 􀤒"
+                            formattedText = f"{item.font.info.familyName}{styleName}, {', '.join(formatted)}"
+
+                            descriptionLayer.appendOvalSublayer(
+                                name="descriptorIndicatorDotLayer",
+                                size=(60,60),
+                                position=(0,(font.info.ascender+constants.BUFFER)*item.scaler),
+                                fillColor=constants.INTERPO_COLOR,
+                                )
                             descriptionLayer.appendTextLineSublayer(
                                 text=formattedText,
                                 font="SFMono-Regular",
                                 pointSize=8,
-                                position=(0,(font.info.ascender+constants.BUFFER)*item.scaler),
-                                fillColor=(0.5819, 0.2157, 1.0, 1.0),
+                                position=(100,(font.info.ascender+constants.BUFFER)*item.scaler),
+                                fillColor=(*self.foreground[0:3], .5),
                                 horizontalAlignment="left",
                                 verticalAlignment="center",
                                 anchor=(.5,.5),
@@ -2453,7 +2471,7 @@ class SpacePort(Subscriber, ezui.WindowController):
                 if kern is not None and self.kerning:
 
                     kernColor = constants.POS_KERN_COLOR if kern > 0 else constants.NEG_KERN_COLOR
-                    alpha = .3 if kern == 0 else 1
+                    alpha = 0 if kern == 0 else 1
                     
                     try:
                         kernIndicatorLayer.removeSublayer("kernIndicatorTextLayer")
@@ -3286,9 +3304,9 @@ class SpacePort(Subscriber, ezui.WindowController):
 
             self._placeSourcesInstancesInView(container, self.operator)
 
-            dotFill = (0,0,0,1)
+            dotFill = constants.INTERPO_COLOR
             if x < 20 or x > 280 or y < 20 or 280 < y:
-                dotFill = (0,0,0,.3)
+                dotFill = (*dotFill[0:3],.2)
 
             container.appendLineSublayer(
                 startPoint=(x,0),
@@ -3304,7 +3322,7 @@ class SpacePort(Subscriber, ezui.WindowController):
                 )
             container.appendOvalSublayer(
                 position=(x,y),
-                size=(6,6),
+                size=(10,10),
                 anchor=(.5,.5),
                 fillColor=dotFill,
                 strokeColor=dotFill,
@@ -3322,21 +3340,20 @@ class SpacePort(Subscriber, ezui.WindowController):
             sP = self._convertDesignspaceLocationToViewPosition(source.location)
             container.appendOvalSublayer(
                 position=sP,
-                size=(7,7),
+                size=(10,10),
                 anchor=(.5,.5),
-                fillColor=(.2,.2,.2,1),
-                strokeColor=(0,0,0,1),
-                strokeWidth=1,
+                fillColor=constants.SOURCE_COLOR,
             )
 
         for instance in operator.instances:
-            iP = self._convertDesignspaceLocationToViewPosition(instance.location)
-            container.appendOvalSublayer(
-                position=iP,
-                size=(5,5),
-                anchor=(.5,.5),
-                fillColor=(.6,.6,.6,1),
-            )
+            if instance.location not in [s.location for s in operator.sources]:
+                iP = self._convertDesignspaceLocationToViewPosition(instance.location)
+                container.appendOvalSublayer(
+                    position=iP,
+                    size=(10,10),
+                    anchor=(.5,.5),
+                    fillColor=constants.INSTANCE_COLOR,
+                )
 
 
     @property

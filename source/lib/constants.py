@@ -69,6 +69,10 @@ DESIGNSPACE_WIDTH:int = 300
 POS_KERN_COLOR:tuple[float,...] = (0.0, 0.0, 1.0)
 NEG_KERN_COLOR:tuple[float,...] = (1.0, 0.0, 0.0)
 
+INTERPO_COLOR:tuple[float,...]  = (0.263, 0.667, 0.337, 1)
+SOURCE_COLOR:tuple[float,...]   = (0.914, 0.22, 0.106, 1)
+INSTANCE_COLOR:tuple[float,...] = (0.149, 0.588, 0.824, 1)
+
 ZOOM_IN_FACTOR:float = getDefault("zoomInFactor",.85)
 ZOOM_OUT_FACTOR:float = getDefault("zoomOutFactor",1.15)
 
