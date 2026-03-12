@@ -64,6 +64,7 @@ from mojo.subscriber import (
     unregisterRoboFontSubscriber,
 )
 from mojo.UI import GetFile, OpenGlyphWindow, getDefault, splitText
+from pprint import pprint
 import subprocess
 from typing import Any, Optional
 from ufoProcessor.ufoOperator import UFOOperator
@@ -456,19 +457,7 @@ class SpacePort(Subscriber, ezui.WindowController):
 
     def modeButtonCallback(self, sender:Any) -> None:
         currentMode = constants.ALL_MODES[sender.get()]
-
-        # kerning state is binary
-        # typing state is on if typing otherwise it means spacing
-        
-        # self.kerning = True if currentMode == "kerning" else False
-        # if not self.kerning:
-        #     self.typing = True if currentMode == "typing" else False
-
-        # if self.split and currentMode == "typing":
-        #     self.toggleTypingState(mode="spacing")
-
         self.toggleTypingState(mode=currentMode)
-        # self.populate()
         
 
     def buildFeaturePopover(self) -> None:
@@ -3182,6 +3171,8 @@ class SpacePort(Subscriber, ezui.WindowController):
                         if self.kerning and right is not None:
                             #hit.selectedPair = (hit.name, right.name)
                             hit.pairPart = right
+                            self.typingIndex   = hit.index
+                            self.typingFont    = hit.font
                         
                         hit.selected = True
                         # selectedGlyph = self.getGlyphFromItem(hit)
@@ -3421,7 +3412,96 @@ class SpacePort(Subscriber, ezui.WindowController):
         itemList = [item      for item in list(self.fonts.values()) if item.use]
         fontList = [item.font for item in list(self.fonts.values()) if item.use]
 
+        typingFontObject = [f for f in self.fonts.values() if f.font == self.typingFont and f.localText]
+        
+        if self.locked:
+            text = self.holdingGlyphs
+        else:
+            if typingFontObject:
+                ff = typingFontObject[0]
+                text = ff.text
+            else:
+                text = []
+
+        if self.command:
+            if char.lower() == "t":
+                self.toggleTypingState()
+                return
+
         if self.kerning:
+            selected = self.selectedItems
+            # check if mulitfont selection is acivated
+            multiFontSelection = True if len(list(set([(i.index,i.name) for i in selected]))) == 1 and len(list(set([i.font for i in selected]))) > 1 else False
+
+            if rawEvent.keyCode() in [115, 116, 119, 121]: # this is fn + arrows
+                if rawEvent.keyCode() == 115:  # "left"
+                    for idx, i in enumerate(selected):
+                        pr = self.getPreviousItemInView(i)
+                        if pr is not None:
+                            i.selected = False
+                            pr.selected = True
+
+                            self.selectedItems.remove(i)
+                            self.selectedItems.insert(idx, pr)
+                
+                elif rawEvent.keyCode() == 119:  # "right"
+                    for idx, i in enumerate(selected):
+                        nx = self.getNextItemInView(i)
+                        if nx is not None:
+                            i.selected = False
+                            nx.selected = True
+
+                            self.selectedItems.remove(i)
+                            self.selectedItems.insert(idx, nx)
+                
+                if not multiFontSelection:
+                    # up and down can only be access with single font selections, either one item or multiple inside one font
+                    if len(list(set([i.font for i in selected]))) == 1:
+
+                        kerningFont = [i.font for i in selected][0]
+                        currentSelectedIdxs = sorted([i.index for i in selected])
+
+
+                        if rawEvent.keyCode() == 116:  # "up"
+                            print("up")
+                            if kerningFont != fontList[0]:
+                                prevLine = itemList[fontList.index(kerningFont) - 1]
+                                prevItems = [ir for ir in self.collectionView.get() if ir.font == prevLine.font and ir.index in currentSelectedIdxs]
+
+                                for __ in self.selectedItems: __.selected = False
+
+                                for ir in self.collectionView.get():
+                                    if ir.font == prevLine.font:
+                                        if ir.index in currentSelectedIdxs:
+                                            self.selectedItems = prevItems
+                                            for __ in self.selectedItems: __.selected = True
+
+
+                            #     kerningFont = prev.font
+                            #     tt = prev.text if prev.localText else self.glyphs
+                            #     if self.typingIndex >= len(tt):
+                            #         self.typingIndex = len(tt)
+                        
+                        elif rawEvent.keyCode() == 121:  # "down"
+                            print("down")
+                            if kerningFont != fontList[-1]:
+                                nextLine = itemList[fontList.index(kerningFont) + 1]
+                                nextItems = [ir for ir in self.collectionView.get() if ir.font == nextLine.font and ir.index in currentSelectedIdxs]
+
+                                for __ in self.selectedItems: __.selected = False
+
+                                for ir in self.collectionView.get():
+                                    if ir.font == nextLine.font:
+                                        if ir.index in currentSelectedIdxs:
+                                            self.selectedItems = nextItems
+                                            for __ in self.selectedItems: __.selected = True
+
+
+                            #     self.typingFont = nextLine.font
+                            #     tt = nextLine.text if nextLine.localText else self.glyphs
+                            #     if self.typingIndex >= len(tt):
+                            #         self.typingIndex = len(tt)
+                            
 
             if rawEvent.keyCode() == 51:
                 for item in self.selectedItems:
@@ -3504,13 +3584,6 @@ class SpacePort(Subscriber, ezui.WindowController):
                                 glyph = toUndo.glyph
                                 manager = AppKit.NSApp().getUndoManagerForGlyph_(glyph.asDefcon())
                                 manager.undo()
-                        elif char.lower() == "t":
-                            self.toggleTypingState()
-                            return
-                        elif char.lower() == "k":
-                            print("kerning mode not yet implimented")
-                            # self.toggleTypingState(mode="kerning")
-                            return
                         elif char == ";":
                             self.addObjectsCallback(None)
                         elif char == "=":
@@ -3552,16 +3625,6 @@ class SpacePort(Subscriber, ezui.WindowController):
                             self.zoom(direction="out")
             else:
                 selectedIdxs = self.selectedIndexesToDelete
-                typingFontObject = [f for f in self.fonts.values() if f.font == self.typingFont and f.localText]
-                
-                if self.locked:
-                    text = self.holdingGlyphs
-                else:
-                    if typingFontObject:
-                        ff = typingFontObject[0]
-                        text = ff.text
-                    else:
-                        text = []
                     
                 if rawEvent.keyCode() == 51:
                     deleting = True
@@ -3590,10 +3653,7 @@ class SpacePort(Subscriber, ezui.WindowController):
                     # self.holdingGlyphs = self.holdingGlyphs
 
                 if self.command:
-                    if char.lower() == "t":
-                        self.toggleTypingState()
-                        return
-                    elif char.lower() == "a":
+                    if char.lower() == "a":
                         for ii in self.collectionView.get():
                             ii.selected = False
                             if ii.font == self.typingFont and ii.name != "NULL":
@@ -3601,12 +3661,6 @@ class SpacePort(Subscriber, ezui.WindowController):
                             if ii.font == self.typingFont:
                                 ii.typing = False
                         return
-
-                    # elif char.lower() == "e":
-                    #     if self.typingFont:
-                    #         self.selectedEditing = not self.selectedEditing
-                    #     return
-
                     elif char.lower() == "v":
 
                         """
@@ -3741,49 +3795,6 @@ class SpacePort(Subscriber, ezui.WindowController):
         currentRawIndex = 0
         mergedIndex = 0
 
-        # while currentRawIndex <= rawIndex and currentRawIndex < len(self.holdingGlyphs):
-        #     if currentRawIndex == rawIndex:
-        #         break
-
-        #     if self.holdingGlyphs[currentRawIndex] == 'slash':
-        #         slashStr = '/'
-        #         startRawIndex = currentRawIndex
-        #         currentRawIndex += 1
-
-        #         charsCollected = []
-        #         while currentRawIndex < len(self.holdingGlyphs) and self.holdingGlyphs[currentRawIndex] not in ['space', 'slash']:
-        #             charsCollected.append(self.holdingGlyphs[currentRawIndex])
-        #             slashStr += self.holdingGlyphs[currentRawIndex]
-        #             currentRawIndex += 1
-
-        #         skipFollowingSpace = False
-
-        #         # Check for special characters
-        #         if slashStr in ['/question', '/exclam', '/?', '/!']:
-        #             skipFollowingSpace = True
-        #             mergedIndex += 1
-        #         elif slashStr == '/':
-        #             mergedIndex += 1
-        #         else:
-        #             glyphName = slashStr[1:]
-        #             if glyphName in self.font.keys():
-        #                 skipFollowingSpace = True
-        #                 mergedIndex += 1
-        #             else:
-        #                 # Invalid glyph name - expanded to slash + individual chars
-        #                 mergedIndex += 1 + len(charsCollected)
-
-        #         # Skip space if it follows a valid slashed glyph
-        #         if currentRawIndex < len(self.holdingGlyphs) and self.holdingGlyphs[currentRawIndex] == 'space' and skipFollowingSpace:
-        #             currentRawIndex += 1
-
-        #     elif self.holdingGlyphs[currentRawIndex] == 'space':
-        #         mergedIndex += 1
-        #         currentRawIndex += 1
-        #     else:
-        #         mergedIndex += 1
-        #         currentRawIndex += 1
-
         mergedIndex = rawIndex
 
         leading = self.validateGlyphNames(self.w.getItemValue("leadingTextField"))
@@ -3796,15 +3807,22 @@ class SpacePort(Subscriber, ezui.WindowController):
 
 
     def determineMode(self, mode:str|None=None) -> None:
-        self.kerning = False
-        self.split = False
         if not mode:
-            self.typing = not self.typing
-            if self.typing:
+            if self.kerning:
+                self.kerning = False
+                self.typing  = True
                 mode = "typing"
-            else:
+            elif self.typing:
+                self.kerning = False
+                self.typing  = False
                 mode = "spacing"
+            else:
+                self.kerning = True
+                self.typing  = False
+                mode = "kerning"
         else:
+            self.kerning = False
+            self.split = False
             if mode == "typing":
                 self.typing = True
             elif mode == "spacing":
@@ -3812,9 +3830,6 @@ class SpacePort(Subscriber, ezui.WindowController):
             elif mode == "kerning":
                 self.typing = False
                 self.kerning = True
-            # elif mode == "split":
-            #     self.typing = False
-            #     self.split = True
         return mode
         
 
