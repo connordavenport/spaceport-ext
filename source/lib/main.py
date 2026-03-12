@@ -1527,6 +1527,7 @@ class SpacePort(Subscriber, ezui.WindowController):
                 size="auto",
                 parent=self.w,
                 parentAlignment="right",
+                behavior="transient",
                 controller=self
             )
             self.interpolationWindow.open()
