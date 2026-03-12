@@ -516,7 +516,7 @@ class SpacePort(Subscriber, ezui.WindowController):
             content=content,
             descriptionData=descriptionData,
             parent=self.w,
-            # behavior="transient",
+            behavior="transient",
             parentAlignment="right",
             controller=self
         )
@@ -697,7 +697,7 @@ class SpacePort(Subscriber, ezui.WindowController):
             content=content,
             descriptionData=descriptionData,
             parent=parent,
-            # behavior="transient",
+            behavior="transient",
             # parentAlignment="right",
             controller=self
         )
@@ -826,7 +826,7 @@ class SpacePort(Subscriber, ezui.WindowController):
                     descriptionData=descriptionData,
                     size="auto",
                     parent=self.w,
-                    behavior="semitransient",
+                    behavior="transient",
                     controller=self
                 )
 
