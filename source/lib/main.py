@@ -98,7 +98,9 @@ class SpacePort(Subscriber, ezui.WindowController):
         self.cursorColor:tuple[float]    = constants.CURSOR_COLOR
         self.selectionColor:tuple[float] = constants.SELECTION_COLOR
 
-        self.showKerning:bool            = False
+
+        self.useKerning:bool             = False
+        self.useKerningCallback:bool     = False
         self.showMetrics:bool            = False
         self.showLabel:bool              = True
         self.multiline:bool              = True
@@ -233,7 +235,7 @@ class SpacePort(Subscriber, ezui.WindowController):
         * VerticalStack
         > --------------
         > * HorizontalStack                   @controlsStack
-        >> ( Typing | Spacing | ~ Kerning ~ ) @modeButton
+        >> ( Typing | Spacing | Kerning )     @modeButton
         >> -------------
         >> ---X--- [__](±)                    @pointSizeInputField
         >> (line height ...)                  @lineHeightField
@@ -435,10 +437,12 @@ class SpacePort(Subscriber, ezui.WindowController):
         if holding:
             self.holdingGlyphs = holding
 
+        self.w.getItem("modeButton").set(constants.ALL_MODES.index("spacing"))
+
         self.controlsStackCallback(None)
         self.displaySettingsButtonCallback(None)
         self.showMetricsButtonCallback(None)
-        self.showKerningButtonCallback(None)
+        self.useKerningButtonCallback(None)
         self.updateCharacterString()
 
         if not self.fonts:
@@ -468,8 +472,6 @@ class SpacePort(Subscriber, ezui.WindowController):
         
 
     def buildFeaturePopover(self) -> None:
-
-
         descriptionData = dict(
             detachFeaturePanelButton=dict(
                 width="fill",
@@ -492,15 +494,16 @@ class SpacePort(Subscriber, ezui.WindowController):
             """
             descriptionData[f"{i}FeaButton"] = dict(tag=i)
 
-        content += """
-        >> GPOS Lookups:
-        """
-        
-        for i in sorted(self.gposLookups):
-            content += f"""
-            >> *FeatureToggleButton @{i}FeaButton
+        if self.gposLookups is not []:
+            content += """
+            >> GPOS Lookups:
             """
-            descriptionData[f"{i}FeaButton"] = dict(tag=i)
+            
+            for i in sorted(self.gposLookups):
+                content += f"""
+                >> *FeatureToggleButton @{i}FeaButton
+                """
+                descriptionData[f"{i}FeaButton"] = dict(tag=i)
 
         content += """
         >> ----
@@ -574,9 +577,9 @@ class SpacePort(Subscriber, ezui.WindowController):
         * Box                                                           @displaySettingsBox = VerticalStack
         > [X] Multiline                                                 @multilineButton
         > [ ] Show Label                                                @showLabelButton
-        > [ ] Show Kerning                                              @showKerningButton
         > [X] Show Metrics                                              @showMetricsButton
         > [ ] Show Control Glyphs                                       @showControlGlyphsButton
+        > [ ] Use Kerning                                               @useKerningButton
 
         * Box                                                           @matrixBox = VerticalStack
         > [X] Show Space Matrix                                         @showSpaceMatrixButton
@@ -660,11 +663,11 @@ class SpacePort(Subscriber, ezui.WindowController):
                 maxValue=self.upm,
                 value=self.beamPosition
             ),
-            showKerningButton=dict(
-                # hide=False,
-            ),
             showMetricsButton=dict(
                 value=self.showMetrics
+            ),
+            useKerningButton=dict(
+                value=self.useKerning
             ),
             showLabelButton=dict(
                 value=self.showLabel
@@ -698,7 +701,7 @@ class SpacePort(Subscriber, ezui.WindowController):
             # parentAlignment="right",
             controller=self
         )
-        self.viewSettingsWindow.getItem("showKerningButton").show(False)
+        # self.viewSettingsWindow.getItem("useKerningButton").show(False)
         # disable while we work on the functions
         # self.viewSettingsWindow.getItem("sortingButton").enable(False)
         self.viewSettingsWindow.getItem("showControlGlyphsButton").enable(False)
@@ -1901,10 +1904,12 @@ class SpacePort(Subscriber, ezui.WindowController):
         self.displaySettingsButtonCallback(None, onlyBeam=True)
 
 
-    def showKerningButtonCallback(self, sender:Any) -> None:
-        self.showKerning = self.viewSettingsWindow.getItemValue("showKerningButton")
-        self.displaySettingsButtonCallback(None)
+    def useKerningButtonCallback(self, sender:Any) -> None:
+        self.useKerning = self.viewSettingsWindow.getItemValue("useKerningButton")
+        #self.displaySettingsButtonCallback(None)
+        self.useKerningCallback = True
         self.populate()
+        self.useKerningCallback = False
 
 
     def displaySettingsButtonCallback(self, sender, onlyBeam=False, previewState=False) -> None:
@@ -1918,7 +1923,7 @@ class SpacePort(Subscriber, ezui.WindowController):
         showBeam = self.viewSettingsWindow.getItemValue("showBeamButton")
         showMetrics = self.showMetrics
         showLabel = self.showLabel
-        showKerning = self.showKerning
+        #useKerning = self.useKerning
         showFill = self.showFill
         showStroke = self.showStroke
 
@@ -1926,7 +1931,7 @@ class SpacePort(Subscriber, ezui.WindowController):
 
         borderColor = AppKit.NSColor.clearColor()
         if previewState:
-            showMetrics = showLabel = showKerning = showBeam = showStroke = False
+            showMetrics = showLabel = showBeam = showStroke = False
             showFill = True
             # if self.drawFocusRing:
             #     borderColor = AppKit.NSColor.colorWithCalibratedRed_green_blue_alpha_(*self.cursorColor).CGColor()
@@ -1939,9 +1944,13 @@ class SpacePort(Subscriber, ezui.WindowController):
 
                 blended = make_rgb_transparent(self.cursorColor[:3], (1,1,1), .075)
                 backgroundColor = AppKit.NSColor.colorWithCalibratedRed_green_blue_alpha_(*blended, 1)
-                
+
         if self.split:
             showLabel = False
+
+        if self.kerning: 
+            showMetrics = showLabel = showBeam = showStroke = False
+            showFill = True
 
         self.collectionView.setBackgroundColor(backgroundColor)
         
@@ -1967,7 +1976,7 @@ class SpacePort(Subscriber, ezui.WindowController):
                 labelLayer.setVisible(showLabel)
 
                 kernIndicatorLayer = glyphContainer.getSublayer("kernIndicator")
-                kernIndicatorLayer.setVisible(showKerning)
+                kernIndicatorLayer.setVisible(self.kerning)
 
                 beamIndicatorLayer = glyphContainer.getSublayer("beamIndicator")
                 beamIndicatorLayer.setVisible(showBeam)
@@ -1987,6 +1996,19 @@ class SpacePort(Subscriber, ezui.WindowController):
                 item.typing = False
                 # glyphPointsLayer = glyphContainer.getSublayer("glyphPoints")
                 # glyphPointsLayer.setVisible(self.showPoints)
+
+    def getNextItemInView(self, item:objects.MerzCollectionViewRGlyphItem) -> objects.MerzCollectionViewRGlyphItem | None:
+        try:
+            return [ii for ii in self.collectionView.get() if ii.font == item.font and ii.name not in ["NULL", "IGNORE"]][item.index + 1]
+        except IndexError:
+            return None
+
+
+    def getPreviousItemInView(self, item:objects.MerzCollectionViewRGlyphItem) -> objects.MerzCollectionViewRGlyphItem | None:
+        try:
+            return [ii for ii in self.collectionView.get() if ii.font == item.font and ii.name not in ["NULL", "IGNORE"]][item.index - 1]
+        except IndexError:
+            return None
 
 
     # @functools.cache
@@ -2031,6 +2053,10 @@ class SpacePort(Subscriber, ezui.WindowController):
         glyphContainer.appendBaseSublayer(
             name="selectionIndicator",
         )
+
+        glyphContainer.appendBaseSublayer(
+            name="kernSelectionIndicator",
+        )
         
         glyphContainer.appendBaseSublayer(
             name="descriptorIndicator",
@@ -2073,7 +2099,7 @@ class SpacePort(Subscriber, ezui.WindowController):
             size=(0, 0),
             # cornerRadius=3,
             backgroundColor=(1,0,0,.3),
-            visible=True
+            visible=False
         )
 
 
@@ -2167,43 +2193,53 @@ class SpacePort(Subscriber, ezui.WindowController):
                 with kernIndicatorLayer.propertyGroup():
 
                     kern = 0
-                    try:
-                        prevGlyph = self.glyphs[index-1]
-                        kern = font.kerning.find((prevGlyph, glyph.name))
-                    except IndexError:
-                        kern = 0
-                    if not self.showKerning:
-                        kern = 0
+                    if index > 0:
+                        previous = self.getPreviousItemInView(item)
+                        if previous:
+                            kern = font.kerning.find((previous.name, glyph.name))
+                            previous.setXAdvance(kern)
 
+                    if not self.useKerning:
+                        kern = None
+
+                    # dont double up on metrics lines
+                    leftMarginLine = glyphMetricsLayer.getSublayer("glyphMetricsLeftLinesSublayer")
                     if not kern and index != 0:
-                        rightMarginLine = glyphMetricsLayer.getSublayer("glyphMetricsLeftLinesSublayer")
-                        rightMarginLine.setVisible(False)
+                        leftMarginLine.setVisible(False)
+                    else:
+                        leftMarginLine.setVisible(True)
 
-                    if kern and self.showKerning:
+                    kernColor = constants.NEG_KERN_COLOR
+                    
+                    if kern is not None:
                         #kernIndicatorLayer.setVisible(True)
-
                         kernColor = constants.POS_KERN_COLOR if kern > 0 else constants.NEG_KERN_COLOR
+                        
+                        alpha = .3 if kern == 0 else 1
+
                         x = -kern if kern > 0 else 0
                         
                         kernIndicatorLayer.appendTextLineSublayer(
                             name="kernIndicatorTextLayer",
                             text=str(kern),
-                            pointSize=7,
-                            position=((x/2), font.info.descender-120),
-                            fillColor=(*kernColor,1),
+                            pointSize=10,
+                            position=((x/2), font.info.descender-25),
+                            fillColor=(*kernColor,alpha),
                             horizontalAlignment="center",
+                            #backgroundColor=(*kernColor,.2),
+                            #cornerRadius=10,
                         )
                         
-                        shapeLayer = kernIndicatorLayer.appendRectangleSublayer(
-                            name="kernIndicatorShapeLayer",
-                            size=(kern, 40),
-                            position=(x, font.info.descender-100),
-                            fillColor=(*kernColor, .2),
-                        )
-                        kernIndicatorLayer.addSkewTransformation(-skewAngle)
+                        # shapeLayer = kernIndicatorLayer.appendRectangleSublayer(
+                        #     name="kernIndicatorShapeLayer",
+                        #     size=(kern, 40),
+                        #     position=(x, font.info.descender-100),
+                        #     fillColor=(*kernColor, .2),
+                        # )
+                        # kernIndicatorLayer.addSkewTransformation(-skewAngle)
 
                         # TURN THIS OFF LATER
-                        kernIndicatorLayer.setVisible(False)
+                        kernIndicatorLayer.setVisible(True)
 
                     else:
                         kernIndicatorLayer.setVisible(False)
@@ -2233,6 +2269,31 @@ class SpacePort(Subscriber, ezui.WindowController):
                         selectionIndicatorLayer.setVisible(False)
 
 
+                nextKern  = 0
+                nextWidth = 0
+                nextItem  = self.getNextItemInView(item)
+                if nextItem:
+                    nextWidth = nextItem.glyph.width
+                    nextKern = font.kerning.find((glyph.name, nextItem.name))
+
+                nextKernColor = constants.POS_KERN_COLOR if nextKern > 0 else constants.NEG_KERN_COLOR
+
+                kernSelectionIndicatorLayer = glyphContainer.getSublayer("kernSelectionIndicator")
+                with kernSelectionIndicatorLayer.propertyGroup():
+                    
+                    kernSelectionIndicatorLayer.appendRectangleSublayer(
+                        name="kernSelectionIndicatorDrawing",
+                        position=(glyph.width/2,font.info.descender-20),
+                        size=((glyph.width/2)+nextKern+(nextWidth/2),20),
+                        fillColor=(*nextKernColor, .2),
+                    )
+
+                    if item in self.selectedItems:
+                        kernSelectionIndicatorLayer.setVisible(True)
+                    else:
+                        kernSelectionIndicatorLayer.setVisible(False)
+
+
                 glyphFillLayer = glyphContainer.getSublayer("glyphFill")
                 with glyphFillLayer.propertyGroup():
                     glyphFillLayer.setPath(glyph.getRepresentation("merz.CGPath"))
@@ -2247,16 +2308,8 @@ class SpacePort(Subscriber, ezui.WindowController):
                 self.beamController(item)
 
             cursorWidth = 1
-            triOff = 40
             typingIndicatorLayer = glyphContainer.getSublayer("typingIndicator")
             with typingIndicatorLayer.propertyGroup():
-                # typingIndicatorLayer.appendRectangleSublayer(
-                #     name="typingIndicatorDrawing",
-                #     position=(-cursorWidth,font.info.descender),
-                #     size=(cursorWidth*2, abs(font.info.descender) + font.info.ascender),
-                #     fillColor=(self.cursorColor),
-                #     cornerRadius=cursorWidth,
-                # )
                 cursor = typingIndicatorLayer.appendLineSublayer(
                     name="typingIndicatorDrawing",
                     startPoint=(0, font.info.descender),
@@ -2265,34 +2318,6 @@ class SpacePort(Subscriber, ezui.WindowController):
                     strokeColor=self.cursorColor,
                     strokeCap="round"
                 )
-                # typingIndicatorLayer.appendLineSublayer(
-                #     startPoint=(0, font.info.ascender),
-                #     endPoint=(triOff, font.info.ascender+triOff),
-                #     strokeWidth=cursorWidth,
-                #     strokeColor=self.cursorColor,
-                #     strokeCap="round"
-                # )
-                # typingIndicatorLayer.appendLineSublayer(
-                #     startPoint=(0, font.info.ascender),
-                #     endPoint=(-triOff, font.info.ascender+triOff),
-                #     strokeWidth=cursorWidth,
-                #     strokeColor=self.cursorColor,
-                #     strokeCap="round"
-                # )
-                # typingIndicatorLayer.appendLineSublayer(
-                #     startPoint=(0, font.info.descender),
-                #     endPoint=(triOff, font.info.descender-triOff),
-                #     strokeWidth=cursorWidth,
-                #     strokeColor=self.cursorColor,
-                #     strokeCap="round"
-                # )
-                # typingIndicatorLayer.appendLineSublayer(
-                #     startPoint=(0, font.info.descender),
-                #     endPoint=(-triOff, font.info.descender-triOff),
-                #     strokeWidth=cursorWidth,
-                #     strokeColor=self.cursorColor,
-                #     strokeCap="round"
-                # )
                 
             typingIndicatorLayer.addSublayerSkewTransformation((-skewAngle))
             typingIndicatorLayer.setVisible(False)
@@ -2309,6 +2334,9 @@ class SpacePort(Subscriber, ezui.WindowController):
         """
         a faster alternative to rebuilding glyphs everytime
         """
+
+        kernColor = constants.NEG_KERN_COLOR
+        
         glyphContainer = item.getLayer("glyphContainer")
         glyphMetricsLayer = glyphContainer.getSublayer("glyphMetrics")
 
@@ -2399,91 +2427,73 @@ class SpacePort(Subscriber, ezui.WindowController):
             glyphStrokeLayer.addTranslationTransformation((-item.offset, 0), "translate")
             glyphStrokeLayer.setPath(glyph.getRepresentation("merz.CGPath"))
 
-
             kernIndicatorLayer = glyphContainer.getSublayer("kernIndicator")
             with kernIndicatorLayer.propertyGroup():
-
                 kern = 0
-                try:
-                    prevGlyph = self.glyphs[item.index-1]
-                    kern = font.kerning.find((prevGlyph, glyph.name))
-                except IndexError: pass
-
                 if item.index > 0:
-                    previous = [ii for ii in self.collectionView.get() if ii.font == item.font and ii.name != "NULL"][item.index - 1]
-                    if previous:
-                        previous.setXAdvance(kern)
+                    try:
+                        previous = self.getPreviousItemInView(item)
+                        kern = font.kerning.find((previous.name, glyph.name))
+                        if previous:
+                            if self.useKerning:
+                                previous.setXAdvance(kern)
+                            else:
+                                kern = 0
+                                previous.setXAdvance(kern)
+                    except IndexError: pass
 
-                # if nextKern:
-                #     item.setXAdvance(nextKern)
-                # else:
-                #     item.setXAdvance(0)
 
-                if kern and self.showKerning and not self.typing:
-                    #kernIndicatorLayer.setVisible(True)
+                leftMarginLine = glyphMetricsLayer.getSublayer("glyphMetricsLeftLinesSublayer")
+                if not kern and item.index != 0:
+                    leftMarginLine.setVisible(False)
+                else:
+                    leftMarginLine.setVisible(True)
+
+
+                if kern is not None and self.kerning:
+
                     kernColor = constants.POS_KERN_COLOR if kern > 0 else constants.NEG_KERN_COLOR
-
+                    alpha = .3 if kern == 0 else 1
+                    
                     try:
                         kernIndicatorLayer.removeSublayer("kernIndicatorTextLayer")
                     except MerzError: pass
                     
-                    x = -kern if kern > 0 else 0
                     kernIndicatorLayer.appendTextLineSublayer(
                         name="kernIndicatorTextLayer",
                         text=str(kern),
-                        pointSize=7,
-                        position=((x/2), font.info.descender-120),
-                        fillColor=(*kernColor,1),
+                        pointSize=10,
+                        position=(((-kern if kern > 0 else 0)/2), font.info.descender-25),
+                        fillColor=(*kernColor,alpha),
+                        weight="regular",
                         horizontalAlignment="center",
                         )
 
-                    shapeLayer = kernIndicatorLayer.getSublayer("kernIndicatorShapeLayer")
-                    if not shapeLayer:
-                        shapeLayer = kernIndicatorLayer.appendRectangleSublayer(
-                            name="kernIndicatorShapeLayer",
-                            size=(kern, 40),
-                            position=(x, font.info.descender-100),
-                            fillColor=(*kernColor, .2),
-                        )
-                        shapeLayer.addSkewTransformation(-skewAngle)
-                    else:
-                        shapeLayer.setFillColor((*kernColor, .2))
-                        shapeLayer.setSize((kern, 100))
-                        shapeLayer.setPosition((x, font.info.descender-100))
-
-                    # TURN THIS OFF LATER
-                    kernIndicatorLayer.setVisible(True)
-                    
+                    kernIndicatorLayer.setVisible(True)                    
                 else:
                     kernIndicatorLayer.setVisible(False)
 
-            # glyphPointsLayer = glyphContainer.getSublayer("glyphPoints")
-            # glyphPointsLayer.clearSublayers()
-            # onCurve = 20 * item.scaler
-
-            # with glyphPointsLayer.propertyGroup():
-            #     for contour in glyph.contours:
-            #         for point in contour.points:
-            #             if point.type != "offcurve":
-            #                 x = point.x
-            #                 y = point.y
-            #                 glyphPointsLayer.appendOvalSublayer(
-            #                     position=(x-item.offset, y),
-            #                     size=(onCurve,onCurve),
-            #                     anchor=(.5,.5),
-            #                     fillColor=(0, 0, 0, 1),
-            #                 )
-            #     glyphPointsLayer.setVisible(self.showPoints)
 
             self.beamController(item)
 
             width = glyph.width
-            if self.showKerning:
-                width += nextKern
-                
             selection = glyphContainer.getSublayer("selectionIndicator").getSublayer("selectionIndicatorDrawing")
             selection.setPosition((0,font.info.descender))
             selection.setSize((glyph.width, abs(font.info.descender) + font.info.ascender))
+
+            nextKern  = 0
+            nextWidth = 0
+            nextItem  = self.getNextItemInView(item)
+            if nextItem:
+                nextWidth = nextItem.glyph.width
+                nextKern = font.kerning.find((glyph.name, nextItem.name))
+
+            nextKernColor = constants.POS_KERN_COLOR if nextKern > 0 else constants.NEG_KERN_COLOR
+
+            kernSelection = glyphContainer.getSublayer("kernSelectionIndicator").getSublayer("kernSelectionIndicatorDrawing")
+            kernSelection.setFillColor((*nextKernColor, .2))
+            kernSelection.setSize(((glyph.width/2)+nextKern+(nextWidth/2),20))
+
                     # if switching from roman <> italic, we need to update the selection indicator skew
             if kwargs.get("updatedLocation"):
                 try: selection.removeTransformation("skew")
@@ -2623,6 +2633,9 @@ class SpacePort(Subscriber, ezui.WindowController):
                                     item = cachedItem[0]
                                     if self.typingFont == font:
                                         self.updateItem(item)
+                                    else:
+                                        if self.useKerningCallback: 
+                                            self.updateItem(item)
 
                                     if item.name == "NULL":
                                         if self.multiline:
@@ -2679,6 +2692,8 @@ class SpacePort(Subscriber, ezui.WindowController):
 
                     if fontIndex == 0:
                         _glyphRecords.append(GlyphRecord(item.glyph.naked()))
+
+                    item.kerning = True if self.kerning else False
                     items.append(item)
 
                 # make an empty item so we can type before and after lines
@@ -2723,6 +2738,7 @@ class SpacePort(Subscriber, ezui.WindowController):
         beamIndicatorLayer = item.getLayer("glyphContainer").getSublayer("beamIndicator")
 
         willShow = self.showBeam if not self.split else False
+        if self.kerning: willShow = False
 
         textLayer = None
         for layer in beamIndicatorLayer.getSublayers():
@@ -3044,9 +3060,15 @@ class SpacePort(Subscriber, ezui.WindowController):
 
     def _getItemAtEvent(self, position:tuple[float,float]=(0.0,0.0)) -> objects.MerzCollectionViewRGlyphItem | None:
         x,y = position
-        if self.typing or self.kerning:
+        if self.typing:
             hits = self.container.findSublayersIntersectedByRect(
                 (x,y-25,200,50),
+                onlyAcceptsHit=True,
+                recurse=False
+            )
+        elif self.kerning:
+            hits = self.container.findSublayersIntersectedByRect(
+                (x-100,y-25,200,50),
                 onlyAcceptsHit=True,
                 recurse=False
             )
@@ -3058,7 +3080,11 @@ class SpacePort(Subscriber, ezui.WindowController):
             )
         if not hits:
             return None
-        return hits[-1] if self.typing else hits[0]
+        
+        if self.kerning:
+            return hits
+        else:
+            return hits[-1] if self.typing else hits[0]
 
 
     def _convertLocation(self, event:dict, view:ezui.views.merzView.MerzView | merz.collectionView.MerzCollectionDocumentView) -> tuple[float, float]:
@@ -3074,6 +3100,28 @@ class SpacePort(Subscriber, ezui.WindowController):
         return (x,y)
 
 
+    # def mouseMoved(self, view, event) -> None:
+    #     if self.kerning:
+    #         event = merz.unpackEvent(event)
+    #         self.start = (x,y) = self._convertLocation(event, view)
+    #         hit = self._getItemAtEvent((x,y))
+    #         if hit:
+    #             if hit.name not in ["NULL", "IGNORE"]:
+    #                 try:
+    #                     nextName = [ii for ii in self.collectionView.get() if hit.font == ii.font][hit.index-1].name
+    #                 except IndexError:
+    #                     nextName = None
+
+    #                 if nextName:
+    #                     if nextName not in ["NULL", "IGNORE"]:
+    #                         print(nextName, hit.name)
+
+
+    def mouseUp(self, view, event) -> None:
+        pass
+        # print("debug::mouseUp")
+
+
     def mouseDown(self, view, event) -> None:
 
         if isinstance(view, ezui.views.merzView.MerzView):
@@ -3087,6 +3135,7 @@ class SpacePort(Subscriber, ezui.WindowController):
             hit = self._getItemAtEvent((x,y))
             selection = []
 
+            right = None
             selectedGlyph = None
             selectedFont = None
             multiFontSelect = False
@@ -3095,12 +3144,26 @@ class SpacePort(Subscriber, ezui.WindowController):
             for temporary in self.collectionView.get():
                 if temporary not in self.selectedItems:
                     temporary.selected = False
+                    #temporary.selectedPair = None
+                    temporary.pairPart = None
 
             if hit:
+                if self.kerning:
+                    if len(hit) == 1:
+                        hit = hit[0]
+                        right = self.getNextItemInView(hit)
+                    else:
+                        right = hit[1]
+                        hit = hit[0]
+
                 clickCount = event["clickCount"]
                 parsed = hit.glyph
                 if parsed is not None and parsed.name != "IGNORE":
                     if not self.typing:
+                        if self.kerning and right is not None:
+                            #hit.selectedPair = (hit.name, right.name)
+                            hit.pairPart = right
+                        
                         hit.selected = True
                         # selectedGlyph = self.getGlyphFromItem(hit)
                         selectedGlyph = parsed
@@ -3120,7 +3183,8 @@ class SpacePort(Subscriber, ezui.WindowController):
                             for temporary in self.collectionView.get():
                                 if temporary not in self.selectedItems:
                                     temporary.selected = False
-                        if clickCount == 2 and hit.onDisk:
+
+                        if clickCount == 2 and hit.onDisk and not self.kerning:
                             try:
                                 OpenGlyphWindow(selectedGlyph)
                             except:
@@ -3145,13 +3209,23 @@ class SpacePort(Subscriber, ezui.WindowController):
             if self.typing:
                 self.setTypingItem()
 
+            # either we make a set now or we just do a check earlier?
+            self.selectedItems = list(set(self.selectedItems))
+
             if multiFontSelect:
                 self.selectedItems = []
                 for temporary in self.collectionView.get():
                     if temporary.index == hit.index:
                         if temporary.name == hit.name:
                             self.selectedItems.append(temporary)
+                            if self.kerning and hit.pairPart is not None:
+                                #temporary.selectedPair = hit.selectedPair
+                                try:
+                                    temporary.pairPart = self.getNextItemInView(temporary)
+                                except IndexError:
+                                    pass
                             temporary.selected = True
+
 
             if not self.split:
                 # only set the matrix for one font at a time, the selected one.
@@ -3160,7 +3234,6 @@ class SpacePort(Subscriber, ezui.WindowController):
                     self.w.matrix.set(records)
 
                     #self.w.matrix.setSelection([index for index, record in enumerate(records) if record.glyph in [i.glyph for i in self.selectedItems]])
-
 
                 elif multiFontSelect:
                     records = [GlyphRecord(item.glyph.naked()) for item in self.selectedItems]
@@ -3330,244 +3403,281 @@ class SpacePort(Subscriber, ezui.WindowController):
         itemList = [item      for item in list(self.fonts.values()) if item.use]
         fontList = [item.font for item in list(self.fonts.values()) if item.use]
 
-        if not self.typing:
-            if char in directions:
-                for item in self.selectedItems:
-                    item.selected = True
-                    # glyph = self.getGlyphFromItem(item)
-                    glyph = item.glyph
+        if self.kerning:
 
-                    if item.onDisk:
-                        with glyph.undo(f"Change spacing of {glyph.name}"):
-                            if "shift" in mods and "command" in mods:
-                                spacingUnit = 100
-                            elif "shift" in mods:
-                                spacingUnit = 10
-                            else:
-                                spacingUnit = 1
-                            if glyph.bounds:
-                                if "option" in mods and char == "right":
-                                    glyph.leftMargin += spacingUnit
-                                elif "option" in mods and char == "left":
-                                    glyph.leftMargin -= spacingUnit
-                                elif char == "right":
-                                    glyph.rightMargin += spacingUnit
-                                elif char == "left":
-                                    glyph.rightMargin -= spacingUnit
-                                elif char == "up":
-                                    glyph.rightMargin += spacingUnit
-                                    glyph.leftMargin  += spacingUnit
-                                elif char == "down":
-                                    glyph.rightMargin -= spacingUnit
-                                    glyph.leftMargin  -= spacingUnit
-                                else:
-                                    pass
-                            else:
-                                if char == "right":
-                                    glyph.width += spacingUnit
-                                elif char == "left":
-                                    glyph.width -= spacingUnit
-
-            else:
-                # allow for undoing
-                if self.command:
-                    if char.lower() == "z":
-                        for toUndo in self.selectedItems:
-                            glyph = toUndo.glyph
-                            manager = AppKit.NSApp().getUndoManagerForGlyph_(glyph.asDefcon())
-                            manager.undo()
-                    elif char.lower() == "t":
-                        self.toggleTypingState()
-                        return
-                    elif char.lower() == "k":
-                        print("kerning mode not yet implimented")
-                        # self.toggleTypingState(mode="kerning")
-                        return
-                    elif char == ";":
-                        self.addObjectsCallback(None)
-                    elif char == "=":
-                        # zoom in
-                        self.zoomCoalescerManager()
-                        self.zoom(direction="in", option=self.option)
-                    elif char == "-":
-                        # zoom out
-                        self.zoomCoalescerManager()
-                        self.zoom(direction="out", option=self.option)
-
-                if mods == []:
-                    if char.lower() == "b":
-                        self.showBeam = not self.showBeam
-                        self.viewSettingsWindow.setItemValue("showBeamButton", self.showBeam)
-                        self.w.matrix.setShowBeam(self.showBeam)
-                        items = self.w.getItemValue("collectionView")
-                        for item in items:
-                            self.beamController(item)
-
-                    elif char.lower() == "m":
-                        # callback will set global
-                        metricsSetting = self.viewSettingsWindow.getItemValue("showMetricsButton")
-                        self.viewSettingsWindow.setItemValue("showMetricsButton", not metricsSetting)
-                        self.showMetricsButtonCallback(None)
-
-                    elif char.lower() == "l":
-                        showSetting = self.viewSettingsWindow.getItemValue("showLabelButton")
-                        self.viewSettingsWindow.setItemValue("showLabelButton", not showSetting)
-                        self.showLabelButtonCallback(None)
-
-                    elif char == getDefault("glyphViewZoomInKey", "z"):
-                        # zoom in
-                        self.zoomCoalescerManager()
-                        self.zoom(direction="in")
-                    elif char == getDefault("glyphViewZoomOutKey", "x"):
-                        # zoom out
-                        self.zoomCoalescerManager()
-                        self.zoom(direction="out")
-        else:
-            selectedIdxs = self.selectedIndexesToDelete
-            typingFontObject = [f for f in self.fonts.values() if f.font == self.typingFont and f.localText]
-            
-            if self.locked:
-                text = self.holdingGlyphs
-            else:
-                if typingFontObject:
-                    ff = typingFontObject[0]
-                    text = ff.text
-                else:
-                    text = []
-                
             if rawEvent.keyCode() == 51:
-                deleting = True
-                if self.command:
-                    self.typingIndex = 0
-                    text = []
-                else:
-                    if self.typingIndex > 0:
-                        """
-                        enable multi-selection delete
-                        get length of selection and lowest index
-                        return list == len(selection), each item is lowest index
-
-                        input:  [5,6,7]
-                        output: [5,5,5]
-
-                        iterate over and remove that index since the new
-                        lowest will be the next one
-                        """
-                        text = self.deleteSelectedIndexes(selectedIdxs, text)
-
-                # else:
-                #     if self.typingIndex < len(self.holdingGlyphs):
-                #         self.holdingGlyphs.pop(self.typingIndex)
-                #         self.typingIndex -= 1
-                # self.holdingGlyphs = self.holdingGlyphs
-
-            if self.command:
-                if char.lower() == "t":
-                    self.toggleTypingState()
-                    return
-                elif char.lower() == "a":
-                    for ii in self.collectionView.get():
-                        ii.selected = False
-                        if ii.font == self.typingFont and ii.name != "NULL":
-                            ii.selected = True
-                        if ii.font == self.typingFont:
-                            ii.typing = False
-                    return
-
-                # elif char.lower() == "e":
-                #     if self.typingFont:
-                #         self.selectedEditing = not self.selectedEditing
-                #     return
-
-                elif char.lower() == "v":
-
-                    """
-                    we can paste slashed glyph names
-                    """
-                    clipboardContents = subprocess.check_output(['pbpaste'], text=True)
-                    processed = splitText(clipboardContents, self.font.getCharacterMapping())
-
-                    for i, item in enumerate(processed):
-                        text.insert(self.typingIndex + i, item)
-                    self.typingIndex += len(processed)
-                    self.updateCharacterString()
-                    return
-
-                elif char == "/":
-                    # cmd + slash to open glyph selection palette
-                    windows.GlyphFinderPalette(self.w, self)
-                    return
-
+                for item in self.selectedItems:
+                    try:
+                        itemFont = [f for f in itemList if f.font == item.font][0]
+                        itemFont.deleteKern(item.selectedPair)
+                    except KeyError:
+                        pass
             else:
-                if rawGlyphName:
-                    adding = True
-                    # if there is a selection while we type, delete that old selection and replace with new input
-                    if selectedIdxs:
-                        text = self.deleteSelectedIndexes(selectedIdxs, text)
-                    text.insert(self.typingIndex, rawGlyphName)
+                if "shift" in mods and "command" in mods:
+                    spacingUnit = 10
+                elif "shift" in mods:
+                    spacingUnit = 5
+                else:
+                    spacingUnit = 1
+
+                if char == "right":
+                    spacingUnit *= 1
+                elif char == "left":
+                    spacingUnit *= -1
+                else:
+                    return
+
+                for item in self.selectedItems:
+                    try:
+                        item.pairPart = self.getNextItemInView(item)
+                        itemFont = [f for f in itemList if f.font == item.font][0]
+                        currentValue = item.font.kerning.find(item.selectedPair)
+                        # print(currentValue, spacingUnit)
+                        itemFont.smartSet(item.selectedPair, currentValue+spacingUnit)
+                        
+                    except IndexError:
+                        pass
 
 
-            if char in directions:
-                if char == "left":
+        else:
+            if not self.typing:
+                if char in directions:
+                    for item in self.selectedItems:
+                        item.selected = True
+                        # glyph = self.getGlyphFromItem(item)
+                        glyph = item.glyph
+
+                        if item.onDisk:
+                            with glyph.undo(f"Change spacing of {glyph.name}"):
+                                if "shift" in mods and "command" in mods:
+                                    spacingUnit = 100
+                                elif "shift" in mods:
+                                    spacingUnit = 10
+                                else:
+                                    spacingUnit = 1
+                                if glyph.bounds:
+                                    if "option" in mods and char == "right":
+                                        glyph.leftMargin += spacingUnit
+                                    elif "option" in mods and char == "left":
+                                        glyph.leftMargin -= spacingUnit
+                                    elif char == "right":
+                                        glyph.rightMargin += spacingUnit
+                                    elif char == "left":
+                                        glyph.rightMargin -= spacingUnit
+                                    elif char == "up":
+                                        glyph.rightMargin += spacingUnit
+                                        glyph.leftMargin  += spacingUnit
+                                    elif char == "down":
+                                        glyph.rightMargin -= spacingUnit
+                                        glyph.leftMargin  -= spacingUnit
+                                    else:
+                                        pass
+                                else:
+                                    if char == "right":
+                                        glyph.width += spacingUnit
+                                    elif char == "left":
+                                        glyph.width -= spacingUnit
+
+                else:
+                    # allow for undoing
+                    if self.command:
+                        if char.lower() == "z":
+                            for toUndo in self.selectedItems:
+                                glyph = toUndo.glyph
+                                manager = AppKit.NSApp().getUndoManagerForGlyph_(glyph.asDefcon())
+                                manager.undo()
+                        elif char.lower() == "t":
+                            self.toggleTypingState()
+                            return
+                        elif char.lower() == "k":
+                            print("kerning mode not yet implimented")
+                            # self.toggleTypingState(mode="kerning")
+                            return
+                        elif char == ";":
+                            self.addObjectsCallback(None)
+                        elif char == "=":
+                            # zoom in
+                            self.zoomCoalescerManager()
+                            self.zoom(direction="in", option=self.option)
+                        elif char == "-":
+                            # zoom out
+                            self.zoomCoalescerManager()
+                            self.zoom(direction="out", option=self.option)
+
+                    if mods == []:
+                        if char.lower() == "b":
+                            self.showBeam = not self.showBeam
+                            self.viewSettingsWindow.setItemValue("showBeamButton", self.showBeam)
+                            self.w.matrix.setShowBeam(self.showBeam)
+                            items = self.w.getItemValue("collectionView")
+                            for item in items:
+                                self.beamController(item)
+
+                        elif char.lower() == "m":
+                            # callback will set global
+                            metricsSetting = self.viewSettingsWindow.getItemValue("showMetricsButton")
+                            self.viewSettingsWindow.setItemValue("showMetricsButton", not metricsSetting)
+                            self.showMetricsButtonCallback(None)
+
+                        elif char.lower() == "l":
+                            showSetting = self.viewSettingsWindow.getItemValue("showLabelButton")
+                            self.viewSettingsWindow.setItemValue("showLabelButton", not showSetting)
+                            self.showLabelButtonCallback(None)
+
+                        elif char == getDefault("glyphViewZoomInKey", "z"):
+                            # zoom in
+                            self.zoomCoalescerManager()
+                            self.zoom(direction="in")
+                        elif char == getDefault("glyphViewZoomOutKey", "x"):
+                            # zoom out
+                            self.zoomCoalescerManager()
+                            self.zoom(direction="out")
+            else:
+                selectedIdxs = self.selectedIndexesToDelete
+                typingFontObject = [f for f in self.fonts.values() if f.font == self.typingFont and f.localText]
+                
+                if self.locked:
+                    text = self.holdingGlyphs
+                else:
+                    if typingFontObject:
+                        ff = typingFontObject[0]
+                        text = ff.text
+                    else:
+                        text = []
+                    
+                if rawEvent.keyCode() == 51:
+                    deleting = True
                     if self.command:
                         self.typingIndex = 0
+                        text = []
                     else:
                         if self.typingIndex > 0:
-                            self.typingIndex -= 1
-                
-                elif char == "right":
-                    if self.command:
-                        self.typingIndex = len(text)
-                    else:
-                        if self.typingIndex < len(text):
-                            self.typingIndex += 1
-                
-                elif char == "up":
-                    if self.typingFont != fontList[0]:
-                        prev = itemList[fontList.index(self.typingFont) - 1]
-                        self.typingFont = prev.font
-                        tt = prev.text if prev.localText else self.glyphs
-                        if self.typingIndex >= len(tt):
-                            self.typingIndex = len(tt)
-                
-                elif char == "down":
-                    if self.typingFont != fontList[-1]:
-                        nextLine = itemList[fontList.index(self.typingFont) + 1]
-                        self.typingFont = nextLine.font
-                        tt = nextLine.text if nextLine.localText else self.glyphs
-                        if self.typingIndex >= len(tt):
-                            self.typingIndex = len(tt)
+                            """
+                            enable multi-selection delete
+                            get length of selection and lowest index
+                            return list == len(selection), each item is lowest index
 
-            if deleting:
-                pass
+                            input:  [5,6,7]
+                            output: [5,5,5]
 
-            if adding:
-                # make sure to never let the index go negative
-                if self.typingIndex < 0:
-                    self.typingIndex = 0
+                            iterate over and remove that index since the new
+                            lowest will be the next one
+                            """
+                            text = self.deleteSelectedIndexes(selectedIdxs, text)
 
-                if self.typingIndex < len(text):
-                    self.typingIndex += 1
+                    # else:
+                    #     if self.typingIndex < len(self.holdingGlyphs):
+                    #         self.holdingGlyphs.pop(self.typingIndex)
+                    #         self.typingIndex -= 1
+                    # self.holdingGlyphs = self.holdingGlyphs
 
-            if self.locked:
-                self.holdingGlyphs = text
-            else:
-                if typingFontObject:
-                    ff = typingFontObject[0]
-                    ff.text = text
-                    self.fonts[ff.path] = ff
+                if self.command:
+                    if char.lower() == "t":
+                        self.toggleTypingState()
+                        return
+                    elif char.lower() == "a":
+                        for ii in self.collectionView.get():
+                            ii.selected = False
+                            if ii.font == self.typingFont and ii.name != "NULL":
+                                ii.selected = True
+                            if ii.font == self.typingFont:
+                                ii.typing = False
+                        return
 
-            if adding or deleting:
-                self.updateCharacterString()
+                    # elif char.lower() == "e":
+                    #     if self.typingFont:
+                    #         self.selectedEditing = not self.selectedEditing
+                    #     return
 
-            self.setTypingItem()
+                    elif char.lower() == "v":
 
-            # records = [GlyphRecord(item.glyph.naked()) for item in self.collectionView.get() if item.glyph.font == self.typingFont]
-            # self.w.matrix.set(records)
-            # self.w.setItemValue(
-            #     "textField",
-            #     self.combineText(self.holdingGlyphs)
-            # )
+                        """
+                        we can paste slashed glyph names
+                        """
+                        clipboardContents = subprocess.check_output(['pbpaste'], text=True)
+                        processed = splitText(clipboardContents, self.font.getCharacterMapping())
+
+                        for i, item in enumerate(processed):
+                            text.insert(self.typingIndex + i, item)
+                        self.typingIndex += len(processed)
+                        self.updateCharacterString()
+                        return
+
+                    elif char == "/":
+                        # cmd + slash to open glyph selection palette
+                        windows.GlyphFinderPalette(self.w, self)
+                        return
+
+                else:
+                    if rawGlyphName:
+                        adding = True
+                        # if there is a selection while we type, delete that old selection and replace with new input
+                        if selectedIdxs:
+                            text = self.deleteSelectedIndexes(selectedIdxs, text)
+                        text.insert(self.typingIndex, rawGlyphName)
+
+
+                if char in directions:
+                    if char == "left":
+                        if self.command:
+                            self.typingIndex = 0
+                        else:
+                            if self.typingIndex > 0:
+                                self.typingIndex -= 1
+                    
+                    elif char == "right":
+                        if self.command:
+                            self.typingIndex = len(text)
+                        else:
+                            if self.typingIndex < len(text):
+                                self.typingIndex += 1
+                    
+                    elif char == "up":
+                        if self.typingFont != fontList[0]:
+                            prev = itemList[fontList.index(self.typingFont) - 1]
+                            self.typingFont = prev.font
+                            tt = prev.text if prev.localText else self.glyphs
+                            if self.typingIndex >= len(tt):
+                                self.typingIndex = len(tt)
+                    
+                    elif char == "down":
+                        if self.typingFont != fontList[-1]:
+                            nextLine = itemList[fontList.index(self.typingFont) + 1]
+                            self.typingFont = nextLine.font
+                            tt = nextLine.text if nextLine.localText else self.glyphs
+                            if self.typingIndex >= len(tt):
+                                self.typingIndex = len(tt)
+
+                if deleting:
+                    pass
+
+                if adding:
+                    # make sure to never let the index go negative
+                    if self.typingIndex < 0:
+                        self.typingIndex = 0
+
+                    if self.typingIndex < len(text):
+                        self.typingIndex += 1
+
+                if self.locked:
+                    self.holdingGlyphs = text
+                else:
+                    if typingFontObject:
+                        ff = typingFontObject[0]
+                        ff.text = text
+                        self.fonts[ff.path] = ff
+
+                if adding or deleting:
+                    self.updateCharacterString()
+
+                self.setTypingItem()
+
+                # records = [GlyphRecord(item.glyph.naked()) for item in self.collectionView.get() if item.glyph.font == self.typingFont]
+                # self.w.matrix.set(records)
+                # self.w.setItemValue(
+                #     "textField",
+                #     self.combineText(self.holdingGlyphs)
+                # )
 
     def deleteSelectedIndexes(self, indexes:list[int,...], textList:list[str,...]) -> None:
         if not indexes:
@@ -3699,8 +3809,8 @@ class SpacePort(Subscriber, ezui.WindowController):
                 cursor = constants.TYPING_CURSOR
             else:
                 cursor = constants.ARROW_CURSOR
-            if self.kerning:
-                cursor = constants.KERNING_CURSOR
+            #if self.kerning:
+                #cursor = constants.KERNING_CURSOR
 
             scrollView = self.collectionView.getNSScrollView()
             scrollView.setDocumentCursor_(cursor)
@@ -3710,11 +3820,19 @@ class SpacePort(Subscriber, ezui.WindowController):
                     self.typingIndex = len(self.holdingGlyphs)-1
                 self.setTypingItem()
 
+            self.viewSettingsWindow.getItem("useKerningButton").set(self.kerning)
+            self.viewSettingsWindow.getItem("useKerningButton").enable(not self.kerning)
+
             self.w.getItem("modeButton").set(constants.ALL_MODES.index(mode))
             self.w.getItem("syncTextButton").enable(self.typing)
 
+            if self.kerning:
+                self.useKerningButtonCallback(None)
+                return
+
             #self.showSpaceMatrixButtonCallback(not self.typing)
             #self.w.matrix.show(not self.typing)
+            
             self.populate()
 
 
@@ -3730,28 +3848,6 @@ class SpacePort(Subscriber, ezui.WindowController):
                 else:
                     item.typing = False
 
-
-    # def mouseMoved(self, view, event) -> None:
-    #     if self.kerning:
-    #         event = merz.unpackEvent(event)
-    #         self.start = (x,y) = self._convertLocation(event, view)
-    #         hit = self._getItemAtEvent((x,y))
-    #         if hit:
-    #             if hit.name != "NULL":
-    #                 try:
-    #                     nextName = [ii for ii in self.collectionView.get() if hit.font == ii.font][hit.index-1].name
-    #                 except IndexError:
-    #                     nextName = None
-
-    #                 if nextName:
-    #                     if nextName != "NULL":
-    #                         print(nextName, hit.name)
-
-
-
-    def mouseUp(self, view, event) -> None:
-        pass
-        # print("debug::mouseUp")
 
 
     # subscriber events 
@@ -3923,4 +4019,4 @@ class SpacePort(Subscriber, ezui.WindowController):
 
 if __name__ == "__main__":
     registerRoboFontSubscriber(SpacePort)
-    # ShowProfile(SpacePort)
+    # ShowProfile(SpacePort)   ## this is a good way to investigate memory allocation

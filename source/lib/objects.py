@@ -1,3 +1,4 @@
+from inspect import Attribute
 import constants
 import ezui
 import merz
@@ -129,7 +130,10 @@ class MerzCollectionViewRGlyphItem(merz.collectionView.MerzCollectionViewItem):
         self._scaler:float|int            = kwargs.get("scaler", 1)
         self._location:dict[str,float]    = kwargs.get("location", {})
         self._selected:bool               = False
+        self._selectedPair:tuple|None     = None
+        self._pairPart                    = None
         self._isTyping:bool               = False
+        self._kerning:bool                = False
         self._selectedVisible:bool        = False
 
         self._selectionColor:tuple[float] = kwargs.get("selectionColor", constants.SELECTION_COLOR)
@@ -185,9 +189,33 @@ class MerzCollectionViewRGlyphItem(merz.collectionView.MerzCollectionViewItem):
 
     def setSelected(self, value:bool=False) -> None:
         self._selected = value
-        self.getLayer("glyphContainer").getSublayer("selectionIndicator").setVisible(value)
+        if self.kerning:
+            self.getLayer("glyphContainer").getSublayer("kernSelectionIndicator").setVisible(value)
+        else:
+            self.getLayer("glyphContainer").getSublayer("selectionIndicator").setVisible(value)
 
     selected = property(getSelected, setSelected)
+
+    def getKerning(self) -> bool:
+        return self._kerning
+
+    def setKerning(self, value:bool=False) -> None:
+        self._kerning = value
+        #self.getLayer("glyphContainer").getSublayer("selectionIndicator").setVisible(value)
+
+    kerning = property(getKerning, setKerning)
+
+    def getPairPart(self) -> bool:
+        return self._pairPart
+
+    def setPairPart(self, value) -> None:
+        self._pairPart = value
+
+    pairPart = property(getPairPart, setPairPart)
+
+    @property
+    def selectedPair(self) -> tuple|None:
+        return (self._name, self.pairPart.name)
 
     def getSelectionColor(self) -> tuple[float]:
         return self._selectionColor
@@ -317,11 +345,157 @@ class FontItem(object):
         try:
             self._featureFont = featurePreview.FeatureFont(self._font)
             self._gsub = self._featureFont.gsub.getFeatureList()
-            self._gpos = self._featureFont.gpos.getFeatureList()
+            # self._gpos = self._featureFont.gpos.getFeatureList()
+            self._gpos = [] # we are ignore gpos lookups for now, handle kerning on UFO level
         except:
             self._gsub = []
             self._gpos = []
+
+
+    ## ---- Taken from FontParts to use on Doodle objects ----
+    def findGlyph(self, glyphName):
+        groupNames = self._findGlyph(glyphName)
+        groupNames = [groupName for groupName in groupNames]
+        return groupNames
+
+    def _findGlyph(self, glyphName):
+        found = []
+        for key, groupList in self._font.groups.items():
+            if glyphName in groupList:
+                found.append(key)
+        return found
+    ## -------------------------------------------------------
+
+
+    def smartSet(self, pair:tuple[str,str], value:float, exceptionType="find", debug=False):
+        
+        '''
+        pair must be a tuple, its contents can be a glyphName or a group's name
+        value must be an integer, why would you even kern on fractions....
+        exceptionType is the level of searching the function will do
+            None : use the top level group or glyph names, no exceptions
+            g2G  : glyph to Group exception
+            g2g  : glyph to glyph exception
+            G2g  : Group to glyph exception
+        '''
+        l,r = pair
+        if not isinstance(l,str) and isinstance(r,str):
+            return
+
+        if exceptionType in ["find", "g2G", "g2g", "G2g"]:
+            pass
+        else:
+            exceptionType = "find"
+                
+        if "public.kern1" in l:
+            if l not in self._font.groups.keys():
+                return
+            leftGroup = l
+        else:
+            if l not in self._font.keys():
+                return
+            leftGlyph = l
+            leftGroup = l
+            for gs in self.findGlyph(l):
+                if "public.kern1" in gs:
+                    leftGroup = gs
             
+        if "public.kern2" in r:
+            if r not in self._font.groups.keys():
+                return
+            rightGroup = r
+        else:
+            if r not in self._font.keys():
+                return
+                
+            rightGlyph = r
+            rightGroup = r
+            for gs in self.findGlyph(r):
+                if "public.kern2" in gs:
+                    rightGroup = gs
+
+        if exceptionType == "find":
+            kp = (leftGroup, rightGroup)
+        elif exceptionType == "g2G":
+            kp = (leftGlyph, rightGroup)
+        elif exceptionType == "g2g":
+            kp = (leftGlyph, rightGlyph)
+        elif exceptionType == "G2g":
+            kp = (leftGroup, rightGlyph)
+        else:
+            raise TypeError("exception type unknown") 
+        
+
+        if debug:
+            print(kp, value)
+        else:
+            self._font.kerning[kp] = value
+
+
+    def deleteKern(self, pair:tuple[str,str], exceptionType="find", debug=False):
+        
+        '''
+        pair must be a tuple, its contents can be a glyphName or a group's name
+        value must be an integer, why would you even kern on fractions....
+        exceptionType is the level of searching the function will do
+            None : use the top level group or glyph names, no exceptions
+            g2G  : glyph to Group exception
+            g2g  : glyph to glyph exception
+            G2g  : Group to glyph exception
+        '''
+        l,r = pair
+        if not isinstance(l,str) and isinstance(r,str):
+            return
+
+        if exceptionType in ["find", "g2G", "g2g", "G2g"]:
+            pass
+        else:
+            exceptionType = "find"
+                
+        if "public.kern1" in l:
+            if l not in self._font.groups.keys():
+                return
+            leftGroup = l
+        else:
+            if l not in self._font.keys():
+                return
+            leftGlyph = l
+            leftGroup = l
+            for gs in self.findGlyph(l):
+                if "public.kern1" in gs:
+                    leftGroup = gs
+            
+        if "public.kern2" in r:
+            if r not in self._font.groups.keys():
+                return
+            rightGroup = r
+        else:
+            if r not in self._font.keys():
+                return
+                
+            rightGlyph = r
+            rightGroup = r
+            for gs in self.findGlyph(r):
+                if "public.kern2" in gs:
+                    rightGroup = gs
+
+        if exceptionType == "find":
+            kp = (leftGroup, rightGroup)
+        elif exceptionType == "g2G":
+            kp = (leftGlyph, rightGroup)
+        elif exceptionType == "g2g":
+            kp = (leftGlyph, rightGlyph)
+        elif exceptionType == "G2g":
+            kp = (leftGroup, rightGlyph)
+        else:
+            raise TypeError("exception type unknown") 
+        
+
+        if debug:
+            print(kp, value)
+        else:
+            del self._font.kerning[kp]
+
 
     def getPath(self) -> str:
         return self._path
