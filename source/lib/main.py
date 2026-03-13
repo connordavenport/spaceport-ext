@@ -115,6 +115,8 @@ class SpacePort(Subscriber, ezui.WindowController):
         self.splitFontOrdering:bool      = False
         self.invert:bool                 = False
 
+        self.horzAlignment:int           = 0
+
         self.sortingSettings:list[int]   = []
         self.weightSort:int = 1
         self.widthSort:int  = 1
@@ -157,7 +159,7 @@ class SpacePort(Subscriber, ezui.WindowController):
                 font=f,
                 use=f==CurrentFont(),
                 path=f.path,
-            )
+            )            
             self.fonts[f.path] = fontItem
             self.gsubLookups.update(fontItem._gsub)
             self.gposLookups.update(fontItem._gpos)
@@ -211,12 +213,6 @@ class SpacePort(Subscriber, ezui.WindowController):
                     text="Objects",
                     template=True,
                 ),
-                # dict(
-                #     identifier="kerning",
-                #     image=ezui.makeImage(imagePath=os.path.join(RESOURCES_PATH, f"{KERNING}.svg"), template=True),
-                #     text="Kerning",
-                #     template=True,
-                # ),
                 dict(
                     identifier="opentype",
                     image=ezui.makeImage(imagePath=os.path.join(constants.RESOURCES_PATH, f"{constants.OPENTYPE}.svg"), template=True),
@@ -236,19 +232,26 @@ class SpacePort(Subscriber, ezui.WindowController):
         * VerticalStack
         > --------------
         > * HorizontalStack                   @controlsStack
-        >> ( Typing | Spacing | Kerning )     @modeButton
+        >> ( Type | Space | Kern )            @modeButton
         >> -------------
         >> ---X--- [__](±)                    @pointSizeInputField
         >> (line height ...)                  @lineHeightField
         >> ({arrow.left.and.right.square})    @zoomToWidth
         >> ({arrow.up.and.down.square})       @zoomToHeight
+
+        >> ({text.alignleft})                 @horzAlignmentButton
+
         >> ---------------
         >> ( 􀎥 Unsync Text )                 @syncTextButton                    
         >> ---------------
-        >> * HorizontalStack
+        >> * HorizontalStack                  @leadingTrailingStack
         >>> *GlyphSequence                    @leadingTextField
         >>> *Image                            @trailingLeadingImage
         >>> *GlyphSequence                    @trailingTextField
+        >> --------------
+        >> ({document})                       @addObjectsButton
+        >> ({textformat.alt})                 @opentypeButton
+        >> ({squareshape.split.2x2.dotted})   @interpolateButton
         >> --------------
         >> ({gearshape})                      @viewOptions
         """
@@ -277,7 +280,7 @@ class SpacePort(Subscriber, ezui.WindowController):
             ),
             
             modeButton=dict(
-                # width=100,
+                width=130,
             ),
 
             syncTextButton=dict(
@@ -293,12 +296,12 @@ class SpacePort(Subscriber, ezui.WindowController):
                 delegate=self,
             ),
             leadingTextField=dict(
-                width=40,
+                width=32,
                 height=23,
                 font=fontToLoad,
             ),
             trailingTextField=dict(
-                width=40,
+                width=32,
                 height=23,
                 font=fontToLoad,
             ),
@@ -318,7 +321,7 @@ class SpacePort(Subscriber, ezui.WindowController):
                 value=150,
                 maxValue=500,
                 valueIncrement=5,
-                width=140,
+                width=90,
             ),
             lineHeightField=dict(
                 items=constants.LINE_HEIGHTS,
@@ -332,14 +335,15 @@ class SpacePort(Subscriber, ezui.WindowController):
                 # valueIncrement=0.1,
                 # width=140,
             ),
-
+            leadingTrailingStack=dict(
+                spacing=3,
+            ),
             trailingLeadingImage=dict(
                 image=ezui.makeImage(imagePath=os.path.join(constants.RESOURCES_PATH, "leading.trailing.svg"), template=True),
                 symbolConfiguration=dict(
                     scale="large",
                 )
             ),
-
             zoomToWidth=dict(
                 image=ezui.makeImage(symbolName=constants.ZOOM_WIDTH, imagePath=os.path.join(constants.RESOURCES_PATH, f"{constants.ZOOM_WIDTH}.svg"), template=True),
                 symbolConfiguration=dict(
@@ -350,13 +354,46 @@ class SpacePort(Subscriber, ezui.WindowController):
                 image=ezui.makeImage(symbolName=constants.ZOOM_HEIGHT, imagePath=os.path.join(constants.RESOURCES_PATH, f"{constants.ZOOM_HEIGHT}.svg"), template=True),
                 symbolConfiguration=dict(
                     scale="large",
-                )
+                ),
+            ),
+            horzAlignmentButton=dict(
+                image=ezui.makeImage(symbolName="text.alignleft", template=True),
+            ),
+            addObjectsButton=dict(
+                image=ezui.makeImage(symbolName="document", template=True),
+                symbolConfiguration=dict(
+                    scale="large",
+                    pointSize=15,
+                    weight="light",
+                    renderingMode="palette",
+                    colors=[AppKit.NSColor.systemGrayColor()]
+                ),
+            ),
+            opentypeButton=dict(
+                image=ezui.makeImage(symbolName="textformat.alt", template=True),
+                symbolConfiguration=dict(
+                    scale="large",
+                    pointSize=15,
+                    weight="light",
+                    renderingMode="palette",
+                    colors=[AppKit.NSColor.systemGrayColor()]
+                ),
+            ),
+            interpolateButton=dict(
+                image=ezui.makeImage(symbolName="squareshape.split.2x2.dotted", template=True),
+                symbolConfiguration=dict(
+                    scale="large",
+                    pointSize=15,
+                    weight="light",
+                    renderingMode="palette",
+                    colors=[AppKit.NSColor.systemGrayColor()]
+                ),
             ),
         )
 
         self.w = ezui.EZWindow(
             title=f"SpacePort v{constants.EXTENSION_VERSION}",
-            toolbar=toolbar,
+            # toolbar=toolbar,
             content=content,
             descriptionData=descriptionData,
             controller=self,
@@ -400,7 +437,7 @@ class SpacePort(Subscriber, ezui.WindowController):
         self.collectionView = self.w.getItem("collectionView")
         self.container = self.collectionView.getMerzContainer()
         self.collectionView.setBackgroundColor(AppKit.NSColor.whiteColor())
-        self.w.matrix = spaceInput.SpaceInputScrollView(constants.MATRIX_POS)
+        self.w.matrix = spaceInput.SpaceInputScrollView(constants.MATRIX_POS_BOTTOM)
         self.matrixPosition:int = 0
 
         self.buildSettingsPopover()
@@ -481,7 +518,12 @@ class SpacePort(Subscriber, ezui.WindowController):
             content += f"""
             >> *FeatureToggleButton @{i}FeaButton
             """
-            descriptionData[f"{i}FeaButton"] = dict(tag=i)
+
+            print(self.lookups.get(i))
+            descriptionData[f"{i}FeaButton"] = dict(
+                tag=i,
+                state=self.lookups.get(i, "default"),
+                )
 
         if self.gposLookups is not []:
             content += """
@@ -492,7 +534,11 @@ class SpacePort(Subscriber, ezui.WindowController):
                 content += f"""
                 >> *FeatureToggleButton @{i}FeaButton
                 """
-                descriptionData[f"{i}FeaButton"] = dict(tag=i)
+                print(self.lookups.get(i))
+                descriptionData[f"{i}FeaButton"] = dict(
+                    tag=i,
+                    state=self.lookups.get(i, "default"),
+                    )
 
         content += """
         >> ----
@@ -504,9 +550,9 @@ class SpacePort(Subscriber, ezui.WindowController):
             size=(100,100),
             content=content,
             descriptionData=descriptionData,
-            parent=self.w,
+            parent=self.w.getItem("opentypeButton"),
             behavior="transient",
-            parentAlignment="right",
+            # parentAlignment="right",
             controller=self
         )
 
@@ -518,20 +564,30 @@ class SpacePort(Subscriber, ezui.WindowController):
 
     def turnOffFeaturesButtonCallback(self, sender):
         for item in self.featurePopover.getItems():
-
             if item.endswith("FeaButton"):
                 button = self.featurePopover.getItem(item)
                 tag = str(button.tag)
                 self.lookups[tag] = "default"
                 button.state      = "default"
                 for font in self.fonts.values():
-                    font._featureFont.setFeatureState(tag, False)
-            
+                    if font._featureFont is not None:
+                        font._featureFont.setFeatureState(tag, False)
         self.populate()
 
 
     def reloadFeatureButtonCallback(self, sender):
-        print("reload not implimented yet...")
+        for font in self.fonts.values():
+            font.reloadFeatures()
+            self.gsubLookups.update(font._gsub)
+            self.gposLookups.update(font._gpos)
+            self.lookups.update({pos:"default" for pos in self.gposLookups})
+            self.lookups.update({sub:"default" for sub in self.gsubLookups})
+        self.turnOffFeaturesButtonCallback(None)
+        try:
+            self.featurePopover.close()
+        except:
+            pass
+        self.buildFeaturePopover()
 
 
     def featureStackCallback(self, sender):
@@ -540,19 +596,15 @@ class SpacePort(Subscriber, ezui.WindowController):
             obj = self.featurePopover.getItem(button)
             try:
                 self.lookups[obj.tag] = obj.state
-
                 for font in self.fonts.values():
-                    featureFont = font._featureFont
-                    if obj.state == "on":
-                        featureFont.setFeatureState(obj.tag, True)
-                    else:
-                        featureFont.setFeatureState(obj.tag, False)
-
+                    if font._featureFont is not None:
+                        if obj.state == "on":
+                            font._featureFont.setFeatureState(obj.tag, True)
+                        else:
+                            font._featureFont.setFeatureState(obj.tag, False)
             except AttributeError:
                 pass
-
         self.populate()
-        # print(" ".join([gs.glyph.name for gs in featureFont.process(self.glyphs)]))
 
 
     # ------------------------------------------------------------------
@@ -590,11 +642,11 @@ class SpacePort(Subscriber, ezui.WindowController):
         > -----
         > Text Formatting:
         > ( {characters.lowercase} | {textformat.characters} | {characters.uppercase} | None ) @textFormattingButton
-        > -----
-        > Horizontal Text Alignment:
-        > ( {text.alignleft} | {text.aligncenter} | {text.alignright} ) @horzAlignmentSegmentButton
-        > Vertical Text Alignment (BETA):
-        > ( {align.vertical.top} | {align.vertical.center} | {align.vertical.bottom} ) @vertAlignmentSegmentButton
+     #  > -----
+     #  > Horizontal Text Alignment:
+     #  > ( {text.alignleft} | {text.aligncenter} | {text.alignright} ) @horzAlignmentButton
+     #  > Vertical Text Alignment (BETA):
+     #  > ( {align.vertical.top} | {align.vertical.center} | {align.vertical.bottom} ) @vertAlignmentSegmentButton
 
         * Box                                                           @cursorBox = VerticalStack
         > [ ] Blinking Cursor                                           @blinkingCursorButton
@@ -664,9 +716,9 @@ class SpacePort(Subscriber, ezui.WindowController):
             displaySettingsButton=dict(
                 selected=[0]
             ),
-            horzAlignmentSegmentButton=dict(
-                selected=0
-            ),
+            # horzAlignmentButton=dict(
+            #     selected=0
+            # ),
             vertAlignmentSegmentButton=dict(
                 selected=0
             ),
@@ -694,7 +746,7 @@ class SpacePort(Subscriber, ezui.WindowController):
         # disable while we work on the functions
         # self.viewSettingsWindow.getItem("sortingButton").enable(False)
         self.viewSettingsWindow.getItem("showControlGlyphsButton").enable(False)
-        self.viewSettingsWindow.getItem("vertAlignmentSegmentButton").enable(False)
+        #self.viewSettingsWindow.getItem("vertAlignmentSegmentButton").enable(False)
         self.viewSettingsWindow.getItem("showSpaceMatrixButton").enable(not self.typing)
 
         self.styleWindowButtons(self.viewSettingsWindow)
@@ -920,12 +972,12 @@ class SpacePort(Subscriber, ezui.WindowController):
         if self.w.matrix.isVisible():
             if self.matrixPosition == 0:
                 self.matrixPosition = 1
-                x,y,w,h = constants.MATRIX_POS
+                x,y,w,h = constants.MATRIX_POS_BOTTOM
                 pos = (x,40,w,h)
                 show = True
             else:
                 self.matrixPosition = 0
-                pos = constants.MATRIX_POS
+                pos = constants.MATRIX_POS_BOTTOM
                 show = False
 
             for i in range(4):
@@ -1214,6 +1266,13 @@ class SpacePort(Subscriber, ezui.WindowController):
                         source.lib[constants.EXTENSION_KEY + ".location"]   = dict(locationData)
 
                         fi = objects.FontItem(path=source.path, use=True, font=source)
+                        fi.reloadFeatures()
+
+                        self.gsubLookups.update(fi._gsub)
+                        self.gposLookups.update(fi._gpos)
+                        self.lookups.update({pos:"default" for pos in self.gposLookups})
+                        self.lookups.update({sub:"default" for sub in self.gsubLookups})
+                        
                         self.fonts[source.path] = fi
 
                 if self.viewInstances:
@@ -1229,6 +1288,13 @@ class SpacePort(Subscriber, ezui.WindowController):
                             inst.lib["com.typemytype.robofont.italicSlantOffset"] = lib.get("com.typemytype.robofont.italicSlantOffset", 0)
 
                         fi = objects.FontItem(path=instance.path, use=True, font=inst)
+                        fi.reloadFeatures()
+
+                        self.gsubLookups.update(fi._gsub)
+                        self.gposLookups.update(fi._gpos)
+                        self.lookups.update({pos:"default" for pos in self.gposLookups})
+                        self.lookups.update({sub:"default" for sub in self.gsubLookups})
+
                         self.fonts[instance.path] = fi
 
                 if previewItem:
@@ -1294,7 +1360,7 @@ class SpacePort(Subscriber, ezui.WindowController):
         return operators
 
 
-    def addObjectsCallback(self, sender:Any) -> None:
+    def addObjectsButtonCallback(self, sender:Any) -> None:
         window = self.buildObjectsSheet()
         window.open()
 
@@ -1418,11 +1484,12 @@ class SpacePort(Subscriber, ezui.WindowController):
         pass
 
 
-    def opentypeCallback(self, sender:Any) -> None:
+    def opentypeButtonCallback(self, sender:Any) -> None:
+        #self.reloadFeatureButtonCallback(None)
         self.buildFeaturePopover()
 
 
-    def interpolateCallback(self, sender:Any) -> None:
+    def interpolateButtonCallback(self, sender:Any) -> None:
         # pass
         # modified from DSE
         #x,y,w,h = self.w.getPosSize()
@@ -1514,11 +1581,17 @@ class SpacePort(Subscriber, ezui.WindowController):
                 content=content,
                 descriptionData=descriptionData,
                 size="auto",
-                parent=self.w,
-                parentAlignment="right",
+                parent=self.w.getItem("interpolateButton"),
+                # parentAlignment="right",
                 behavior="transient",
                 controller=self
             )
+
+            for button in self.interpolationWindow.getItems().values():
+                if isinstance(button, ezui.items.PopUpButton):
+                    nsButton = button.getNSPopUpButton()
+                    nsButton.setBezelStyle_(AppKit.NSInlineBezelStyle)
+                    
             self.interpolationWindow.open()
             view = self.interpolationWindow.getItem("designspaceNav")
             self._placeSourcesInstancesInView(view.getMerzContainer(), self.operator)
@@ -1784,7 +1857,22 @@ class SpacePort(Subscriber, ezui.WindowController):
             self.scale = self.w.getItemValue("pointSizeInputField") / self.upm
 
 
-    def horzAlignmentSegmentButtonCallback(self, sender:Any) -> None:
+    def horzAlignmentButtonCallback(self, sender:Any) -> None:
+        if self.horzAlignment == 2:
+            self.horzAlignment = 0
+        else:
+            self.horzAlignment += 1
+
+        ## options = text.alignleft  text.aligncenter  text.alignright
+        alignmentImages = "text.alignleft text.aligncenter text.alignright".split(" ")
+        
+        sender.setImage(
+            image=ezui.makeImage(
+                symbolName=alignmentImages[self.horzAlignment],
+                template=True
+                ),
+            )
+
         self.controlsStackCallback(None)
 
 
@@ -1795,7 +1883,7 @@ class SpacePort(Subscriber, ezui.WindowController):
         pointSize = windowSettings["pointSizeInputField"]
         lineHeightIndex = windowSettings["lineHeightField"]
         lineHeight = float(constants.LINE_HEIGHTS[lineHeightIndex])
-        alignment = ("left", "center", "right")[viewSettings["horzAlignmentSegmentButton"]]
+        alignment = ("left", "center", "right")[self.horzAlignment]
         scale = pointSize / self.upm
         #scaledLineHeight = self.upm * lineHeight * scale
         lineHeight = self.upm * lineHeight * scale
@@ -3585,7 +3673,7 @@ class SpacePort(Subscriber, ezui.WindowController):
                                 manager = AppKit.NSApp().getUndoManagerForGlyph_(glyph.asDefcon())
                                 manager.undo()
                         elif char == ";":
-                            self.addObjectsCallback(None)
+                            self.addObjectsButtonCallback(None)
                         elif char == "=":
                             # zoom in
                             self.zoomCoalescerManager()
@@ -3678,6 +3766,11 @@ class SpacePort(Subscriber, ezui.WindowController):
                     elif char == "/":
                         # cmd + slash to open glyph selection palette
                         windows.GlyphFinderPalette(self.w, self)
+                        return
+
+                    elif char == "\\":
+                        # cmd + question to open history selection palette
+                        windows.HistoryPalette(self.w, self)
                         return
 
                 else:

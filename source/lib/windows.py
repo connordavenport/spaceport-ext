@@ -1,7 +1,8 @@
 import constants
 import ezui
 from typing import Any, Optional
-
+from mojo.UI import getDefault
+from lib.UI.spaceCenter.glyphSequenceEditText import splitText
 
 class GlyphFinderPalette(ezui.WindowController):
 
@@ -88,6 +89,65 @@ class GlyphFinderPalette(ezui.WindowController):
         # accepts.extend(sorted([g for g in self.relative.font.glyphOrder if hit in g and g not in accepts]))
         self.w.getItem("glyphFinderTable").set(accepts)
         if accepts: self.w.getItem("glyphFinderTable").setSelectedIndexes([0])
+
+
+    def started(self) -> None:
+        self.w.open()
+
+
+class HistoryPalette(ezui.WindowController):
+
+    def build(self, parent, relative):
+        self.relative = relative
+        self.parent   = parent
+        content = """
+        |-----------------|                @historyTable
+        |                 |
+        |-----------------|
+        """
+        footer = """
+        (Insert)                           @setInputButton
+        """
+        self.inputText = getDefault("spaceCenterInputSamples")
+        data = dict(
+            historyTable=dict(
+                allowsMultipleSelection=False,
+                alternatingRowColors=True,
+                width=300,
+                height=100,
+                items=self.inputText
+            )
+        )
+        self.w = ezui.EZPopUp(
+            content=content,
+            parent=parent,
+            footer=footer,
+            controller=self,
+            descriptionData=data,
+            parentOffset=(-100, 0)
+        )
+
+        self.w.setDefaultButton(self.w.getItem("setInputButton"))
+
+
+    def applyInputCallback(self, input:str) -> None:
+        if input:
+            returnedItem = input[0]
+            self.relative.holdingGlyphs = splitText(returnedItem, self.relative.font.getCharacterMapping())
+            self.relative.typingIndex = len(returnedItem)
+            self.relative.setTypingItem()
+            self.relative.updateCharacterString()
+            self.w.close()
+
+
+    def setInputButtonCallback(self, sender:Any) -> None:
+        selected = self.w.getItem("historyTable").getSelectedItems()
+        self.applyInputCallback(selected)
+
+
+    def historyTableDoubleClickCallback(self, sender:Any) -> None:
+        selected = sender.getSelectedItems()
+        self.applyInputCallback(selected)
 
 
     def started(self) -> None:

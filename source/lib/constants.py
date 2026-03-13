@@ -55,9 +55,9 @@ NEWLINE_CHAR:str        = "\\n"
 ZOOM_WIDTH:str          = "arrow.left.and.right.square"
 ZOOM_HEIGHT:str         = "arrow.up.and.down.square"
 ADD_OBJECT:str          = "document"
-KERNING:str             = "arrowtriangle.right.and.line.vertical.and.arrowtriangle.left"
-INTERPOLATE:str         = "squareshape.split.2x2.dotted"
 OPENTYPE:str            = "textformat.alt"
+INTERPOLATE:str         = "squareshape.split.2x2.dotted"
+KERNING:str             = "arrowtriangle.right.and.line.vertical.and.arrowtriangle.left"
 BEAM:str                = "ruler"
 
 KERN_HEIGHT:int = 100
@@ -76,7 +76,8 @@ INSTANCE_COLOR:tuple[float,...] = (0.149, 0.588, 0.824, 1)
 ZOOM_IN_FACTOR:float = getDefault("zoomInFactor",.85)
 ZOOM_OUT_FACTOR:float = getDefault("zoomOutFactor",1.15)
 
-MATRIX_POS:tuple[int,int,int,int] = (0, -48, 0, 48)
+MATRIX_POS_BOTTOM:tuple[int,int,int,int] = (0, -48, 0, 48)
+MATRIX_POS_TOP:tuple[int,int,int,int]    = (0,  40, 0, 48)
 
 CASES:list[str] = ["lower", "title", "upper", "default"]
 

@@ -65,7 +65,7 @@ class FeatureButtonClass(ezui.items.pushButton.PushButton):
             container=container
         )
 
-        self.setButtonColor(self.states["default"])
+        self.setButtonColor(self.states[self._state])
         self.getNSButton().setFont_(AppKit.NSFont.monospacedSystemFontOfSize_weight_(12.0, 0))
         self.getNSButton().setBezelStyle_(AppKit.NSBezelStyleRecessed)
         self.getNSButton().setCornerRadius_(5)
@@ -338,18 +338,23 @@ class FontItem(object):
         self._layer:DoodleLayer   = kwargs.get("layer", self._font.layers.defaultLayer)
         self._text:str|None       = None
         self._localText:bool      = False
-        self._gsub:list[str]  = []
+        self._gsub:list[str]      = []
+        self._gpos:list[str]      = []
 
         self._featureFont         = None
+        self.reloadFeatures()
 
-        try:
-            self._featureFont = featurePreview.FeatureFont(self._font)
-            self._gsub = self._featureFont.gsub.getFeatureList()
-            # self._gpos = self._featureFont.gpos.getFeatureList()
-            self._gpos = [] # we are ignore gpos lookups for now, handle kerning on UFO level
-        except:
-            self._gsub = []
-            self._gpos = []
+
+    def reloadFeatures(self):
+        if self._path != constants.PREVIEW:
+            try:
+                self._featureFont = featurePreview.FeatureFont(self._font)
+                self._gsub = self._featureFont.gsub.getFeatureList()
+                # self._gpos = self._featureFont.gpos.getFeatureList()
+                self._gpos = [] # we are ignore gpos lookups for now, handle kerning on UFO level
+            except:
+                self._gsub = []
+                self._gpos = []
 
 
     ## ---- Taken from FontParts to use on Doodle objects ----
