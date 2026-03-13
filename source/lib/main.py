@@ -518,8 +518,6 @@ class SpacePort(Subscriber, ezui.WindowController):
             content += f"""
             >> *FeatureToggleButton @{i}FeaButton
             """
-
-            print(self.lookups.get(i))
             descriptionData[f"{i}FeaButton"] = dict(
                 tag=i,
                 state=self.lookups.get(i, "default"),
@@ -534,7 +532,6 @@ class SpacePort(Subscriber, ezui.WindowController):
                 content += f"""
                 >> *FeatureToggleButton @{i}FeaButton
                 """
-                print(self.lookups.get(i))
                 descriptionData[f"{i}FeaButton"] = dict(
                     tag=i,
                     state=self.lookups.get(i, "default"),
