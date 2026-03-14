@@ -3951,9 +3951,6 @@ class SpacePort(Subscriber, ezui.WindowController):
             elif mode == "kerning":
                 self.typing = False
                 self.kerning = True
-            # elif mode == "split":
-            #     self.typing = False
-            #     self.split = True
         return mode
         
 
@@ -3982,6 +3979,15 @@ class SpacePort(Subscriber, ezui.WindowController):
 
             self.w.getItem("modeButton").set(constants.ALL_MODES.index(mode))
             self.w.getItem("syncTextButton").enable(self.typing)
+
+            enableSorting = False
+            if not self.typing and not self.kerning:
+                enableSorting = True
+            
+            for side in "leading trailing".split(" "):
+                self.w.getItem(f"{side}TextField").enable(not self.kerning)    
+                
+            self.w.getItem("sortingButton").enable(enableSorting)
 
             if self.kerning:
                 self.useKerningButtonCallback(None)
