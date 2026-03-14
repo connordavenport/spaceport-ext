@@ -17,7 +17,7 @@ class GlyphFinderPalette(ezui.WindowController):
         |-----------------|
         """
         footer = """
-        (Insert)                           @insertGlyphButton
+        (Insert)                           @insertGlyphButton         ? Insert Glyph into View
         """
         self.glyphMap = {"CurrentGlyph":"/?", "CurrentSelection":"/!",}
         glyphNames = list(self.glyphMap.keys())
@@ -101,12 +101,12 @@ class HistoryPalette(ezui.WindowController):
         self.relative = relative
         self.parent   = parent
         content = """
-        |-----------------|                @historyTable
+        |-----------------|                @historyTable   ? User SpaceCenter Input
         |                 |
         |-----------------|
         """
         footer = """
-        (Insert)                           @setInputButton
+        (Insert)                           @setInputButton ? Insert String into View
         """
         self.inputText = getDefault("spaceCenterInputSamples")
         data = dict(
@@ -168,7 +168,7 @@ class InterpolationWarningWindow(ezui.WindowController):
         > * Image                                   @warningImage
         You must add a designspace file first!      @label
         ----------
-        ( Manage Objects )                          @openDesignspaceButton
+        ( Manage Objects )                          @openDesignspaceButton  ? Open Objects Sheet
         """
 
         descriptionData = dict(

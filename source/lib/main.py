@@ -232,29 +232,29 @@ class SpacePort(Subscriber, ezui.WindowController):
         * VerticalStack
         > --------------
         > * HorizontalStack                   @controlsStack
-        >> ( Type | Space | Kern )            @modeButton
+        >> ( Type | Space | Kern )            @modeButton           ? Switch Modes
         >> -------------
-        >> ---X--- [__](±)                    @pointSizeInputField
-        >> (line height ...)                  @lineHeightField
-        >> ({arrow.left.and.right.square})    @zoomToWidth
-        >> ({arrow.up.and.down.square})       @zoomToHeight
+        >> ---X--- [__](±)                    @pointSizeInputField  ? Point Size
+        >> (line height ...)                  @lineHeightField      ? Line Height
+        >> ({arrow.left.and.right.square})    @zoomToWidth          ? Zoom to Fit Width
+        >> ({arrow.up.and.down.square})       @zoomToHeight         ? Zoom to Fit Height
 
-        >> ({text.alignleft})                 @horzAlignmentButton
-        >> ({textformat})                     @sortingButton
+        >> ({text.alignleft})                 @horzAlignmentButton  ? Text Alignment
+        >> ({textformat})                     @sortingButton        ? Glyph Sorting
 
         >> ---------------
-        >> ( 􀎥 Unsync Text )                 @syncTextButton                    
+        >> ( 􀎥 Unsync Text )                 @syncTextButton       ? Sync Text Strings                  
         >> ---------------
         >> * HorizontalStack                  @leadingTrailingStack
-        >>> *GlyphSequence                    @leadingTextField
+        >>> *GlyphSequence                    @leadingTextField     ? Leading Text String
         >>> *Image                            @trailingLeadingImage
-        >>> *GlyphSequence                    @trailingTextField
+        >>> *GlyphSequence                    @trailingTextField    ? Trailing Text String
         >> --------------
-        >> ({document})                       @addObjectsButton
-        >> ({textformat.alt})                 @opentypeButton
-        >> ({squareshape.split.2x2.dotted})   @interpolateButton
+        >> ({document})                       @addObjectsButton     ? Manage Objects
+        >> ({textformat.alt})                 @opentypeButton       ? OpenType Features
+        >> ({squareshape.split.2x2.dotted})   @interpolateButton    ? Interpolation View
         >> --------------
-        >> ({gearshape})                      @viewOptions
+        >> ({gearshape})                      @viewOptions          ? Settings
         """
         for i in range(4):
             content += f"""
@@ -512,7 +512,7 @@ class SpacePort(Subscriber, ezui.WindowController):
 
         content = """
         *HorizontalStack                        @detachStack
-        > ({arrow.up.right.circle})             @detachFeaturePanelButton
+        > ({arrow.up.right.circle})             @detachFeaturePanelButton ? Detatch Window
 
         > * VerticalStack                       @featureStack
         >> GSUB Lookups:
@@ -520,7 +520,7 @@ class SpacePort(Subscriber, ezui.WindowController):
 
         for i in sorted(self.gsubLookups):
             content += f"""
-            >> *FeatureToggleButton @{i}FeaButton
+            >> *FeatureToggleButton @{i}FeaButton ? Toggle {i}
             """
             descriptionData[f"{i}FeaButton"] = dict(
                 tag=i,
@@ -534,7 +534,7 @@ class SpacePort(Subscriber, ezui.WindowController):
             
             for i in sorted(self.gposLookups):
                 content += f"""
-                >> *FeatureToggleButton @{i}FeaButton
+                >> *FeatureToggleButton @{i}FeaButton ? Toggle {i}
                 """
                 descriptionData[f"{i}FeaButton"] = dict(
                     tag=i,
@@ -543,8 +543,8 @@ class SpacePort(Subscriber, ezui.WindowController):
 
         content += """
         >> ----
-        >> ( 􀆙 Turn Off)        @turnOffFeaturesButton
-        >> ( 􀊯 Reload Features) @reloadFeatureButton
+        >> ( 􀆙 Turn Off)        @turnOffFeaturesButton ? Turn Off All Features
+        >> ( 􀊯 Reload Features) @reloadFeatureButton   ? Rebuild All Features
         """
 
         self.featurePopover = ezui.EZPopover(
@@ -614,35 +614,35 @@ class SpacePort(Subscriber, ezui.WindowController):
         self.detached = False
         content = """
         *HorizontalStack                                                @detachStack
-        > ({arrow.up.right.circle})                                     @detachSettingsButton
+        > ({arrow.up.right.circle})                                     @detachSettingsButton                        ? Detatch Window
 
         * Box                                                           @displaySettingsBox = VerticalStack
-        > [X] Multiline                                                 @multilineButton
-        > [ ] Show Label                                                @showLabelButton
-        > [X] Show Metrics                                              @showMetricsButton
-        > [ ] Show Control Glyphs                                       @showControlGlyphsButton
-        > [ ] Use Kerning                                               @useKerningButton
+        > [X] Multiline                                                 @multilineButton                             ? Use Linebreaks
+        > [ ] Show Label                                                @showLabelButton                             ? Show Font Labels
+        > [X] Show Metrics                                              @showMetricsButton                           ? Show Glyph Metrics
+        > [ ] Show Control Glyphs                                       @showControlGlyphsButton                     ? Not Implimented
+        > [ ] Use Kerning                                               @useKerningButton                            ? Use Kerning In View
 
         * Box                                                           @matrixBox = VerticalStack
-        > [X] Show Space Matrix                                         @showSpaceMatrixButton
+        > [X] Show Space Matrix                                         @showSpaceMatrixButton                       ? Show Space Matrix
         > * HorizontalStack
-        >> ({arrow.trianglehead.swap})                                  @moveSpaceMatrixButton
+        >> ({arrow.trianglehead.swap})                                  @moveSpaceMatrixButton                       ? Move Space Matrix Position
         >> Matrix Position
         > Beam:
         > * HorizontalStack
-        >> [X]                                                          @showBeamButton
-        >> --X------                                                    @beamPositionSlider
+        >> [X]                                                          @showBeamButton                              ? Show Beam
+        >> --X------                                                    @beamPositionSlider                          ? Beam Vertical Position
         * Box                                                           @colorsBox = VerticalStack
-        > ( 􀅈 Invert Colors )                                          @invertColorsButton
+        > ( 􀅈 Invert Colors )                                          @invertColorsButton                          ? Invert Display Colors
         > Glyph Drawing Options:
-        > (( Fill | Stroke ))                                           @displaySettingsButton
+        > (( Fill | Stroke ))                                           @displaySettingsButton                       ? Glyph Display Options
         
         * Box                                                           @textLayoutBox = VerticalStack
      #  > Sorting Order:
      #  > ( X Font X | Glyph )                                          @sortingButton
      #  > -----
         > Text Formatting:
-        > ( {characters.lowercase} | {textformat.characters} | {characters.uppercase} | None ) @textFormattingButton
+        > ( {characters.lowercase} | {textformat.characters} | {characters.uppercase} | None ) @textFormattingButton ? Text Case Formatting
      #  > -----
      #  > Horizontal Text Alignment:
      #  > ( {text.alignleft} | {text.aligncenter} | {text.alignright} ) @horzAlignmentButton
@@ -650,15 +650,15 @@ class SpacePort(Subscriber, ezui.WindowController):
      #  > ( {align.vertical.top} | {align.vertical.center} | {align.vertical.bottom} ) @vertAlignmentSegmentButton
 
         * Box                                                           @cursorBox = VerticalStack
-        > [ ] Blinking Cursor                                           @blinkingCursorButton
-        > * HorizontalStack                                             @cursorStack
+        > [ ] Blinking Cursor                                           @blinkingCursorButton                        ? Use Blinking Cursor
+        > * HorizontalStack                                             @cursorStack                                 
         >> Cursor Color: 
-        >> * ColorWell                                                  @cursorColorWell
-        # > [ ] Focus Ring                                                @focusRingButton
-        > [ ] Tinted Typing Background                                  @tintedBackgroundButton
+        >> * ColorWell                                                  @cursorColorWell                             ? Cursor Color
+     #  > [ ] Focus Ring                                                @focusRingButton
+        > [ ] Tinted Typing Background                                  @tintedBackgroundButton                      ? Use Tinted Background in Typing View
         > * HorizontalStack                                             @selectionStack
         >> Selection Color: 
-        >> * ColorWell                                                  @selectionColorWell
+        >> * ColorWell                                                  @selectionColorWell                          ? Glyph Selection Color
 
         """
 
@@ -827,7 +827,7 @@ class SpacePort(Subscriber, ezui.WindowController):
                     content = """
                 * HorizontalStack             @layersStack
                 > *Image                      @layersIcon
-                > (Layers ...)                @layersButton
+                > (Layers ...)                @layersButton  ? Change Layers For Current Font
                 """
                 
                 descriptionData=dict(
@@ -1010,20 +1010,20 @@ class SpacePort(Subscriber, ezui.WindowController):
         > * Box                                                            @fontBox = VerticalStack
         >> !!!Fonts
         >> * HorizontalStack                                               @fontStack
-        >>> ((( Refresh Order | Add All Open Fonts )))                     @addAndReorderButton
+        >>> ((( Refresh Order | Add All Open Fonts )))                     @addAndReorderButton                ? Refresh Font Order and Use All Fonts
         >>> *Image                                                         @sortImage
-        >>> (( Weight | Width | Italic))                                   @sortFontListButton
-        >> |-files----|                                                    @fontTable
+        >>> (( Weight | Width | Italic))                                   @sortFontListButton                 ? Sort Fonts By Weight/Width/Slant Attributes
+        >> |-files----|                                                    @fontTable                          ? Font Objects
         >> |          |
         >> |----------|
-        >> (+-)                                                            @fontTableAddRemoveButton
+        >> (+-)                                                            @fontTableAddRemoveButton           ? Add / Remove Items from Table
         > * Box                                                            @designspaceBox = VerticalStack
         >> !!!Designspaces
-        >> (( View Sources | View Instances | DSE Controller ))            @designspaceSettingsButton
-        >> |-files----|                                                    @designspaceTable
+        >> (( View Sources | View Instances | DSE Controller ))            @designspaceSettingsButton          ? Designspace Settings
+        >> |-files----|                                                    @designspaceTable                   ? Designspace Objects
         >> |          |
         >> |----------|
-        >> (+-)                                                            @designspaceTableAddRemoveButton
+        >> (+-)                                                            @designspaceTableAddRemoveButton    ? Add / Remove Items from Table
         """
 
         descriptionData = dict(
@@ -1541,22 +1541,22 @@ class SpacePort(Subscriber, ezui.WindowController):
             """
             content += """
             > x-axis:
-            > ( ...)              @xAxisSelection
+            > ( ...)              @xAxisSelection          ? X-Axis
             """
             if len(interpolatable) > 1:
                 axes += "y"
                 content += """
                 > y-axis:
-                > ( ...)          @yAxisSelection
+                > ( ...)          @yAxisSelection          ? Y-Axis
             """
 
             content += """
             * MerzView            @designspaceNav
 
             # * HorizontalStack
-            # > * Image           @addInstanceImage
+            # > * Image           @addInstanceImage       
             
-            (Add Instance)        @designspaceAddInstance
+            (Add Instance)        @designspaceAddInstance  ? Add Instance to Designspace
             """
 
             descriptionData["addInstanceImage"] = dict(
