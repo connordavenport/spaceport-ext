@@ -240,6 +240,7 @@ class SpacePort(Subscriber, ezui.WindowController):
         >> ({arrow.up.and.down.square})       @zoomToHeight
 
         >> ({text.alignleft})                 @horzAlignmentButton
+        >> ({textformat})                     @sortingButton
 
         >> ---------------
         >> ( 􀎥 Unsync Text )                 @syncTextButton                    
@@ -358,6 +359,9 @@ class SpacePort(Subscriber, ezui.WindowController):
             ),
             horzAlignmentButton=dict(
                 image=ezui.makeImage(symbolName="text.alignleft", template=True),
+            ),
+            sortingButton=dict(
+                image=ezui.makeImage(imagePath=os.path.join(constants.RESOURCES_PATH, "sort.font.svg"), template=True),
             ),
             addObjectsButton=dict(
                 image=ezui.makeImage(symbolName="document", template=True),
@@ -634,9 +638,9 @@ class SpacePort(Subscriber, ezui.WindowController):
         > (( Fill | Stroke ))                                           @displaySettingsButton
         
         * Box                                                           @textLayoutBox = VerticalStack
-        > Sorting Order:
-        > ( X Font X | Glyph )                                          @sortingButton
-        > -----
+     #  > Sorting Order:
+     #  > ( X Font X | Glyph )                                          @sortingButton
+     #  > -----
         > Text Formatting:
         > ( {characters.lowercase} | {textformat.characters} | {characters.uppercase} | None ) @textFormattingButton
      #  > -----
@@ -739,15 +743,10 @@ class SpacePort(Subscriber, ezui.WindowController):
             # parentAlignment="right",
             controller=self
         )
-        # self.viewSettingsWindow.getItem("useKerningButton").show(False)
         # disable while we work on the functions
-        # self.viewSettingsWindow.getItem("sortingButton").enable(False)
         self.viewSettingsWindow.getItem("showControlGlyphsButton").enable(False)
-        #self.viewSettingsWindow.getItem("vertAlignmentSegmentButton").enable(False)
         self.viewSettingsWindow.getItem("showSpaceMatrixButton").enable(not self.typing)
-
         self.styleWindowButtons(self.viewSettingsWindow)
-
         if open: self.viewSettingsWindow.open()
 
 
@@ -756,8 +755,16 @@ class SpacePort(Subscriber, ezui.WindowController):
     #     self.displaySettingsButtonCallback(None, previewState=self.typing)
 
     def sortingButtonCallback(self, sender:Any) -> None:
-        self.split = True if sender.get() == 1 else False
-        # self.showBeam = not self.showBeam
+        self.split = not self.split
+        symbolName = "sort.glyph" if self.split else "sort.font"
+
+        sender.setImage(
+            image=ezui.makeImage(
+                imagePath=os.path.join(constants.RESOURCES_PATH, f"{symbolName}.svg"),
+                template=True
+            ),
+        )
+
         if self.split:
             self.w.matrix.setShowBeam(False)
             self.viewSettingsWindow.setItemValue("showBeamButton", False)
@@ -3513,6 +3520,10 @@ class SpacePort(Subscriber, ezui.WindowController):
                 self.toggleTypingState()
                 return
 
+            elif char.lower() == "k":
+                self.toggleTypingState("kerning" if not self.kerning else "spacing")
+                return
+
         if self.kerning:
             selected = self.selectedItems
             # check if mulitfont selection is acivated
@@ -3548,7 +3559,7 @@ class SpacePort(Subscriber, ezui.WindowController):
 
 
                         if rawEvent.keyCode() == 116:  # "up"
-                            print("up")
+                            # print("up")
                             if kerningFont != fontList[0]:
                                 prevLine = itemList[fontList.index(kerningFont) - 1]
                                 prevItems = [ir for ir in self.collectionView.get() if ir.font == prevLine.font and ir.index in currentSelectedIdxs]
@@ -3568,7 +3579,7 @@ class SpacePort(Subscriber, ezui.WindowController):
                             #         self.typingIndex = len(tt)
                         
                         elif rawEvent.keyCode() == 121:  # "down"
-                            print("down")
+                            # print("down")
                             if kerningFont != fontList[-1]:
                                 nextLine = itemList[fontList.index(kerningFont) + 1]
                                 nextItems = [ir for ir in self.collectionView.get() if ir.font == nextLine.font and ir.index in currentSelectedIdxs]
@@ -3896,23 +3907,43 @@ class SpacePort(Subscriber, ezui.WindowController):
         return mergedIndex + offset
 
 
+    # def determineMode(self, mode:str|None=None) -> None:
+    #     if not mode:
+    #         if self.kerning:
+    #             self.kerning = False
+    #             self.typing  = True
+    #             mode = "typing"
+    #         elif self.typing:
+    #             self.kerning = False
+    #             self.typing  = False
+    #             mode = "spacing"
+    #         else:
+    #             self.kerning = True
+    #             self.typing  = False
+    #             mode = "kerning"
+    #     else:
+    #         self.kerning = False
+    #         self.split = False
+    #         if mode == "typing":
+    #             self.typing = True
+    #         elif mode == "spacing":
+    #             self.typing = False
+    #         elif mode == "kerning":
+    #             self.typing = False
+    #             self.kerning = True
+    #     return mode
+
+
     def determineMode(self, mode:str|None=None) -> None:
+        self.kerning = False
+        self.split = False
         if not mode:
-            if self.kerning:
-                self.kerning = False
-                self.typing  = True
+            self.typing = not self.typing
+            if self.typing:
                 mode = "typing"
-            elif self.typing:
-                self.kerning = False
-                self.typing  = False
-                mode = "spacing"
             else:
-                self.kerning = True
-                self.typing  = False
-                mode = "kerning"
+                mode = "spacing"
         else:
-            self.kerning = False
-            self.split = False
             if mode == "typing":
                 self.typing = True
             elif mode == "spacing":
@@ -3920,6 +3951,9 @@ class SpacePort(Subscriber, ezui.WindowController):
             elif mode == "kerning":
                 self.typing = False
                 self.kerning = True
+            # elif mode == "split":
+            #     self.typing = False
+            #     self.split = True
         return mode
         
 

@@ -128,6 +128,9 @@ class HistoryPalette(ezui.WindowController):
         )
 
         self.w.setDefaultButton(self.w.getItem("setInputButton"))
+        if self.inputText:
+            self.w.getNSWindow().makeKeyAndOrderFront_(None)
+            self.w.getItem("historyTable").setSelectedIndexes([0])
 
 
     def applyInputCallback(self, input:str) -> None:
