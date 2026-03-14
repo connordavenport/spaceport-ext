@@ -3607,11 +3607,11 @@ class SpacePort(Subscriber, ezui.WindowController):
                     except KeyError:
                         pass
             else:
-                if "shift" in mods and "command" in mods:
-                    spacingUnit = 10
-                elif "shift" in mods:
+
+                spacingUnit = 10
+                if "shift" in mods:
                     spacingUnit = 5
-                else:
+                elif "option" in mods:
                     spacingUnit = 1
 
                 if char == "right":
@@ -3620,6 +3620,20 @@ class SpacePort(Subscriber, ezui.WindowController):
                     spacingUnit *= -1
                 else:
                     return
+
+                # if "shift" in mods and "command" in mods:
+                #     spacingUnit = 10
+                # elif "shift" in mods:
+                #     spacingUnit = 5
+                # else:
+                #     spacingUnit = 1
+
+                # if char == "right":
+                #     spacingUnit *= 1
+                # elif char == "left":
+                #     spacingUnit *= -1
+                # else:
+                #     return
 
                 for item in self.selectedItems:
                     try:
