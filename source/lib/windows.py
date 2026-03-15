@@ -6,7 +6,7 @@ from lib.UI.spaceCenter.glyphSequenceEditText import splitText
 
 class GlyphFinderPalette(ezui.WindowController):
 
-    def build(self, parent, relative):
+    def build(self, parent:ezui.EZWindow, relative:Any) -> None:
         self.relative = relative
         self.parent   = parent
         content = """
@@ -97,7 +97,7 @@ class GlyphFinderPalette(ezui.WindowController):
 
 class HistoryPalette(ezui.WindowController):
 
-    def build(self, parent, relative):
+    def build(self, parent:ezui.EZWindow, relative:Any) -> None:
         self.relative = relative
         self.parent   = parent
         content = """

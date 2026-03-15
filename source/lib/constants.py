@@ -12,15 +12,15 @@ adds alpha to anything less than 0.1.0
 adds beta to anything less than 1.0.0
 """
 
-MACOS_VERSION = platform.mac_ver()[0]
+MACOS_VERSION:str = platform.mac_ver()[0]
 if MACOS_VERSION.count(".") > 1:
-    major, minor, superMinor = MACOS_VERSION.split(".", 2)
+    major:str, minor:str, superMinor:str = MACOS_VERSION.split(".", 2)
     MACOS_VERSION = ".".join((major, minor))
-MACOS_VERSION = float(MACOS_VERSION)
+MACOS_VERSION:float = float(MACOS_VERSION)
 
-FALLBACK_VERSION = "0.000"
-INFO_YAML = os.path.abspath(os.path.join(__file__, "../../../", "info.yaml"))
-INFO_PLST = os.path.abspath(os.path.join(__file__, "../../", "info.plist"))
+FALLBACK_VERSION:str = "0.000"
+INFO_YAML:str        = os.path.abspath(os.path.join(__file__, "../../../", "info.yaml"))
+INFO_PLST:str        = os.path.abspath(os.path.join(__file__, "../../", "info.plist"))
 if os.path.exists(INFO_YAML):
     # also if there is a yaml, this means we are in dev env
     with open(INFO_YAML, mode="r") as file:
@@ -33,8 +33,8 @@ else:
     # nothing found, fallback to 0.000
     info = dict(version=FALLBACK_VERSION)
 
-EXTENSION_VERSION = info.get("version", FALLBACK_VERSION)
-major, minor_patch = EXTENSION_VERSION.split(".")
+EXTENSION_VERSION:str      = info.get("version", FALLBACK_VERSION)
+major:str, minor_patch:str = EXTENSION_VERSION.split(".")
 minor_patch = minor_patch.zfill(3)
 if int(major) < 1:
     # pull only minor, ignore patch num
@@ -43,8 +43,8 @@ if int(major) < 1:
     else:
         EXTENSION_VERSION += "β"
 
-BASE_DIR = os.path.dirname(__file__)
-RESOURCES_PATH = os.path.abspath(os.path.join(BASE_DIR, "../", "resources"))
+BASE_DIR:str            = os.path.dirname(__file__)
+RESOURCES_PATH:str      = os.path.abspath(os.path.join(BASE_DIR, "../", "resources"))
 
 EXTENSION_KEY:str       = "com.connordavenport.spaceport"
 
@@ -60,11 +60,9 @@ INTERPOLATE:str         = "squareshape.split.2x2.dotted"
 KERNING:str             = "arrowtriangle.right.and.line.vertical.and.arrowtriangle.left"
 BEAM:str                = "ruler"
 
-KERN_HEIGHT:int = 100
-
-BUFFER:int = 75
-
-DESIGNSPACE_WIDTH:int = 300
+KERN_HEIGHT:int         = 100
+BUFFER:int              = 75
+DESIGNSPACE_WIDTH:int   = 300
 
 POS_KERN_COLOR:tuple[float,...] = (0.0, 0.0, 1.0)
 NEG_KERN_COLOR:tuple[float,...] = (1.0, 0.0, 0.0)
@@ -81,25 +79,28 @@ MATRIX_POS_TOP:tuple[int,int,int,int]    = (0,  40, 0, 48)
 
 CASES:list[str] = ["lower", "title", "upper", "default"]
 
-CURSOR_SIZE = 30
-CURSOR_IMAGE = NSCursor.IBeamCursor().image()
-CURSOR_IMAGE = CURSOR_IMAGE.resizeTo_(CURSOR_SIZE)
-TYPING_CURSOR = CreateCursor(
+CURSOR_SIZE:int = 30
+CURSOR_IMAGE    = NSCursor.IBeamCursor().image()
+CURSOR_IMAGE    = CURSOR_IMAGE.resizeTo_(CURSOR_SIZE)
+
+TYPING_CURSOR:AppKit.NSImage  = CreateCursor(
     CURSOR_IMAGE,
     hotSpot=(CURSOR_SIZE/2, CURSOR_SIZE/2)
 )
 
+ARROW_CURSOR:AppKit.NSImage   = NSCursor.arrowCursor()
+KERNING_CURSOR:AppKit.NSImage = NSCursor.resizeLeftRightCursor()
+
 CURSOR_COLOR:tuple[float,float,float,float] = (1.0, 0.0, 0.0, 1.0)
 SELECTION_COLOR:tuple[float,float,float,float] = (0.0, 0.0, 0.0, 0.1)
-ARROW_CURSOR = NSCursor.arrowCursor()
-KERNING_CURSOR = NSCursor.resizeLeftRightCursor()
+
 
 POINT_SIZES:list[str,...]  = ["9", "10", "11", "12", "14", "18", "24", "36", "48", "72", "144", "288"]
 LINE_HEIGHTS:list[str,...] = ["0.5", "0.6", "0.7", "0.8", "0.9", "1.0", "1.1", "1.2", "1.3", "1.4", "1.5", "1.6", "1.7", "1.8", "1.9", "2.0"]
 
-ALL_MODES = "typing spacing kerning".split(" ")
-REGISTERED = ['aalt', 'abvf', 'abvm', 'abvs', 'afrc', 'akhn', 'apkn', 'blwf', 'blwm', 'blws', 'calt', 'case', 'ccmp', 'cfar', 'chws', 'cjct', 'clig', 'cpct', 'cpsp', 'cswh', 'curs', 'cv01#99', 'c2pc', 'c2sc', 'dist', 'dlig', 'dnom', 'dtls', 'expt', 'falt', 'fin2', 'fin3', 'fina', 'flac', 'frac', 'fwid', 'half', 'haln', 'halt', 'hist', 'hkna', 'hlig', 'hngl', 'hojo', 'hwid', 'init', 'isol', 'ital', 'jalt', 'jp78', 'jp83', 'jp90', 'jp04', 'kern', 'lfbd', 'liga', 'ljmo', 'lnum', 'locl', 'ltra', 'ltrm', 'mark', 'med2', 'medi', 'mgrk', 'mkmk', 'mset', 'nalt', 'nlck', 'nukt', 'numr', 'onum', 'opbd', 'ordn', 'ornm', 'palt', 'pcap', 'pkna', 'pnum', 'pref', 'pres', 'pstf', 'psts', 'pwid', 'qwid', 'rand', 'rclt', 'rkrf', 'rlig', 'rphf', 'rtbd', 'rtla', 'rtlm', 'ruby', 'rvrn', 'salt', 'sinf', 'size', 'smcp', 'smpl', 'ss01#20', 'ssty', 'stch', 'subs', 'sups', 'swsh', 'titl', 'tjmo', 'tnam', 'tnum', 'trad', 'twid', 'unic', 'valt', 'vapk', 'vatu', 'vchw', 'vert', 'vhal', 'vjmo', 'vkna', 'vkrn', 'vpal', 'vrt2', 'vrtr', 'zero']
-FEATURE_TAGS = []
+ALL_MODES:list[str,...]    = ["typing", "spacing", "kerning"]
+REGISTERED:list[str,...]   = ['aalt', 'abvf', 'abvm', 'abvs', 'afrc', 'akhn', 'apkn', 'blwf', 'blwm', 'blws', 'calt', 'case', 'ccmp', 'cfar', 'chws', 'cjct', 'clig', 'cpct', 'cpsp', 'cswh', 'curs', 'cv01#99', 'c2pc', 'c2sc', 'dist', 'dlig', 'dnom', 'dtls', 'expt', 'falt', 'fin2', 'fin3', 'fina', 'flac', 'frac', 'fwid', 'half', 'haln', 'halt', 'hist', 'hkna', 'hlig', 'hngl', 'hojo', 'hwid', 'init', 'isol', 'ital', 'jalt', 'jp78', 'jp83', 'jp90', 'jp04', 'kern', 'lfbd', 'liga', 'ljmo', 'lnum', 'locl', 'ltra', 'ltrm', 'mark', 'med2', 'medi', 'mgrk', 'mkmk', 'mset', 'nalt', 'nlck', 'nukt', 'numr', 'onum', 'opbd', 'ordn', 'ornm', 'palt', 'pcap', 'pkna', 'pnum', 'pref', 'pres', 'pstf', 'psts', 'pwid', 'qwid', 'rand', 'rclt', 'rkrf', 'rlig', 'rphf', 'rtbd', 'rtla', 'rtlm', 'ruby', 'rvrn', 'salt', 'sinf', 'size', 'smcp', 'smpl', 'ss01#20', 'ssty', 'stch', 'subs', 'sups', 'swsh', 'titl', 'tjmo', 'tnam', 'tnum', 'trad', 'twid', 'unic', 'valt', 'vapk', 'vatu', 'vchw', 'vert', 'vhal', 'vjmo', 'vkna', 'vkrn', 'vpal', 'vrt2', 'vrtr', 'zero']
+FEATURE_TAGS:list[str,...] = []
 
 # update feature tags with ranges
 for t in REGISTERED:
@@ -111,4 +112,4 @@ for t in REGISTERED:
     else:
         FEATURE_TAGS.append(t)
 
-PREVIEW = "Preview Location"
+PREVIEW:str = "Preview Location"

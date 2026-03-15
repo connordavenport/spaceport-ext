@@ -71,7 +71,7 @@ class FeatureButtonClass(ezui.items.pushButton.PushButton):
         self.getNSButton().setCornerRadius_(5)
 
         
-    def setButtonColor(self, color:AppKit.NSColor):
+    def setButtonColor(self, color:AppKit.NSColor) -> None:
         textColor = AppKit.NSColor.blackColor() if inDarkMode() else AppKit.NSColor.whiteColor()
         attrTxt = AppKit.NSAttributedString.alloc().initWithString_attributes_(
             self._tag, 
@@ -83,7 +83,7 @@ class FeatureButtonClass(ezui.items.pushButton.PushButton):
         self.getNSButton().setAttributedTitle_(attrTxt)
 
 
-    def _internalCallback(self, sender):
+    def _internalCallback(self, sender:Any) -> None:
         stateKeys = list(self.states.keys())
         try:
             self._state = stateKeys[stateKeys.index(self._state)+1] 
@@ -97,13 +97,13 @@ class FeatureButtonClass(ezui.items.pushButton.PushButton):
             self._callback(self)
 
     @property
-    def tag(self):
+    def tag(self) -> str:
         return self._tag
 
     def _getState(self) -> str:
         return self._state
 
-    def _setState(self, value:str):
+    def _setState(self, value:str) -> None:
         self._state = value
         self.setButtonColor(self.states[self._state])
 
@@ -358,12 +358,12 @@ class FontItem(object):
 
 
     ## ---- Taken from FontParts to use on Doodle objects ----
-    def findGlyph(self, glyphName):
+    def findGlyph(self, glyphName:str) -> list[str,...]:
         groupNames = self._findGlyph(glyphName)
         groupNames = [groupName for groupName in groupNames]
         return groupNames
 
-    def _findGlyph(self, glyphName):
+    def _findGlyph(self, glyphName:str) -> list[str,...]:
         found = []
         for key, groupList in self._font.groups.items():
             if glyphName in groupList:
@@ -372,7 +372,7 @@ class FontItem(object):
     ## -------------------------------------------------------
 
 
-    def smartSet(self, pair:tuple[str,str], value:float, exceptionType="find", debug=False):
+    def smartSet(self, pair:tuple[str,str], value:float, exceptionType:str="find", debug:bool=False) -> None:
         
         '''
         pair must be a tuple, its contents can be a glyphName or a group's name
@@ -437,7 +437,7 @@ class FontItem(object):
             self._font.kerning[kp] = value
 
 
-    def deleteKern(self, pair:tuple[str,str], exceptionType="find", debug=False):
+    def deleteKern(self, pair:tuple[str,str], exceptionType:str="find", debug:bool=False) -> None:
         
         '''
         pair must be a tuple, its contents can be a glyphName or a group's name
