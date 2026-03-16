@@ -1224,15 +1224,33 @@ class SpacePort(Subscriber, ezui.WindowController):
         if reset:
             self.fonts = self._fontFolder
         else:
-            if obj:
+            if obj:    
                 sources = kwargs.get("sources", obj.getFonts())
                 instances = kwargs.get("instances", obj.instances)
+
+                if self.designspaceController:
+                    for dspw in AllDesignspaceWindows():
+                        if dspw.operator == self.operator:
+                            if self.viewSources:
+                                selected = dspw.sources.list.getSelection()
+                                if selected != []:
+                                    sources = []
+                                    ts = [ff.path for ii, ff in enumerate(obj.sources) if ii in selected]
+                                    sources = [oo for oo in obj.getFonts() if oo[0].path in ts]
+
+                            if self.viewInstances:
+                                selected = dspw.instances.list.getSelection()
+                                if selected != []:
+                                    instances = []
+                                for idx in selected:
+                                    instances.append(self.operator.instances[idx])
+
                 # remove designspace items
                 parsing = list(self.fonts.values())
                 for _fontItem in parsing:
                     # if _view:
                     _path = _fontItem.path
-                    if _path in [p.path for (p,_) in self.sources]:
+                    if _path in [p.path for (p,_) in sources]:
                         del self.fonts[_path]
                         self._fontFolder[_path] = objects.FontItem(path=_path, use=_fontItem.use, font=_fontItem.font)
 
@@ -1290,6 +1308,8 @@ class SpacePort(Subscriber, ezui.WindowController):
                         inst.lib[constants.EXTENSION_KEY + ".descriptor"] = "instance"
                         inst.lib[constants.EXTENSION_KEY + ".location"]   = dict(instance.designLocation)
                         obj.makeOneInfo(instance.designLocation).extractInfo(inst.info)
+                        inst.info.familyName = instance.familyName
+                        inst.info.styleName  = instance.styleName
 
                         libMutator = obj.getLibEntryMutator(obj.getLocationType(instance.designLocation)[2])
                         if libMutator:
@@ -1304,7 +1324,7 @@ class SpacePort(Subscriber, ezui.WindowController):
 
                         # inst.kerning = mathKerning
 
-                        fi = objects.FontItem(path=instance.path, use=True, font=inst)
+                        fi = objects.FontItem(path=instance.filename, use=True, font=inst)
                         fi.reloadFeatures()
 
                         self.gsubLookups.update(fi._gsub)
@@ -4060,7 +4080,7 @@ class SpacePort(Subscriber, ezui.WindowController):
     def subscribeToGlyphs(self, coalescer:Coalescer, glyphs:list[str,...]=[]) -> None:
         objects = []
         for item in list(self.fonts.values()):
-            if item.use:
+            if item.use and item.font.lib.get(constants.EXTENSION_KEY + ".descriptor") != "instance":
                 objects.append(item.font.kerning)
             try:
                 grs = self.glyphs.copy()
@@ -4103,16 +4123,32 @@ class SpacePort(Subscriber, ezui.WindowController):
 
 
     def adjunctFontKerningDidChange(self, info) -> None:
-        # selectedMatrixItem = self.w.matrix._inputView.getSelected() or RGlyph()
+        if self.operator:
+            # relooad source ufos
+            self.operator.updateFonts([f.font for f in self.fonts.values()])
+            # reload preview kerning objects
+            for inst in self.fonts.values():
+                if inst.font.lib.get(constants.EXTENSION_KEY + ".descriptor") == "instance":                
+                    mathKerning = self.operator.makeOneKerning(inst.font.lib.get(constants.EXTENSION_KEY + ".location", {}))
+                    mathKerning.round()
+                    mathKerning.extractKerning(inst.font)
+
         items = self.w.getItemValue("collectionView")
         for item in items:
             if item.font == info["font"].naked():
                 self.updateItem(item)
+            if item.font.lib.get(constants.EXTENSION_KEY + ".descriptor") == "instance":
+                # reload all instances on new kerning
+                self.updateItem(item, updatedLocation=item.location)
+
         self.collectionView.set(self.w.getItemValue("collectionView")) # i think that this is the only external-way to reload the view
-        
+
 
     def adjunctGlyphDidChangeMetrics(self, info) -> None:
         # print(info["glyph"])
+        # self.operator.loadFonts(reload=True)
+        if self.operator: self.operator.updateFonts([f.font for f in self.fonts.values()])
+        
         selectedMatrixItem = self.w.matrix._inputView.getSelected() or RGlyph()
         if info["glyph"].name != selectedMatrixItem.name:
             self.w.matrix._glyphWidthChanged(info)
@@ -4127,12 +4163,18 @@ class SpacePort(Subscriber, ezui.WindowController):
                 nxt = self.getNextItemInView(item)
                 if nxt is not None:
                     self.updateItem(nxt)
+            if item.font.lib.get(constants.EXTENSION_KEY + ".descriptor") == "instance":
+                # reload all instances on new kerning
+                self.updateItem(item, updatedLocation=item.location)
 
 
         self.collectionView.set(self.w.getItemValue("collectionView")) # i think that this is the only external-way to reload the view
 
 
     def adjunctGlyphDidChangeOutline(self, info) -> None:
+        if self.operator:
+            # relooad source ufos
+            self.operator.updateFonts([f.font for f in self.fonts.values()])
         selectedMatrixItem = self.w.matrix._inputView.getSelected() or RGlyph()
         if info["glyph"].name != selectedMatrixItem.name:
             self.w.matrix._glyphChanged(info)
@@ -4140,6 +4182,9 @@ class SpacePort(Subscriber, ezui.WindowController):
         for item in items:
             if item.glyph == info["glyph"]:
                 self.updateItem(item)
+            if item.font.lib.get(constants.EXTENSION_KEY + ".descriptor") == "instance":
+                # reload all instances on new kerning
+                self.updateItem(item, updatedLocation=item.location)
         self.collectionView.set(self.w.getItemValue("collectionView")) # i think that this is the only external-way to reload the view
 
 
