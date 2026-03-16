@@ -1,7 +1,7 @@
 import yaml
 import os
 from mojo.UI import getDefault
-from AppKit import NSCursor
+from AppKit import NSCursor, NSImage
 import plistlib
 from mojo.roboFont import CreateCursor
 import platform
@@ -14,7 +14,7 @@ adds beta to anything less than 1.0.0
 
 MACOS_VERSION:str = platform.mac_ver()[0]
 if MACOS_VERSION.count(".") > 1:
-    major:str, minor:str, superMinor:str = MACOS_VERSION.split(".", 2)
+    major, minor, superMinor = MACOS_VERSION.split(".", 2)
     MACOS_VERSION = ".".join((major, minor))
 MACOS_VERSION:float = float(MACOS_VERSION)
 
@@ -34,7 +34,7 @@ else:
     info = dict(version=FALLBACK_VERSION)
 
 EXTENSION_VERSION:str      = info.get("version", FALLBACK_VERSION)
-major:str, minor_patch:str = EXTENSION_VERSION.split(".")
+major, minor_patch = EXTENSION_VERSION.split(".")
 minor_patch = minor_patch.zfill(3)
 if int(major) < 1:
     # pull only minor, ignore patch num
@@ -83,13 +83,13 @@ CURSOR_SIZE:int = 30
 CURSOR_IMAGE    = NSCursor.IBeamCursor().image()
 CURSOR_IMAGE    = CURSOR_IMAGE.resizeTo_(CURSOR_SIZE)
 
-TYPING_CURSOR:AppKit.NSImage  = CreateCursor(
+TYPING_CURSOR:NSImage  = CreateCursor(
     CURSOR_IMAGE,
     hotSpot=(CURSOR_SIZE/2, CURSOR_SIZE/2)
 )
 
-ARROW_CURSOR:AppKit.NSImage   = NSCursor.arrowCursor()
-KERNING_CURSOR:AppKit.NSImage = NSCursor.resizeLeftRightCursor()
+ARROW_CURSOR:NSImage   = NSCursor.arrowCursor()
+KERNING_CURSOR:NSImage = NSCursor.resizeLeftRightCursor()
 
 CURSOR_COLOR:tuple[float,float,float,float] = (1.0, 0.0, 0.0, 1.0)
 SELECTION_COLOR:tuple[float,float,float,float] = (0.0, 0.0, 0.0, 0.1)

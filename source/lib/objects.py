@@ -9,7 +9,7 @@ from lib.fontObjects.doodleLayer import DoodleLayer
 from mojo.roboFont import AllFonts, CurrentFont, RFont, RGlyph, internalFontClasses
 from mojo.UI import inDarkMode
 from fontTools.fontBuilder import FontBuilder
-from typing import BinaryIO
+from typing import BinaryIO, Any
 import io
 from featurePreviewLib.source.lib import featurePreview
 
@@ -135,6 +135,7 @@ class MerzCollectionViewRGlyphItem(merz.collectionView.MerzCollectionViewItem):
         self._isTyping:bool               = False
         self._kerning:bool                = False
         self._selectedVisible:bool        = False
+        self._isInterpolated:bool         = False
 
         self._selectionColor:tuple[float] = kwargs.get("selectionColor", constants.SELECTION_COLOR)
         self._cursorColor:tuple[float]    = kwargs.get("cursorColor", constants.CURSOR_COLOR)
@@ -294,6 +295,15 @@ class MerzCollectionViewRGlyphItem(merz.collectionView.MerzCollectionViewItem):
         self._onDisk = value
 
     onDisk = property(getOnDisk, setOnDisk)
+
+    def getIsInterpolated(self) -> bool:
+        if self._font.lib.get(constants.EXTENSION_KEY + ".descriptor") == "instance":
+            return self._isInterpolated
+
+    def setIsInterpolated(self, value:bool=True) -> None:
+        self._isInterpolated = value
+
+    isInterpolated = property(getIsInterpolated, setIsInterpolated)
 
     def getOffset(self) -> int|float:
         return self._offset

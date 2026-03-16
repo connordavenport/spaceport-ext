@@ -451,8 +451,9 @@ class SpacePort(Subscriber, ezui.WindowController):
         self.invertColorsButtonCallback(self.viewSettingsWindow.getItem("invertColorsButton"))
 
         viewPrefs = getExtensionDefault(constants.EXTENSION_KEY + ".view_prefs", fallback=self.viewSettingsWindow.getItemValues())
-        self.cursorColor = viewPrefs.get("cursorColorWell", constants.CURSOR_COLOR)
+        self.cursorColor    = viewPrefs.get("cursorColorWell", constants.CURSOR_COLOR)
         self.selectionColor = viewPrefs.get("selectionColorWell", constants.SELECTION_COLOR)
+        self.showBeam       = viewPrefs.get("showBeamButton", False)
 
         try: self.viewSettingsWindow.setItemValues(viewPrefs)
         except: pass
@@ -1252,6 +1253,10 @@ class SpacePort(Subscriber, ezui.WindowController):
                     
                     obj.makeOneInfo(temp.lib[constants.EXTENSION_KEY + ".location"]).extractInfo(temp.info)
 
+                    mathKerning = obj.makeOneKerning(dict(obj.findDefault().designLocation))
+                    mathKerning.round()
+                    mathKerning.extractKerning(temp)
+                    
                     libMutator = obj.getLibEntryMutator(obj.getLocationType(temp.lib[constants.EXTENSION_KEY + ".location"])[2])
                     if libMutator:
                         lib = libMutator.makeInstance(temp.lib[constants.EXTENSION_KEY + ".location"])
@@ -1290,6 +1295,14 @@ class SpacePort(Subscriber, ezui.WindowController):
                         if libMutator:
                             lib = libMutator.makeInstance(instance.designLocation)
                             inst.lib["com.typemytype.robofont.italicSlantOffset"] = lib.get("com.typemytype.robofont.italicSlantOffset", 0)
+
+
+                        # interpolate instance kerning
+                        mathKerning = obj.makeOneKerning(dict(instance.designLocation))
+                        mathKerning.round()
+                        mathKerning.extractKerning(inst)
+
+                        # inst.kerning = mathKerning
 
                         fi = objects.FontItem(path=instance.path, use=True, font=inst)
                         fi.reloadFeatures()
@@ -2079,6 +2092,7 @@ class SpacePort(Subscriber, ezui.WindowController):
                 # glyphPointsLayer = glyphContainer.getSublayer("glyphPoints")
                 # glyphPointsLayer.setVisible(self.showPoints)
 
+
     def getNextItemInView(self, item:objects.MerzCollectionViewRGlyphItem) -> objects.MerzCollectionViewRGlyphItem | None:
         try:
             return [ii for ii in self.collectionView.get() if ii.font == item.font and ii.name not in ["NULL", "IGNORE"]][item.index + 1]
@@ -2187,7 +2201,7 @@ class SpacePort(Subscriber, ezui.WindowController):
 
         glyphContainer.appendBaseSublayer(
             name="beamIndicator",
-            visible=True,
+            visible=False,
             acceptsHit=True,
         )
         
@@ -2322,14 +2336,7 @@ class SpacePort(Subscriber, ezui.WindowController):
                             #backgroundColor=(*kernColor,.2),
                             #cornerRadius=10,
                         )
-                        
-                        # shapeLayer = kernIndicatorLayer.appendRectangleSublayer(
-                        #     name="kernIndicatorShapeLayer",
-                        #     size=(kern, 40),
-                        #     position=(x, font.info.descender-100),
-                        #     fillColor=(*kernColor, .2),
-                        # )
-                        # kernIndicatorLayer.addSkewTransformation(-skewAngle)
+                    
 
                         # TURN THIS OFF LATER
                         kernIndicatorLayer.setVisible(True)
@@ -2837,31 +2844,18 @@ class SpacePort(Subscriber, ezui.WindowController):
         font = item.font
         beamIndicatorLayer = item.getLayer("glyphContainer").getSublayer("beamIndicator")
 
-        willShow = self.showBeam if not self.split else False
-        if self.kerning: willShow = False
+        willShow = self.showBeam
+        if self.kerning or self.split or self.typing:
+            willShow = False
 
-        textLayer = None
-        for layer in beamIndicatorLayer.getSublayers():
-            if layer.getName() == "beamIndicatorLayerText":
-                textLayer = layer
         beamIndicatorLayer.clearSublayers()
-        if textLayer is not None: beamIndicatorLayer.appendSublayer(textLayer)
-
         if self.collectionView.get():
-            # beamIndicatorLayer.addTranslationTransformation(value=(-off,0))
+
             beamIntersectSize = 30 * item.scaler
 
             with beamIndicatorLayer.propertyGroup():
-                try:
-                    nextItem = [ii for ii in self.collectionView.get() if item.font == ii.font][item.index+1]
-                except IndexError:
-                    nextItem = None
-
-                previousItem = None
-                try:
-                    previousItem = [ii for ii in self.collectionView.get() if item.font == ii.font][item.index-1]
-                except IndexError:
-                    previousItem = None
+                nextItem = self.getNextItemInView(item)
+                previousItem = self.getPreviousItemInView(item)
 
                 right = glyph.getRayRightMargin(self.beamPosition, item.skewAngle) or 0
                 left = glyph.getRayLeftMargin(self.beamPosition, item.skewAngle) or 0
@@ -2879,11 +2873,11 @@ class SpacePort(Subscriber, ezui.WindowController):
                     aa = 0
                 x = y = math.radians(aa)
                 matrix = transform.Identity.skew(x=x, y=y)
-                t = transform.Transform()
                 oX, oY = (0,0)
-                t = t.translate( oX,  oY)
-                t = t.transform(matrix)
-                t = t.translate(-oX, -oY)
+                t  = transform.Transform()
+                t  = t.translate( oX,  oY)
+                t  = t.transform(matrix)
+                t  = t.translate(-oX, -oY)
                 tt = tuple(t)
                 ot = transform.Transform(*tt)
                 transformed,_ = ot.transformPoint((0, self.beamPosition))
@@ -2950,11 +2944,11 @@ class SpacePort(Subscriber, ezui.WindowController):
                                 strokeWidth=.75,
                             )
                             if nextItemLeft:
-                                beamText = nextItem.getLayer("glyphContainer").getSublayer("beamIndicator").appendTextLineSublayer(
+                                beamText = item.getLayer("glyphContainer").getSublayer("beamIndicator").appendTextLineSublayer(
                                     name="beamIndicatorLayerText",
                                     text=str(round(right + nextItemLeft)),
                                     font="SFMono-Regular",
-                                    position=(0, self.beamPosition),
+                                    position=(glyph.width, self.beamPosition),
                                     fillColor=(1,.2,0,1),
                                     pointSize=10,
                                     backgroundColor=(1,.2,0,.2),
@@ -2964,8 +2958,7 @@ class SpacePort(Subscriber, ezui.WindowController):
                                     padding=(3,1),
                                 )
                                 beamText.setVisible(willShow)
-                            else:
-                                nextItem.getLayer("glyphContainer").getSublayer("beamIndicator").clearSublayers()
+                                
                         else:
                             beamIndicatorLayer.appendLineSublayer(
                                 startPoint=((glyph.width - right)+transformed, self.beamPosition),
@@ -2974,10 +2967,7 @@ class SpacePort(Subscriber, ezui.WindowController):
                                 strokeWidth=.75,
                             )
 
-                if self.split:
-                    beamIndicatorLayer.setVisible(False)
-                else:    
-                    beamIndicatorLayer.setVisible(willShow)
+                beamIndicatorLayer.setVisible(willShow)
 
 
     def acceptsFirstResponder(self, sender:Any) -> bool:
@@ -3525,12 +3515,13 @@ class SpacePort(Subscriber, ezui.WindowController):
                 return
 
         if self.kerning:
+
             selected = self.selectedItems
             # check if mulitfont selection is acivated
             multiFontSelection = True if len(list(set([(i.index,i.name) for i in selected]))) == 1 and len(list(set([i.font for i in selected]))) > 1 else False
 
-            if rawEvent.keyCode() in [115, 116, 119, 121]: # this is fn + arrows
-                if rawEvent.keyCode() == 115:  # "left"
+            if self.command:
+                if char == "left":  # "left"
                     for idx, i in enumerate(selected):
                         pr = self.getPreviousItemInView(i)
                         if pr is not None:
@@ -3540,7 +3531,7 @@ class SpacePort(Subscriber, ezui.WindowController):
                             self.selectedItems.remove(i)
                             self.selectedItems.insert(idx, pr)
                 
-                elif rawEvent.keyCode() == 119:  # "right"
+                elif char == "right":  # "right"
                     for idx, i in enumerate(selected):
                         nx = self.getNextItemInView(i)
                         if nx is not None:
@@ -3558,7 +3549,7 @@ class SpacePort(Subscriber, ezui.WindowController):
                         currentSelectedIdxs = sorted([i.index for i in selected])
 
 
-                        if rawEvent.keyCode() == 116:  # "up"
+                        if char == "up":  # "up"
                             # print("up")
                             if kerningFont != fontList[0]:
                                 prevLine = itemList[fontList.index(kerningFont) - 1]
@@ -3572,13 +3563,7 @@ class SpacePort(Subscriber, ezui.WindowController):
                                             self.selectedItems = prevItems
                                             for __ in self.selectedItems: __.selected = True
 
-
-                            #     kerningFont = prev.font
-                            #     tt = prev.text if prev.localText else self.glyphs
-                            #     if self.typingIndex >= len(tt):
-                            #         self.typingIndex = len(tt)
-                        
-                        elif rawEvent.keyCode() == 121:  # "down"
+                        elif char == "down":  # "down"
                             # print("down")
                             if kerningFont != fontList[-1]:
                                 nextLine = itemList[fontList.index(kerningFont) + 1]
@@ -3591,13 +3576,8 @@ class SpacePort(Subscriber, ezui.WindowController):
                                         if ir.index in currentSelectedIdxs:
                                             self.selectedItems = nextItems
                                             for __ in self.selectedItems: __.selected = True
+                return
 
-
-                            #     self.typingFont = nextLine.font
-                            #     tt = nextLine.text if nextLine.localText else self.glyphs
-                            #     if self.typingIndex >= len(tt):
-                            #         self.typingIndex = len(tt)
-                            
 
             if rawEvent.keyCode() == 51:
                 for item in self.selectedItems:
@@ -3621,30 +3601,17 @@ class SpacePort(Subscriber, ezui.WindowController):
                 else:
                     return
 
-                # if "shift" in mods and "command" in mods:
-                #     spacingUnit = 10
-                # elif "shift" in mods:
-                #     spacingUnit = 5
-                # else:
-                #     spacingUnit = 1
-
-                # if char == "right":
-                #     spacingUnit *= 1
-                # elif char == "left":
-                #     spacingUnit *= -1
-                # else:
-                #     return
-
                 for item in self.selectedItems:
-                    try:
-                        item.pairPart = self.getNextItemInView(item)
-                        itemFont = [f for f in itemList if f.font == item.font][0]
-                        currentValue = item.font.kerning.find(item.selectedPair)
-                        # print(currentValue, spacingUnit)
-                        itemFont.smartSet(item.selectedPair, currentValue+spacingUnit)
-                        
-                    except IndexError:
-                        pass
+                    if item.onDisk and not item.isInterpolated:
+                        try:
+                            item.pairPart = self.getNextItemInView(item)
+                            itemFont = [f for f in itemList if f.font == item.font][0]
+                            currentValue = item.font.kerning.find(item.selectedPair)
+                            # print(currentValue, spacingUnit)
+                            itemFont.smartSet(item.selectedPair, currentValue+spacingUnit)
+                            
+                        except IndexError:
+                            pass
 
 
         else:
@@ -3921,33 +3888,6 @@ class SpacePort(Subscriber, ezui.WindowController):
         return mergedIndex + offset
 
 
-    # def determineMode(self, mode:str|None=None) -> None:
-    #     if not mode:
-    #         if self.kerning:
-    #             self.kerning = False
-    #             self.typing  = True
-    #             mode = "typing"
-    #         elif self.typing:
-    #             self.kerning = False
-    #             self.typing  = False
-    #             mode = "spacing"
-    #         else:
-    #             self.kerning = True
-    #             self.typing  = False
-    #             mode = "kerning"
-    #     else:
-    #         self.kerning = False
-    #         self.split = False
-    #         if mode == "typing":
-    #             self.typing = True
-    #         elif mode == "spacing":
-    #             self.typing = False
-    #         elif mode == "kerning":
-    #             self.typing = False
-    #             self.kerning = True
-    #     return mode
-
-
     def determineMode(self, mode:str|None=None) -> None:
         self.kerning = False
         self.split = False
@@ -4026,7 +3966,6 @@ class SpacePort(Subscriber, ezui.WindowController):
                     item.typing = False
 
 
-
     # subscriber events 
 
     # designspace editor notifcations
@@ -4065,7 +4004,7 @@ class SpacePort(Subscriber, ezui.WindowController):
     designspaceEditorPreviewLocationDidChangeDelay = 0.01
     def designspaceEditorPreviewLocationDidChange(self, notification) -> None:
         if self.designspaceController or self.internalPreview:
-            selectedFonts = list(set([i.font for i in self.selectedItems if not i.onDisk]))
+            selectedFonts = list(set([i.font for i in self.selectedItems if i.isInterpolated and not i.onDisk]))
             if len(selectedFonts) == 1:
                 pass
             elif not selectedFonts:
@@ -4075,9 +4014,16 @@ class SpacePort(Subscriber, ezui.WindowController):
                 # selectedFonts = [list(self.fonts.values())[0][-1]]
                 selectedFonts = [self.fonts.get(constants.PREVIEW).font]
 
+            sf = selectedFonts[0]
+            mathKerning = self.operator.makeOneKerning(notification["location"])
+            mathKerning.round()
+            mathKerning.extractKerning(sf)
+            
             for item in self.collectionView.get():
-                if item.font == selectedFonts[0]:
+                if item.font == sf:
+                    # interpolate instance kerning
                     self.updateItem(item, updatedLocation=notification["location"])
+
         self.collectionView.set(self.w.getItemValue("collectionView")) # i think that this is the only external-way to reload the view
         self.collectionView._documentView.set(self.w.getItemValue("collectionView"))
 
@@ -4174,11 +4120,14 @@ class SpacePort(Subscriber, ezui.WindowController):
         for index, item in enumerate(items):
             if item.glyph == info["glyph"]:
                 self.updateItem(item)
-
                 # update previous glyph item's metrics too
-                if index != 0:
-                    previousItem = items[index-1]
-                    self.updateItem(previousItem)
+                prv = self.getPreviousItemInView(item)
+                if prv is not None:
+                    self.updateItem(prv)
+                nxt = self.getNextItemInView(item)
+                if nxt is not None:
+                    self.updateItem(nxt)
+
 
         self.collectionView.set(self.w.getItemValue("collectionView")) # i think that this is the only external-way to reload the view
 
