@@ -3846,12 +3846,6 @@ class SpacePort(Subscriber, ezui.WindowController):
 
                 self.setTypingItem()
 
-                # records = [GlyphRecord(item.glyph.naked()) for item in self.collectionView.get() if item.glyph.font == self.typingFont]
-                # self.w.matrix.set(records)
-                # self.w.setItemValue(
-                #     "textField",
-                #     self.combineText(self.holdingGlyphs)
-                # )
 
     def deleteSelectedIndexes(self, indexes:list[int,...], textList:list[str,...]) -> None:
         if not indexes:
@@ -3874,21 +3868,26 @@ class SpacePort(Subscriber, ezui.WindowController):
         parsed   = [selected[0]] * len(selected) if selected else []
         return parsed
 
+
     @property
     def shift(self) -> bool:
         return AppKit.NSEvent.modifierFlags() & AppKit.NSShiftKeyMask
+
 
     @property
     def command(self) -> bool:
         return AppKit.NSEvent.modifierFlags() & AppKit.NSCommandKeyMask
 
+
     @property
     def option(self) -> bool:
         return AppKit.NSEvent.modifierFlags() & AppKit.NSAlternateKeyMask
 
+
     @property
     def function(self) -> bool:
         return AppKit.NSEvent.modifierFlags() & AppKit.NSFunctionKeyMask
+
 
     def getMergedIndexFromRawIndex(self, rawIndex):
         if not self.holdingGlyphs:
@@ -3967,9 +3966,6 @@ class SpacePort(Subscriber, ezui.WindowController):
                 self.useKerningButtonCallback(None)
                 return
 
-            #self.showSpaceMatrixButtonCallback(not self.typing)
-            #self.w.matrix.show(not self.typing)
-            
             self.populate()
 
 
@@ -3986,11 +3982,8 @@ class SpacePort(Subscriber, ezui.WindowController):
                     item.typing = False
 
 
-    # subscriber events 
-
-    # designspace editor notifcations
     """
-    why the hell will the open/close not register!?!
+    why the hell will the open/close designspace not register!?!
     """
 
     def designspaceEditorDidOpenDesignspace(self, notification) -> None:
@@ -4097,29 +4090,29 @@ class SpacePort(Subscriber, ezui.WindowController):
         self.clearObservedAdjunctObjects()  
 
 
+    def fontDocumentDidOpenOrClose(self, font:DoodleFont, status:str="open") -> None:
+        if status == "open":
+            if font:
+                self.fonts[font.path] = objects.FontItem(path=font.path, use=False, font=font)
+        else:
+            if font.path in self.fonts.keys():
+                del self.fonts[font.path]
+                self.fonts = {fi.path:objects.FontItem(path=fi.path, use=fi.use, font=fi.font) for fi in list(self.fonts.values())}
+        try:
+            self.w.objw.getItem("fontTable").set(dict(use=fi.use,path=fi.path) for fi in list(self.fonts.values()))
+        except AttributeError:
+            pass # this will raise an error if the objects window is not open
+        self.populate()
+
+
     def fontDocumentDidOpen(self, info) -> None:
         font = info["font"]
-        if font:
-            self.fonts[font.path] = objects.FontItem(path=font.path, use=False, font=font)
-            
-            try:
-                self.w.objw.getItem("fontTable").set(dict(use=fi.use, path=fi.path) for fi in list(self.fonts.values()))
-            except AttributeError:
-                pass # this will raise an error if the objects window is not open
-            self.populate()
+        self.fontDocumentDidOpenOrClose(font,"open")
         
 
     def fontDocumentWillClose(self, info) -> None:
         font = info["font"]
-        if font.path in self.fonts.keys():
-            del self.fonts[font.path]
-
-            self.fonts = {fi.path:objects.FontItem(path=fi.path, use=fi.use, font=fi.font) for fi in list(self.fonts.values())}
-            try:
-                self.w.objw.getItem("fontTable").set(dict(use=fi.use,path=fi.path) for fi in list(self.fonts.values()))
-            except AttributeError:
-                pass # this will raise an error if the objects window is not open
-            self.populate()
+        self.fontDocumentDidOpenOrClose(font,"close")
 
 
     def adjunctFontKerningDidChange(self, info) -> None:
@@ -4132,60 +4125,51 @@ class SpacePort(Subscriber, ezui.WindowController):
                     mathKerning = self.operator.makeOneKerning(inst.font.lib.get(constants.EXTENSION_KEY + ".location", {}))
                     mathKerning.round()
                     mathKerning.extractKerning(inst.font)
-
-        items = self.w.getItemValue("collectionView")
-        for item in items:
-            if item.font == info["font"].naked():
-                self.updateItem(item)
-            if item.font.lib.get(constants.EXTENSION_KEY + ".descriptor") == "instance":
-                # reload all instances on new kerning
-                self.updateItem(item, updatedLocation=item.location)
-
-        self.collectionView.set(self.w.getItemValue("collectionView")) # i think that this is the only external-way to reload the view
+        self.reloadAdjunctItems(info["font"])
 
 
     def adjunctGlyphDidChangeMetrics(self, info) -> None:
-        # print(info["glyph"])
-        # self.operator.loadFonts(reload=True)
-        if self.operator: self.operator.updateFonts([f.font for f in self.fonts.values()])
-        
+        self.reloadOperatorSources()
         selectedMatrixItem = self.w.matrix._inputView.getSelected() or RGlyph()
         if info["glyph"].name != selectedMatrixItem.name:
             self.w.matrix._glyphWidthChanged(info)
-        items = self.w.getItemValue("collectionView")
-        for index, item in enumerate(items):
-            if item.glyph == info["glyph"]:
-                self.updateItem(item)
-                # update previous glyph item's metrics too
-                prv = self.getPreviousItemInView(item)
-                if prv is not None:
-                    self.updateItem(prv)
-                nxt = self.getNextItemInView(item)
-                if nxt is not None:
-                    self.updateItem(nxt)
-            if item.font.lib.get(constants.EXTENSION_KEY + ".descriptor") == "instance":
-                # reload all instances on new kerning
-                self.updateItem(item, updatedLocation=item.location)
-
-
-        self.collectionView.set(self.w.getItemValue("collectionView")) # i think that this is the only external-way to reload the view
+        self.reloadAdjunctItems(info["glyph"], updatePrevious=True, updateNext=True)
 
 
     def adjunctGlyphDidChangeOutline(self, info) -> None:
-        if self.operator:
-            # relooad source ufos
-            self.operator.updateFonts([f.font for f in self.fonts.values()])
+        self.reloadOperatorSources()
         selectedMatrixItem = self.w.matrix._inputView.getSelected() or RGlyph()
         if info["glyph"].name != selectedMatrixItem.name:
             self.w.matrix._glyphChanged(info)
-        items = self.w.getItemValue("collectionView")
+        self.reloadAdjunctItems(info["glyph"])
+
+
+    def reloadOperatorSources(self) -> None:
+        if self.operator:
+            self.operator.updateFonts([f.font for f in self.fonts.values()])
+
+
+    def reloadAdjunctItems(self, adjunct:DoodleGlyph|DoodleFont|None=None, updatePrevious:bool=False, updateNext:bool=False) -> None:
+        items = self.collectionView.get()
         for item in items:
-            if item.glyph == info["glyph"]:
-                self.updateItem(item)
+            if adjunct is not None:
+                adjunctType = type(adjunct.naked()).__name__.split("Doodle")[-1].lower()
+                if getattr(item, adjunctType) == adjunct:
+                    self.updateItem(item)
+                # update previous glyph item's metrics too
+                if updatePrevious:
+                    prv = self.getPreviousItemInView(item)
+                    if prv is not None:
+                        self.updateItem(prv)
+                if updateNext:
+                    nxt = self.getNextItemInView(item)
+                    if nxt is not None:
+                        self.updateItem(nxt)
             if item.font.lib.get(constants.EXTENSION_KEY + ".descriptor") == "instance":
                 # reload all instances on new kerning
                 self.updateItem(item, updatedLocation=item.location)
         self.collectionView.set(self.w.getItemValue("collectionView")) # i think that this is the only external-way to reload the view
+
 
 
 if __name__ == "__main__":
