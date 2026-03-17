@@ -3338,12 +3338,11 @@ class SpacePort(Subscriber, ezui.WindowController):
                 if self.adjustingBeamPosition:
                     delta = (-tempEvent.deltaY() * (1/self.scale)) # calculate accurate new dragged delta with scale
                     x, y = self._convertLocation(event,view)
-                    if self.command and self.shift:
-                        self.viewSettingsWindow.setItemValue(
-                            "beamPositionSlider",
-                            (self.beamPosition + delta)
-                        )
-                        self.displaySettingsButtonCallback(None, onlyBeam=True)
+                    self.viewSettingsWindow.setItemValue(
+                        "beamPositionSlider",
+                        (self.beamPosition + delta)
+                    )
+                    self.displaySettingsButtonCallback(None, onlyBeam=True)
 
 
         elif isinstance(view, ezui.views.merzView.MerzView):
