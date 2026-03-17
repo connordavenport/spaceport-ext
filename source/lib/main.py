@@ -4016,13 +4016,10 @@ class SpacePort(Subscriber, ezui.WindowController):
         for item in list(self.fonts.values()):
             if item.use and item.font.lib.get(constants.EXTENSION_KEY + ".descriptor") != "instance":
                 objects.append(item.font.kerning)
-            try:
-                grs = self.glyphs.copy()
-                if objects: 
-                    grs.extend(objects)
-                objects.extend(list(set([item.font[glyph] for glyph in grs])))
-            except:
-                pass
+
+            grs = self.glyphs.copy()
+            objects.extend(list(set([item.font[glyph] for glyph in grs if glyph in item.font.keys()])))
+            
         self.setAdjunctObjectsToObserve(objects)
 
 
@@ -4065,7 +4062,7 @@ class SpacePort(Subscriber, ezui.WindowController):
                     mathKerning = self.operator.makeOneKerning(inst.font.lib.get(constants.EXTENSION_KEY + ".location", {}))
                     mathKerning.round()
                     mathKerning.extractKerning(inst.font)
-        self.reloadAdjunctItems(info["font"])
+        self.reloadAdjunctItems(adjunct=info["font"])
 
 
     def adjunctGlyphDidChangeMetrics(self, info) -> None:
@@ -4073,7 +4070,7 @@ class SpacePort(Subscriber, ezui.WindowController):
         selectedMatrixItem = self.w.matrix._inputView.getSelected() or RGlyph()
         if info["glyph"].name != selectedMatrixItem.name:
             self.w.matrix._glyphWidthChanged(info)
-        self.reloadAdjunctItems(info["glyph"], updatePrevious=True, updateNext=True)
+        self.reloadAdjunctItems(adjunct=info["glyph"], updatePrevious=True, updateNext=True)
 
 
     def adjunctGlyphDidChangeOutline(self, info) -> None:
@@ -4081,7 +4078,7 @@ class SpacePort(Subscriber, ezui.WindowController):
         selectedMatrixItem = self.w.matrix._inputView.getSelected() or RGlyph()
         if info["glyph"].name != selectedMatrixItem.name:
             self.w.matrix._glyphChanged(info)
-        self.reloadAdjunctItems(info["glyph"])
+        self.reloadAdjunctItems(adjunct=info["glyph"])
 
 
     def reloadOperatorSources(self) -> None:
