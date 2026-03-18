@@ -1,4 +1,4 @@
-# menuTitle : SpacePort
+# menuTitle : Spaceport
 # shortCut  : command+control+s
 
 import enum
@@ -82,7 +82,7 @@ reload(windows)
 import objects
 reload(objects)
 
-class SpacePort(Subscriber, ezui.WindowController):
+class Spaceport(Subscriber, ezui.WindowController):
 
     debug = True
 
@@ -403,7 +403,7 @@ class SpacePort(Subscriber, ezui.WindowController):
         )
 
         self.w = ezui.EZWindow(
-            title=f"SpacePort v{constants.EXTENSION_VERSION}",
+            title=f"Spaceport v{constants.EXTENSION_VERSION}",
             # toolbar=toolbar,
             content=content,
             descriptionData=descriptionData,
@@ -4172,5 +4172,5 @@ class SpacePort(Subscriber, ezui.WindowController):
 
 
 if __name__ == "__main__":
-    registerRoboFontSubscriber(SpacePort)
-    # ShowProfile(SpacePort)   ## this is a good way to investigate memory allocation
+    registerRoboFontSubscriber(Spaceport)
+    # ShowProfile(Spaceport)   ## this is a good way to investigate memory allocation

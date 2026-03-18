@@ -1,4 +1,4 @@
-name: SpacePort
+name: Spaceport
 developer: Connor Davenport & Vincent Chan
 developerURL: https://programme.tools https://matterofsorts.com
 launchAtStartUp: false
@@ -6,7 +6,7 @@ mainScript: ''
 version: '0.520'
 addToMenu:
 - path: main.py
-  preferredName: SpacePort
+  preferredName: Spaceport
   shortKey: ''
 html: false
 requiresVersionMajor: '4'
