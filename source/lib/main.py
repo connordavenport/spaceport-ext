@@ -482,7 +482,7 @@ class Spaceport(Subscriber, ezui.WindowController):
         try: self.w.setItemValues(mainPrefs)
         except (AttributeError, KeyError): pass
 
-        holding = getExtensionDefault(constants.EXTENSION_KEY + ".text", "S p a c e P o r t".split(" "))
+        holding = getExtensionDefault(constants.EXTENSION_KEY + ".text", "S p a c e p o r t".split(" "))
         if holding:
             self.holdingGlyphs = holding
 
@@ -1343,7 +1343,7 @@ class Spaceport(Subscriber, ezui.WindowController):
 
                         # inst.kerning = mathKerning
 
-                        fi = objects.FontItem(path=instance.filename, use=True, font=inst)
+                        fi = objects.FontItem(path=instance.path, use=True, font=inst)
                         fi.type = "instance"
                         fi.reloadFeatures()
 
@@ -1356,7 +1356,6 @@ class Spaceport(Subscriber, ezui.WindowController):
 
                 if previewItem:
                     self.fonts[constants.PREVIEW] = previewItem
-
 
         if not self.font and self.fonts:
             self.setMainFont(obj, True)
@@ -3457,7 +3456,6 @@ class Spaceport(Subscriber, ezui.WindowController):
                 anchor=(.5,.5),
                 fillColor=constants.SOURCE_COLOR,
             )
-
         for instance in operator.instances:
             if instance.location not in [s.location for s in operator.sources]:
                 iP = self._convertDesignspaceLocationToViewPosition(instance.location)
@@ -3467,7 +3465,6 @@ class Spaceport(Subscriber, ezui.WindowController):
                     anchor=(.5,.5),
                     fillColor=constants.INSTANCE_COLOR,
                 )
-
 
     @property
     def currentLocation(self) -> dict[str, float]:
