@@ -350,6 +350,7 @@ class FontItem(object):
         self._localText:bool      = False
         self._gsub:list[str]      = []
         self._gpos:list[str]      = []
+        self._type:str            = "static"
 
         self._featureFont         = None
         self.reloadFeatures()
@@ -527,6 +528,14 @@ class FontItem(object):
         self._use = value
 
     use = property(getUse, setUse)
+
+    def getType(self) -> str:
+        return self._type
+
+    def setType(self, value:str) -> None:
+        self._type = value
+
+    type = property(getType, setType)
 
     def getFont(self) -> str:
         return self._font
