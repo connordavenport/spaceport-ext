@@ -1165,18 +1165,13 @@ class SpacePort(Subscriber, ezui.WindowController):
 
 
     def getFontItemDotAttrStr(self, fontItem=None):        
-        if fontItem is None:
-            t = "static"
-        else:
-            t = fontItem.type
-
+        t = "static" if fontItem is None else fontItem.type
         attrTxt = AppKit.NSAttributedString.alloc().initWithString_attributes_(
             "􀀁", 
-            {
-                AppKit.NSForegroundColorAttributeName : RGBA2NS(constants.TYPE_COLOR_MAP.get(t, "static"))
-            }
+            {AppKit.NSForegroundColorAttributeName : RGBA2NS(constants.TYPE_COLOR_MAP.get(t, "static"))}
         )
         return attrTxt
+
 
     def openAllFontsButtonCallback(self) -> None:
         current = self.fonts.keys()
@@ -2270,19 +2265,31 @@ class SpacePort(Subscriber, ezui.WindowController):
 
             with descriptorIndicatorLayer.propertyGroup():
                 if item.index == 0:
-                    descriptorIndicatorLayer.appendOvalSublayer(
-                        name="descriptorIndicatorDotLayer",
-                        size=(60, 60),
-                        position=(0,(font.info.ascender+constants.BUFFER)*item.scaler),
-                        fillColor=color,
-                        )
+                    # descriptorIndicatorLayer.appendOvalSublayer(
+                    #     name="descriptorIndicatorDotLayer",
+                    #     size=(60, 60),
+                    #     position=(0,(font.info.ascender+constants.BUFFER)*item.scaler),
+                    #     fillColor=color,
+                    #     )
 
+                    attrText = [
+                        dict(
+                            text="􀀁 ",
+                            font="SFPro-Regular",
+                            pointSize=8,
+                            fillColor=color
+                        ),
+                        dict(
+                            text=locationData,
+                            font="SFMono-Regular",
+                            pointSize=8,
+                            fillColor=(*self.foreground[0:3], .5),
+                        ),
+                    ]
                     descriptorIndicatorLayer.appendTextLineSublayer(
                         name="descriptorIndicatorTextLayer",
-                        font="SFMono-Regular",
-                        text=locationData,
-                        pointSize=8,
-                        position=(100,(font.info.ascender+constants.BUFFER)*item.scaler),
+                        text=attrText,
+                        position=(20,(font.info.ascender+constants.BUFFER)*item.scaler),
                         fillColor=(*self.foreground[0:3], .5),
                         horizontalAlignment="left",
                         verticalAlignment="center",
@@ -2509,21 +2516,28 @@ class SpacePort(Subscriber, ezui.WindowController):
                     with descriptionLayer.propertyGroup():
                         descriptionLayer.clearSublayers()
                         if item.index == 0:
+
                             formatted = [f"{axis.title()} ({round(value,1)})" for axis,value in loc.items()]
                             styleName = " {item.font.info.styleName}" if item.font.info.styleName else ""
                             formattedText = f"{item.font.info.familyName}{styleName}, {', '.join(formatted)}"
-                            
-                            descriptionLayer.appendOvalSublayer(
-                                name="descriptorIndicatorDotLayer",
-                                size=(60,60),
-                                position=(0,(font.info.ascender+constants.BUFFER)*item.scaler),
-                                fillColor=constants.INTERPO_COLOR,
-                                )
+
+                            attrText = [
+                                dict(
+                                    text="􀀁 ",
+                                    font="SFPro-Regular",
+                                    pointSize=8,
+                                    fillColor=constants.INTERPO_COLOR
+                                ),
+                                dict(
+                                    text=formattedText,
+                                    font="SFMono-Regular",
+                                    pointSize=8,
+                                    fillColor=(*self.foreground[0:3], .5),
+                                ),
+                            ]
                             descriptionLayer.appendTextLineSublayer(
-                                text=formattedText,
-                                font="SFMono-Regular",
-                                pointSize=8,
-                                position=(100,(font.info.ascender+constants.BUFFER)*item.scaler),
+                                text=attrText,
+                                position=(20,(font.info.ascender+constants.BUFFER)*item.scaler),
                                 fillColor=(*self.foreground[0:3], .5),
                                 horizontalAlignment="left",
                                 verticalAlignment="center",
