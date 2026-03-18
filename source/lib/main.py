@@ -3666,6 +3666,11 @@ class SpacePort(Subscriber, ezui.WindowController):
                             self.viewSettingsWindow.setItemValue("showLabelButton", not showSetting)
                             self.showLabelButtonCallback(None)
 
+                        elif char.lower() == "k":
+                            useKerning = self.viewSettingsWindow.getItemValue("useKerningButton")
+                            self.viewSettingsWindow.setItemValue("useKerningButton", not useKerning)
+                            self.useKerningButtonCallback(None)
+
                         elif char == getDefault("glyphViewZoomInKey", "z"):
                             # zoom in
                             self.zoomCoalescerManager()
@@ -4052,15 +4057,12 @@ class SpacePort(Subscriber, ezui.WindowController):
 
 
     def adjunctFontKerningDidChange(self, info) -> None:
-        if self.operator:
-            # relooad source ufos
-            self.operator.updateFonts([f.font for f in self.fonts.values()])
-            # reload preview kerning objects
-            for inst in self.fonts.values():
-                if inst.font.lib.get(constants.EXTENSION_KEY + ".descriptor") == "instance":                
-                    mathKerning = self.operator.makeOneKerning(inst.font.lib.get(constants.EXTENSION_KEY + ".location", {}))
-                    mathKerning.round()
-                    mathKerning.extractKerning(inst.font)
+        self.reloadOperatorSources()
+        for inst in self.fonts.values():
+            if inst.font.lib.get(constants.EXTENSION_KEY + ".descriptor") == "instance":                
+                mathKerning = self.operator.makeOneKerning(inst.font.lib.get(constants.EXTENSION_KEY + ".location", {}))
+                mathKerning.round()
+                mathKerning.extractKerning(inst.font)
         self.reloadAdjunctItems(adjunct=info["font"])
 
 
@@ -4090,7 +4092,7 @@ class SpacePort(Subscriber, ezui.WindowController):
         for item in items:
             if adjunct is not None:
                 adjunctType = type(adjunct.naked()).__name__.split("Doodle")[-1].lower()
-                if getattr(item, adjunctType) == adjunct:
+                if getattr(item, adjunctType) == adjunct.naked():
                     self.updateItem(item)
                 # update previous glyph item's metrics too
                 if updatePrevious:
