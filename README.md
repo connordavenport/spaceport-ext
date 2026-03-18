@@ -2,13 +2,18 @@
 ![Dynamic YAML Badge](https://img.shields.io/badge/dynamic/yaml?url=https%3A%2F%2Fraw.githubusercontent.com%2Fconnordavenport%2FBezierSurgeon%2Frefs%2Fheads%2Fmaster%2Finfo.yaml&query=%24.version&logo=data%3Aimage%2Fsvg%2Bxml%3Bbase64%2CPHN2ZyBlbmFibGUtYmFja2dyb3VuZD0ibmV3IDAgMCA2NCA2NCIgaWQ9InVuaTJCMjQiIHdpZHRoPSI3NSIgaGVpZ2h0PSI2OSIgdmVyc2lvbj0iMS4xIiB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHhtbG5zOnhsaW5rPSJodHRwOi8vd3d3LnczLm9yZy8xOTk5L3hsaW5rIj48cGF0aCB0cmFuc2Zvcm09InNjYWxlKDEgLTEpIHRyYW5zbGF0ZSgwLCAtNjkpIiBkPSJNNDAgNjlDNTkgNjkgNzUgNTUgNzUgMzdDNzUgMTYgNTYgMCAzNSAwQzE2IDAgMCAxNSAwIDMyQzAgNTMgMTggNjkgNDAgNjlaTTUxIDE2TDQ3IDI3QzQ1IDMyIDQ3IDM2IDUyIDM5TDMyIDU4QzMxIDU5IDMwIDU5IDI5IDU4TDIzIDMwQzMwIDMwIDMzIDI4IDM0IDI0TDM3IDEyWk00NCAzMEwzNSAyOEMzMyAzMSAyOCAzMiAyNiAzMkwzMSA1Nkw0OCAzOUM0NiAzNyA0MyAzNCA0NCAzMFpNMzYgNDNDMzQgNDMgMzMgNDIgMzMgNDBDMzMgMzcgMzUgMzUgMzcgMzVDMzggMzUgMzkgMzYgMzkgMzhDMzkgNDAgMzggNDMgMzYgNDNaIi8%2BPC9zdmc%2B&label=Ext.%20Version&labelColor=white)
 ![GitHub commit activity](https://img.shields.io/github/commit-activity/w/connordavenport/BezierSurgeon?logo=GitHub&logoColor=black&labelColor=white)
 
-# SpacePort
+# Spaceport
 
-SpacePort is currently in beta development.
+## DOCUMENTATION IS NOT UP TO DATE
+
+Spaceport is currently in beta development.
+
 
 Developed by Connor Davenport
 
-Designed and Sponsored by Vincent Chan
+Designed by Vincent Chan and Connor Davenport
+
+Sponsored by Vincent Chan
 
 ![UI Image](./images/ui_screenshot.png)
 
@@ -17,7 +22,7 @@ Designed and Sponsored by Vincent Chan
 ### Spacing
 
 Arrow Keys: `← → ↓ ↑`
-SpacePort allows you to modify glyph(s) spacing via the arrow keys, optionally with modifiers to change the increments.
+Spaceport allows you to modify glyph(s) spacing via the arrow keys, optionally with modifiers to change the increments.
 With at least one selected item, you can edit the spacing. If more than one item is selected, it will apply the delta globally to those glyphs.
 
 `shift + command = 100` 
@@ -32,7 +37,7 @@ With at least one selected item, you can edit the spacing. If more than one item
 
 `command z` Call and apply the selected glyphs' undo manager stack
 
-`command t` Open typing pane
+`command t` Toggle between _Typing_ and _Spacing_ modes
 
 `command ;` Open objects manager sheet
 
@@ -42,7 +47,13 @@ With at least one selected item, you can edit the spacing. If more than one item
                     
 `b` Toggle beam visibility
 
-> The following keys are extracted from the users' preferences
+`m` Toggle metrics visibility
+
+`l` Toggle label visibility
+
+`l` Toggle apply kerning
+
+##### The following keys are extracted from the users' preferences
 
 `glyphViewZoomInKey` Zoom in `e.g. z`
 
@@ -51,8 +62,7 @@ With at least one selected item, you can edit the spacing. If more than one item
 
 ## Mouse Controls
 
-
-When selecting a glyph inside the SpacePort view there are several modifiers available.
+When selecting a glyph inside the Spaceport view there are several modifiers available.
 
 `shift` will allow for multi-glyph selection
 
@@ -61,70 +71,6 @@ When selecting a glyph inside the SpacePort view there are several modifiers ava
 _Note: `shift` and `option` are not able to be combined!_
 
 Double clicking a single item will open a `DoodleGlyphWindow` for that glyph.
-
-
-## User Interface
-
-### Main Window
-#### Toolbar
-
-`Edit Text` Open typing pane
-
-`Objects` Open objects manager sheet
-
-`Fit Width` Fit contents of view to view's width
-
-`Fit Height` Fit contents of view to view's height
-
-`OpenType` ***Not Implemented***
-
-`Interpolate` Open DesignSpace view/editor sheet
-
-`View Options` Open display settings popup
-
-#### Item View
-
-All of your items:)
-
-#### Space Matrix
-
-The same old matrix that you know and love from SpaceCenter!
-
-
-### Typing Pane
-
-`point size`
-
-`line height`
-
-`leading text`
-
-`text`
-
-`trailing text`
-
-
-### Display Settings
-
-`beam toggle` Toggle the beam in the view
-
-`beam position slider` Adjust beam position, maximum value == font's UPM
-
-`multiline toggle` Toggle line breaks between separate fonts in the view
-
-`kerning toggle` Toggle kerning in the view
-
-`display metrics toggle` Toggle metrics values in the view
-
-`space matrix toggle` Toggle space matrix
-
-`move space matrix position` Move the space matrix between the top or botttom of the window
-
-`invert colors` Toggle between "black on white" or "white on black" text
-
-`glyph drawing settings` Toggle between what glyph attributes are displayed; stroke, fill, or points
-
-`text alignment` Toggle text alignment; left, center, or right.
 
 
 ### Objects Manager
