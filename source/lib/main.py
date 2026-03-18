@@ -754,6 +754,8 @@ class SpacePort(Subscriber, ezui.WindowController):
         self.viewSettingsWindow.getItem("showControlGlyphsButton").enable(False)
         self.viewSettingsWindow.getItem("showSpaceMatrixButton").enable(not self.typing)
         self.styleWindowButtons(self.viewSettingsWindow)
+        self.viewSettingsWindow.getItem("invertColorsButton").getNSButton().setBezelStyle_(AppKit.NSInlineBezelStyle)
+
         if openWindow: self.viewSettingsWindow.open()
 
 
@@ -2001,7 +2003,11 @@ class SpacePort(Subscriber, ezui.WindowController):
             if item.index == 0:
                 descriptorIndicatorLayer = glyphContainer.getSublayer("descriptorIndicator")
                 if descriptorIndicatorLayer:
-                    descriptorIndicatorLayer.getSublayer("descriptorIndicatorTextLayer").setFillColor((*foregroundColor[0:3], .5))
+                    text = descriptorIndicatorLayer.getSublayer("descriptorIndicatorTextLayer").getText()
+                    if len(text) == 2:
+                        dot,data = text
+                        data["fillColor"] = (*foregroundColor[0:3], .5)
+                        descriptorIndicatorLayer.getSublayer("descriptorIndicatorTextLayer").setText([dot,data])
             ####
 
             glyphStrokeLayer.setStrokeColor(foregroundColor)
