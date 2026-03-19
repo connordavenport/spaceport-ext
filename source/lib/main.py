@@ -2089,7 +2089,7 @@ class Spaceport(Subscriber, ezui.WindowController):
             showLabel = False
 
         if self.kerning: 
-            showMetrics = showLabel = showBeam = showStroke = False
+            showMetrics = showBeam = showStroke = False
             showFill = True
 
         self.collectionView.setBackgroundColor(backgroundColor)
@@ -2523,7 +2523,7 @@ class Spaceport(Subscriber, ezui.WindowController):
                         if item.index == 0:
 
                             formatted = [f"{axis.title()} ({round(value,1)})" for axis,value in loc.items()]
-                            styleName = " {item.font.info.styleName}" if item.font.info.styleName else ""
+                            styleName = f" {item.font.info.styleName}" if item.font.info.styleName else ""
                             formattedText = f"{item.font.info.familyName}{styleName}, {', '.join(formatted)}"
 
                             attrText = [
@@ -2531,7 +2531,7 @@ class Spaceport(Subscriber, ezui.WindowController):
                                     text="􀀁 ",
                                     font="SFPro-Regular",
                                     pointSize=8,
-                                    fillColor=constants.INTERPO_COLOR
+                                    fillColor=constants.INSTANCE_COLOR if item.font.lib.get(constants.EXTENSION_KEY + ".descriptor") == "instance" else constants.INTERPO_COLOR,
                                 ),
                                 dict(
                                     text=formattedText,
@@ -3971,7 +3971,6 @@ class Spaceport(Subscriber, ezui.WindowController):
             if self.kerning:
                 self.useKerningButtonCallback(None)
                 return
-
             self.populate()
 
 
@@ -4020,7 +4019,7 @@ class Spaceport(Subscriber, ezui.WindowController):
     designspaceEditorPreviewLocationDidChangeDelay = 0.01
     def designspaceEditorPreviewLocationDidChange(self, notification) -> None:
         if self.designspaceController or self.internalPreview:
-            selectedFonts = list(set([i.font for i in self.selectedItems if i.isInterpolated and not i.onDisk]))
+            selectedFonts = list(set([i.font for i in self.selectedItems if i.isInterpolated]))
             if len(selectedFonts) == 1:
                 pass
             elif not selectedFonts:
@@ -4029,7 +4028,6 @@ class Spaceport(Subscriber, ezui.WindowController):
                 # grab out dummy instance
                 # selectedFonts = [list(self.fonts.values())[0][-1]]
                 selectedFonts = [self.fonts.get(constants.PREVIEW).font]
-
             sf = selectedFonts[0]
             mathKerning = self.operator.makeOneKerning(notification["location"])
             mathKerning.round()
@@ -4161,7 +4159,7 @@ class Spaceport(Subscriber, ezui.WindowController):
                     nxt = self.getNextItemInView(item)
                     if nxt is not None:
                         self.updateItem(nxt)
-            if item.font.lib.get(constants.EXTENSION_KEY + ".descriptor") == "instance":
+            if item.font.lib.get(constants.EXTENSION_KEY + ".descriptor") in ["instance", "preview"]:
                 # reload all instances on new kerning
                 self.updateItem(item, updatedLocation=item.location)
         self.collectionView.set(self.w.getItemValue("collectionView")) # i think that this is the only external-way to reload the view

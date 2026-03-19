@@ -298,7 +298,9 @@ class MerzCollectionViewRGlyphItem(merz.collectionView.MerzCollectionViewItem):
 
     def getIsInterpolated(self) -> bool:
         if self._font.lib.get(constants.EXTENSION_KEY + ".descriptor") == "instance":
-            return self._isInterpolated
+            return True
+        else:
+            return False
 
     def setIsInterpolated(self, value:bool=True) -> None:
         self._isInterpolated = value
