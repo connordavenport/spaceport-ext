@@ -1,4 +1,5 @@
 from AppKit import NSEvent, NSShiftKeyMask, NSCommandKeyMask, NSAlternateKeyMask, NSFunctionKeyMask
+from mojo.roboFont import AllFonts
 
 # ----------------------------------------------------------
 # Taken from DrawBot builtins, dont require import for these
