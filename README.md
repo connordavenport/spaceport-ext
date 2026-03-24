@@ -15,7 +15,41 @@ Designed by Vincent Chan and Connor Davenport
 
 Sponsored by Vincent Chan
 
-![UI Image](./images/ui_screenshot.png)
+![UI Image](./images/ui_screenshot_labels.png)
+
+## User Interface - Main Window
+
+- 1 : State Toggler
+	- Type: Typing state, enter text and edit strings
+	- Space: Edit spacing
+	- Kern: Edit Kerning
+
+- 2 : Point Size
+ 
+- 3 : Line Height
+ 
+- 4 : Fit Text
+	- To Width
+	- To Height
+ 
+- 5 : Text Alignment
+ 
+- 6 : Character Ordering
+ 
+- 7 : (Un)sync Text Strings
+ 
+- 8 : Leading and Trailing Text Field
+ 
+- 9 : Controllers
+	- Objects Controller:
+		- Add and manage UFOs and Designspaces
+ 	- OpenType Features Controller
+ 	- Interpolation Controller
+
+- 10 : Settings Window
+ 
+- 11 : Space Matrix
+
 
 ## Key Controls
 

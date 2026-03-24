@@ -17,7 +17,6 @@ from collections import UserList
 from defcon import Font
 from designspaceEditor.locationPreview import PreviewLocationFinder
 from designspaceEditor.ui import DesignspaceEditorController
-from drawBot.context.tools.drawBotbuiltins import remap
 from fontParts.world import (
     CurrentFont,
     CurrentGlyph,
@@ -81,6 +80,9 @@ import windows
 reload(windows)
 import objects
 reload(objects)
+import tools
+reload(tools)
+
 
 class Spaceport(Subscriber, ezui.WindowController):
 
@@ -99,9 +101,6 @@ class Spaceport(Subscriber, ezui.WindowController):
         self.foreground:tuple[float,...] = tuple(getDefault(f"spaceCenterGlyphColor{self.darkModeSuffix}"))
         self.background:tuple[float,...] = tuple(getDefault(f"spaceCenterBackgroundColor{self.darkModeSuffix}"))
 
-        # self.foreground:tuple[float,...] = (0, 0, 0, 1)
-        # self.background:tuple[float,...] = (1, 1, 1, 1)
-
         self.cursorColor:tuple[float]    = constants.CURSOR_COLOR
         self.selectionColor:tuple[float] = constants.SELECTION_COLOR
 
@@ -116,7 +115,6 @@ class Spaceport(Subscriber, ezui.WindowController):
         self.viewInstances:bool          = False
         self.showBeam:bool               = True
         self.designspaceController:bool  = True
-        #self.drawFocusRing:bool          = True
         self.tintedBackground:bool       = True
         self.splitFontOrdering:bool      = False
         self.invert:bool                 = False
@@ -661,7 +659,6 @@ class Spaceport(Subscriber, ezui.WindowController):
         > * HorizontalStack                                             @cursorStack                                 
         >> Cursor Color: 
         >> * ColorWell                                                  @cursorColorWell                             ? Cursor Color
-     #  > [ ] Focus Ring                                                @focusRingButton
         > [ ] Tinted Typing Background                                  @tintedBackgroundButton                      ? Use Tinted Background in Typing View
         > * HorizontalStack                                             @selectionStack
         >> Selection Color: 
@@ -676,9 +673,6 @@ class Spaceport(Subscriber, ezui.WindowController):
             tintedBackgroundButton=dict(
                 value=self.tintedBackground
             ),
-            # focusRingButton=dict(
-            #     value=self.drawFocusRing,
-            # ),
             cursorStack=dict(
                 distribution="fillEqually",
                 alignment="leading",
@@ -1464,7 +1458,7 @@ class Spaceport(Subscriber, ezui.WindowController):
         if recentSender:
             newIndex = recentSender[0]
             newItem  = sortKeys[newIndex]
-            if self.shift:
+            if tools.shift:
                 holding = getattr(self, f"{newItem}Sort")
                 setattr(self, f"{newItem}Sort", -holding)
 
@@ -2073,9 +2067,6 @@ class Spaceport(Subscriber, ezui.WindowController):
         if previewState:
             showMetrics = showLabel = showBeam = showStroke = False
             showFill = True
-            # if self.drawFocusRing:
-            #     borderColor = AppKit.NSColor.colorWithCalibratedRed_green_blue_alpha_(*self.cursorColor).CGColor()
-
             if self.tintedBackground:
                 def make_rgb_transparent(rgb, bg_rgb, alpha):
                     # https://stackoverflow.com/questions/33371939/calculate-rgb-equivalent-of-base-colors-with-alpha-of-0-5-over-white-background
@@ -2710,7 +2701,7 @@ class Spaceport(Subscriber, ezui.WindowController):
                         
                         else:
                             # if the UI is open, we can allow editing
-                            if not self.fontIsOpen(font.path):
+                            if not tools.fontIsOpen(font.path):
                                 onDisk = False
 
                             if glyph in font.keys():
@@ -2768,7 +2759,7 @@ class Spaceport(Subscriber, ezui.WindowController):
                 objects = [gs.glyph.name for gs in fontItem._featureFont.process(objects)]
                 self.subscribeToObjects(None, objects)
 
-            except AttributeError:
+            except (AttributeError, TypeError):
                 pass # featureFont not loaded yet
 
             if fontItem.use:
@@ -2826,7 +2817,7 @@ class Spaceport(Subscriber, ezui.WindowController):
                         
                         else:
                             # if the UI is open, we can allow editing
-                            if not self.fontIsOpen(font.path):
+                            if not tools.fontIsOpen(font.path):
                                 onDisk = False
 
                             if glyph in font.keys():
@@ -2886,14 +2877,6 @@ class Spaceport(Subscriber, ezui.WindowController):
 
         self.w.matrix.set(_glyphRecords)
         self.displaySettingsButtonCallback(None, previewState=self.typing)
-
-
-    def fontIsOpen(self, path:str) -> bool:
-        isOpen = False
-        openPaths = [f.path for f in AllFonts()]
-        if path in openPaths:
-            isOpen = True
-        return isOpen
 
 
     def beamController(self, item:objects.MerzCollectionViewRGlyphItem) -> None:
@@ -3305,7 +3288,7 @@ class Spaceport(Subscriber, ezui.WindowController):
                         elif event["modifiers"] == ["option"]:
                             multiFontSelect = True
 
-                        if self.shift:
+                        if tools.shift:
                             # print("shift down, append")
                             self.selectedItems.append(hit)
                         else:
@@ -3379,7 +3362,7 @@ class Spaceport(Subscriber, ezui.WindowController):
 
             if self.typing:
                 hit = self._getItemAtEvent((x,y))
-                if hit: # and self.shift:
+                if hit: # and tools.shift:
                     index = self.getMergedIndexFromRawIndex(self.typingIndex)
                     if hit.font == self.typingFont:
                         selectionRange = sorted([hit.index, index])
@@ -3488,11 +3471,11 @@ class Spaceport(Subscriber, ezui.WindowController):
         ny = y = location.get(self.yAxis, 150)
         desc = [a for a in self.operator.axes if a.name == self.xAxis][0]
         minimum, default, maximum = self.operator.getAxisExtremes(desc)
-        nx = remap(x, minimum, maximum, buffer, 300-buffer, True)
+        nx = tools.remap(x, minimum, maximum, buffer, 300-buffer, True)
         if self.yAxis:
             desc = [a for a in self.operator.axes if a.name == self.yAxis][0]
             minimum, default, maximum = self.operator.getAxisExtremes(desc)
-            ny = remap(y, minimum, maximum, buffer, 300-buffer, True)
+            ny = tools.remap(y, minimum, maximum, buffer, 300-buffer, True)
         return (nx,ny)
 
 
@@ -3502,12 +3485,12 @@ class Spaceport(Subscriber, ezui.WindowController):
         location = self.currentLocation
         desc = [a for a in self.operator.axes if a.name == self.xAxis][0]
         minimum, default, maximum = self.operator.getAxisExtremes(desc)
-        nx = remap(x, buffer, 300-buffer, minimum, maximum, True)
+        nx = tools.remap(x, buffer, 300-buffer, minimum, maximum, True)
         location[self.xAxis] = nx
         if self.yAxis:
             desc = [a for a in self.operator.axes if a.name == self.yAxis][0]
             minimum, default, maximum = self.operator.getAxisExtremes(desc)
-            ny = remap(y, buffer, 300-buffer, minimum, maximum, True)
+            ny = tools.remap(y, buffer, 300-buffer, minimum, maximum, True)
             location[self.yAxis] = ny
 
         self.previewLocation = location
@@ -3540,7 +3523,7 @@ class Spaceport(Subscriber, ezui.WindowController):
             else:
                 text = []
 
-        if self.command:
+        if tools.command:
             if char.lower() == "t":
                 self.toggleTypingState()
                 return
@@ -3554,7 +3537,7 @@ class Spaceport(Subscriber, ezui.WindowController):
             # check if mulitfont selection is acivated
             multiFontSelection = True if len(list(set([(i.index,i.name) for i in selected]))) == 1 and len(list(set([i.font for i in selected]))) > 1 else False
 
-            if self.command:
+            if tools.command:
                 if char == "left":
                     for idx, i in enumerate(selected):
                         pr = self.getPreviousItemInView(i)
@@ -3687,7 +3670,7 @@ class Spaceport(Subscriber, ezui.WindowController):
 
                 else:
                     # allow for undoing
-                    if self.command:
+                    if tools.command:
                         if char.lower() == "z":
                             for toUndo in self.selectedItems:
                                 glyph = toUndo.glyph
@@ -3698,11 +3681,11 @@ class Spaceport(Subscriber, ezui.WindowController):
                         elif char == "=":
                             # zoom in
                             self.zoomCoalescerManager()
-                            self.zoom(direction="in", option=self.option)
+                            self.zoom(direction="in", option=tools.option)
                         elif char == "-":
                             # zoom out
                             self.zoomCoalescerManager()
-                            self.zoom(direction="out", option=self.option)
+                            self.zoom(direction="out", option=tools.option)
 
                     if mods == []:
                         if char.lower() == "b":
@@ -3742,7 +3725,7 @@ class Spaceport(Subscriber, ezui.WindowController):
                     
                 if rawEvent.keyCode() == 51:
                     deleting = True
-                    if self.command:
+                    if tools.command:
                         self.typingIndex = 0
                         text = []
                     else:
@@ -3761,7 +3744,7 @@ class Spaceport(Subscriber, ezui.WindowController):
                             text = self.deleteSelectedIndexes(selectedIdxs, text)
 
 
-                if self.command:
+                if tools.command:
                     if char.lower() == "a":
                         for ii in self.collectionView.get():
                             ii.selected = False
@@ -3804,14 +3787,14 @@ class Spaceport(Subscriber, ezui.WindowController):
 
                 if char in directions:
                     if char == "left":
-                        if self.command:
+                        if tools.command:
                             self.typingIndex = 0
                         else:
                             if self.typingIndex > 0:
                                 self.typingIndex -= 1
                     
                     elif char == "right":
-                        if self.command:
+                        if tools.command:
                             self.typingIndex = len(text)
                         else:
                             if self.typingIndex < len(text):
@@ -3878,26 +3861,6 @@ class Spaceport(Subscriber, ezui.WindowController):
         selected = [i.index for i in self.collectionView.get() if i.selected]
         parsed   = [selected[0]] * len(selected) if selected else []
         return parsed
-
-
-    @property
-    def shift(self) -> bool:
-        return AppKit.NSEvent.modifierFlags() & AppKit.NSShiftKeyMask
-
-
-    @property
-    def command(self) -> bool:
-        return AppKit.NSEvent.modifierFlags() & AppKit.NSCommandKeyMask
-
-
-    @property
-    def option(self) -> bool:
-        return AppKit.NSEvent.modifierFlags() & AppKit.NSAlternateKeyMask
-
-
-    @property
-    def function(self) -> bool:
-        return AppKit.NSEvent.modifierFlags() & AppKit.NSFunctionKeyMask
 
 
     def getMergedIndexFromRawIndex(self, rawIndex):
@@ -4074,11 +4037,11 @@ class Spaceport(Subscriber, ezui.WindowController):
     def subscribeToObjects(self, coalescer:Coalescer, objects:list[str,...]=[]) -> None:
         objects = []
         for item in list(self.fonts.values()):
-            if item.use and item.type not in ["instance", "preview"]:
-                objects.append(item.font.kerning)
-
-            grs = self.glyphs.copy()
-            objects.extend(list(set([item.font[glyph] for glyph in grs if glyph in item.font.keys()])))
+            if item.use:
+                if item.type not in ["instance", "preview"]:
+                    objects.append(item.font.kerning)
+                grs = self.glyphs.copy()
+                objects.extend(list(set([item.font[glyph] for glyph in grs if glyph in item.font.keys()])))
             
         self.setAdjunctObjectsToObserve(objects)
 
@@ -4148,7 +4111,7 @@ class Spaceport(Subscriber, ezui.WindowController):
         for item in items:
             if adjunct is not None:
                 adjunctType = type(adjunct.naked()).__name__.split("Doodle")[-1].lower()
-                if getattr(item, adjunctType) == adjunct.naked():
+                if getattr(item, adjunctType).naked() == adjunct.naked():
                     self.updateItem(item)
                 # update previous glyph item's metrics too
                 if updatePrevious:
