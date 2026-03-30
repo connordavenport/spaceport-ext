@@ -41,21 +41,21 @@ def fontIsOpen(path:str) -> bool:
     return isOpen
 
 
-@property
+# @property
 def shift() -> bool:
     return NSEvent.modifierFlags() & NSShiftKeyMask
 
 
-@property
+# @property
 def command() -> bool:
     return NSEvent.modifierFlags() & NSCommandKeyMask
 
 
-@property
+# @property
 def option() -> bool:
     return NSEvent.modifierFlags() & NSAlternateKeyMask
 
 
-@property
+# @property
 def function() -> bool:
     return NSEvent.modifierFlags() & NSFunctionKeyMask

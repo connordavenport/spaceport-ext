@@ -246,6 +246,7 @@ class Spaceport(Subscriber, ezui.WindowController):
 
         >> ({text.alignleft})                 @horzAlignmentButton  ? Text Alignment
         >> ({textformat})                     @sortingButton        ? Glyph Sorting
+        >> ({text})                           @useKerningButton     ? Use Kerning In View
 
         >> ---------------
         >> ( 􀎥 Unsync Text )                 @syncTextButton       ? Sync Text Strings                  
@@ -368,6 +369,9 @@ class Spaceport(Subscriber, ezui.WindowController):
             sortingButton=dict(
                 image=ezui.makeImage(imagePath=os.path.join(constants.RESOURCES_PATH, "sort.font.svg"), template=True),
             ),
+            useKerningButton=dict(
+                image=ezui.makeImage(imagePath=os.path.join(constants.RESOURCES_PATH, "use.kerning.svg"), template=True),
+            ),
             addObjectsButton=dict(
                 image=ezui.makeImage(symbolName="document", template=True),
                 symbolConfiguration=dict(
@@ -410,6 +414,8 @@ class Spaceport(Subscriber, ezui.WindowController):
             size=(1000, 500),
             minSize=(400, 200),
         )
+
+        self.w.workspaceWindowIdentifier = "Spaceport Window"
 
         # set custom window item styles
         self.w.getItem("pointSizeInputField")._slider._setSizeStyle("mini")
@@ -626,7 +632,6 @@ class Spaceport(Subscriber, ezui.WindowController):
         > [ ] Show Label                                                @showLabelButton                             ? Show Font Labels
         > [X] Show Metrics                                              @showMetricsButton                           ? Show Glyph Metrics
         > [ ] Show Control Glyphs                                       @showControlGlyphsButton                     ? Not Implimented
-        > [ ] Use Kerning                                               @useKerningButton                            ? Use Kerning In View
 
         * Box                                                           @matrixBox = VerticalStack
         > [X] Show Space Matrix                                         @showSpaceMatrixButton                       ? Show Space Matrix
@@ -709,9 +714,9 @@ class Spaceport(Subscriber, ezui.WindowController):
             showMetricsButton=dict(
                 value=self.showMetrics
             ),
-            useKerningButton=dict(
-                value=self.useKerning
-            ),
+            # useKerningButton=dict(
+            #     value=self.useKerning
+            # ),
             showLabelButton=dict(
                 value=self.showLabel
             ),
@@ -1458,7 +1463,7 @@ class Spaceport(Subscriber, ezui.WindowController):
         if recentSender:
             newIndex = recentSender[0]
             newItem  = sortKeys[newIndex]
-            if tools.shift:
+            if tools.shift():
                 holding = getattr(self, f"{newItem}Sort")
                 setattr(self, f"{newItem}Sort", -holding)
 
@@ -2038,8 +2043,11 @@ class Spaceport(Subscriber, ezui.WindowController):
         self.displaySettingsButtonCallback(None, onlyBeam=True)
 
 
-    def useKerningButtonCallback(self, sender:Any) -> None:
-        self.useKerning = self.viewSettingsWindow.getItemValue("useKerningButton")
+    def useKerningButtonCallback(self, sender:Any, force:bool=False) -> None:
+        if force:
+            self.useKerning = True
+        else:
+            self.useKerning = not self.useKerning
         #self.displaySettingsButtonCallback(None)
         self.useKerningCallback = True
         self.populate()
@@ -2271,13 +2279,13 @@ class Spaceport(Subscriber, ezui.WindowController):
                     attrText = [
                         dict(
                             text="􀀁 ",
-                            font="SFPro-Regular",
+                            font="system",
                             pointSize=8,
                             fillColor=color
                         ),
                         dict(
                             text=locationData,
-                            font="SFMono-Regular",
+                            font="system", # -monospaced
                             pointSize=8,
                             fillColor=(*self.foreground[0:3], .5),
                         ),
@@ -2520,13 +2528,13 @@ class Spaceport(Subscriber, ezui.WindowController):
                             attrText = [
                                 dict(
                                     text="􀀁 ",
-                                    font="SFPro-Regular",
+                                    font="system",
                                     pointSize=8,
                                     fillColor=constants.INSTANCE_COLOR if item.font.lib.get(constants.EXTENSION_KEY + ".descriptor") == "instance" else constants.INTERPO_COLOR,
                                 ),
                                 dict(
                                     text=formattedText,
-                                    font="SFMono-Regular",
+                                    font="system", # -monospaced
                                     pointSize=8,
                                     fillColor=(*self.foreground[0:3], .5),
                                 ),
@@ -2987,7 +2995,7 @@ class Spaceport(Subscriber, ezui.WindowController):
                                 beamText = item.getLayer("glyphContainer").getSublayer("beamIndicator").appendTextLineSublayer(
                                     name="beamIndicatorLayerText",
                                     text=str(round(right + nextItemLeft)),
-                                    font="SFMono-Regular",
+                                    font="system", # -monospaced
                                     position=(glyph.width, self.beamPosition),
                                     fillColor=(1,.2,0,1),
                                     pointSize=10,
@@ -3288,7 +3296,7 @@ class Spaceport(Subscriber, ezui.WindowController):
                         elif event["modifiers"] == ["option"]:
                             multiFontSelect = True
 
-                        if tools.shift:
+                        if tools.shift():
                             # print("shift down, append")
                             self.selectedItems.append(hit)
                         else:
@@ -3523,7 +3531,8 @@ class Spaceport(Subscriber, ezui.WindowController):
             else:
                 text = []
 
-        if tools.command:
+        # if "command" in mods:
+        if tools.command():
             if char.lower() == "t":
                 self.toggleTypingState()
                 return
@@ -3537,7 +3546,7 @@ class Spaceport(Subscriber, ezui.WindowController):
             # check if mulitfont selection is acivated
             multiFontSelection = True if len(list(set([(i.index,i.name) for i in selected]))) == 1 and len(list(set([i.font for i in selected]))) > 1 else False
 
-            if tools.command:
+            if tools.command():
                 if char == "left":
                     for idx, i in enumerate(selected):
                         pr = self.getPreviousItemInView(i)
@@ -3670,7 +3679,7 @@ class Spaceport(Subscriber, ezui.WindowController):
 
                 else:
                     # allow for undoing
-                    if tools.command:
+                    if tools.command():
                         if char.lower() == "z":
                             for toUndo in self.selectedItems:
                                 glyph = toUndo.glyph
@@ -3681,11 +3690,11 @@ class Spaceport(Subscriber, ezui.WindowController):
                         elif char == "=":
                             # zoom in
                             self.zoomCoalescerManager()
-                            self.zoom(direction="in", option=tools.option)
+                            self.zoom(direction="in", option=tools.option())
                         elif char == "-":
                             # zoom out
                             self.zoomCoalescerManager()
-                            self.zoom(direction="out", option=tools.option)
+                            self.zoom(direction="out", option=tools.option())
 
                     if mods == []:
                         if char.lower() == "b":
@@ -3708,8 +3717,8 @@ class Spaceport(Subscriber, ezui.WindowController):
                             self.showLabelButtonCallback(None)
 
                         elif char.lower() == "k":
-                            useKerning = self.viewSettingsWindow.getItemValue("useKerningButton")
-                            self.viewSettingsWindow.setItemValue("useKerningButton", not useKerning)
+                            #useKerning = self.viewSettingsWindow.getItemValue("useKerningButton")
+                            #self.viewSettingsWindow.setItemValue("useKerningButton", not useKerning)
                             self.useKerningButtonCallback(None)
 
                         elif char == getDefault("glyphViewZoomInKey", "z"):
@@ -3725,7 +3734,7 @@ class Spaceport(Subscriber, ezui.WindowController):
                     
                 if rawEvent.keyCode() == 51:
                     deleting = True
-                    if tools.command:
+                    if tools.command():
                         self.typingIndex = 0
                         text = []
                     else:
@@ -3744,7 +3753,7 @@ class Spaceport(Subscriber, ezui.WindowController):
                             text = self.deleteSelectedIndexes(selectedIdxs, text)
 
 
-                if tools.command:
+                if tools.command():
                     if char.lower() == "a":
                         for ii in self.collectionView.get():
                             ii.selected = False
@@ -3787,14 +3796,14 @@ class Spaceport(Subscriber, ezui.WindowController):
 
                 if char in directions:
                     if char == "left":
-                        if tools.command:
+                        if tools.command():
                             self.typingIndex = 0
                         else:
                             if self.typingIndex > 0:
                                 self.typingIndex -= 1
                     
                     elif char == "right":
-                        if tools.command:
+                        if tools.command():
                             self.typingIndex = len(text)
                         else:
                             if self.typingIndex < len(text):
@@ -3916,8 +3925,8 @@ class Spaceport(Subscriber, ezui.WindowController):
                     self.typingIndex = len(self.holdingGlyphs)-1
                 self.setTypingItem()
 
-            self.viewSettingsWindow.getItem("useKerningButton").set(self.kerning)
-            self.viewSettingsWindow.getItem("useKerningButton").enable(not self.kerning)
+            #self.viewSettingsWindow.getItem("useKerningButton").set(self.kerning)
+            self.w.getItem("useKerningButton").enable(not self.kerning)
 
             self.w.getItem("modeButton").set(constants.ALL_MODES.index(mode))
             self.w.getItem("syncTextButton").enable(self.typing)
@@ -3932,7 +3941,7 @@ class Spaceport(Subscriber, ezui.WindowController):
             self.w.getItem("sortingButton").enable(enableSorting)
 
             if self.kerning:
-                self.useKerningButtonCallback(None)
+                self.useKerningButtonCallback(None, force=True)
                 return
             self.populate()
 
@@ -4130,5 +4139,15 @@ class Spaceport(Subscriber, ezui.WindowController):
 
 
 if __name__ == "__main__":
+    from mojo import events
+
+    class WorkspacesObserver:
+        def __init__(self):
+            events.addObserver(self, "register", "Workspaces.RegisterWindowOpeners")
+        def register(self, info):
+            info["register"]("Spaceport Window", Spaceport)
+
     registerRoboFontSubscriber(Spaceport)
-    # ShowProfile(Spaceport)   ## this is a good way to investigate memory allocation
+    WorkspacesObserver()
+
+
