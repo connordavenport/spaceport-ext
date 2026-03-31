@@ -507,6 +507,14 @@ class Spaceport(Subscriber, ezui.WindowController):
         self.w.open()
 
 
+    def registerForWorkspaces(self, info):
+        info["register"]("Auto Install Window", self.workspacesWindowOpener)
+
+    def workspacesWindowOpener(self):
+        self.autoInstallerOpenWindow({})
+        return self.window
+
+
     def modeButtonCallback(self, sender:Any) -> None:
         currentMode = constants.ALL_MODES[sender.get()]
         self.toggleTypingState(mode=currentMode)
@@ -4139,15 +4147,15 @@ class Spaceport(Subscriber, ezui.WindowController):
 
 
 if __name__ == "__main__":
-    from mojo import events
+    # from mojo import events
 
-    class WorkspacesObserver:
-        def __init__(self):
-            events.addObserver(self, "register", "Workspaces.RegisterWindowOpeners")
-        def register(self, info):
-            info["register"]("Spaceport Window", Spaceport)
+    # class WorkspacesObserver:
+    #     def __init__(self):
+    #         events.addObserver(self, "register", "Workspaces.RegisterWindowOpeners")
+    #     def register(self, info):
+    #         info["register"]("Spaceport Window", Spaceport.started)
 
     registerRoboFontSubscriber(Spaceport)
-    WorkspacesObserver()
+    # WorkspacesObserver()
 
 
