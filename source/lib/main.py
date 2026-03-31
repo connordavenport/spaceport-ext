@@ -507,14 +507,6 @@ class Spaceport(Subscriber, ezui.WindowController):
         self.w.open()
 
 
-    def registerForWorkspaces(self, info):
-        info["register"]("Auto Install Window", self.workspacesWindowOpener)
-
-    def workspacesWindowOpener(self):
-        self.autoInstallerOpenWindow({})
-        return self.window
-
-
     def modeButtonCallback(self, sender:Any) -> None:
         currentMode = constants.ALL_MODES[sender.get()]
         self.toggleTypingState(mode=currentMode)
