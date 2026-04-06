@@ -98,8 +98,8 @@ class Spaceport(Subscriber, ezui.WindowController):
 
         self.darkModeSuffix = ".dark" if inDarkMode() else ""
 
-        self.foreground:tuple[float,...] = tuple(getDefault(f"spaceCenterGlyphColor{self.darkModeSuffix}"))
-        self.background:tuple[float,...] = tuple(getDefault(f"spaceCenterBackgroundColor{self.darkModeSuffix}"))
+        self.foreground:tuple[float]     = tuple(getDefault(f"spaceCenterGlyphColor{self.darkModeSuffix}"))
+        self.background:tuple[float]     = tuple(getDefault(f"spaceCenterBackgroundColor{self.darkModeSuffix}"))
 
         self.cursorColor:tuple[float]    = constants.CURSOR_COLOR
         self.selectionColor:tuple[float] = constants.SELECTION_COLOR
@@ -120,11 +120,11 @@ class Spaceport(Subscriber, ezui.WindowController):
         self.invert:bool                 = False
 
         self.horzAlignment:int           = 0
-
         self.sortingSettings:list[int]   = []
-        self.weightSort:int = 1
-        self.widthSort:int  = 1
-        self.italicSort:int = 1
+
+        self.weightSort:int              = 1
+        self.widthSort:int               = 1
+        self.italicSort:int              = 1
 
         self.viewDesignspace:bool = False
         self.previewLocation:dict[str,float] = dict()
@@ -133,27 +133,22 @@ class Spaceport(Subscriber, ezui.WindowController):
         self.split:bool    = False
         self.detached:bool = False
         self.locked:bool   = True
-
         self.kerning:bool  = False
-
-        self.selectedEditing:bool = False
 
         self.typingIndex:int|None        = None
         self.typingFont:DoodleFont|None  = None
+        self.layerFontHit                = None  # update type hits
 
-        self.layerFontHit = None  # update type hits
+        self.currentGlyph:RGlyph                    = CurrentGlyph()
+        self.currentSelection:list[str]             = []
+        self.font:RFont                             = CurrentFont()
+        self.fonts:dict[str,objects.FontItem]       = dict()
+        self._fontFolder:dict[str,objects.FontItem] = dict()
+        self.glyphs:list[str]                       = []
+        self.holdingGlyphs:list[str]                = []
 
-        self.currentGlyph:RGlyph                     = CurrentGlyph()
-        self.currentSelection:list[str,...]          = []
-        self.font:RFont                              = CurrentFont()
-        self.fonts:dict[str,objects.FontItem]        = dict()
-        self._fontFolder:dict[str,objects.FontItem]  = dict()
-        self.glyphs:list[str,...]                    = []
-        self.holdingGlyphs:list[str,...]             = []
-
-        self.gsubLookups:set[str,...]                = set()
-        self.gposLookups:set[str,...]                = set()
-
+        self.gsubLookups:set[str]                   = set()
+        self.gposLookups:set[str]                   = set()
         self.lookups:dict[str,str]                  = dict()
 
 
@@ -333,14 +328,6 @@ class Spaceport(Subscriber, ezui.WindowController):
             lineHeightField=dict(
                 items=constants.LINE_HEIGHTS,
                 selected=constants.LINE_HEIGHTS.index("1.0"),
-                # sizeStyle="small",
-                # textFieldWidth=numberFieldWidth,
-                # valueType="float",
-                # minValue=0.5,
-                # value=1.0,
-                # maxValue=2.0,
-                # valueIncrement=0.1,
-                # width=140,
             ),
             leadingTrailingStack=dict(
                 spacing=3,
@@ -998,7 +985,7 @@ class Spaceport(Subscriber, ezui.WindowController):
                 item.getNSSegmentedButton().setSegmentStyle_(AppKit.NSSegmentStyleRoundRect)
 
 
-    def buildObjectsSheet(self) -> None:
+    def buildObjectsSheet(self) -> ezui.EZSheet:
 
         if not self.designspaces:
             self.designspaces = {dsp.path:(False, dsp) for dsp in AllDesignspaces()}
@@ -1795,7 +1782,7 @@ class Spaceport(Subscriber, ezui.WindowController):
         return validated
 
 
-    def mergeTextList(self, glyphList:list[str,...]) -> list[str,...]:
+    def mergeTextList(self, glyphList:list[str]) -> list[str]:
         output = []
         index = 0
 
@@ -1858,7 +1845,7 @@ class Spaceport(Subscriber, ezui.WindowController):
         return output
 
 
-    def combineText(self, glyphList:list[str,...]) -> str:
+    def combineText(self, glyphList:list[str]) -> str:
         # the opposite of mojo.UI's `splitText()`
         output = ""
         for glyphName in glyphList:
@@ -3280,6 +3267,11 @@ class Spaceport(Subscriber, ezui.WindowController):
                 parsed = hit.glyph
                 if parsed is not None and parsed.name != "IGNORE":
                     if not self.typing:
+
+                        if not hit.onDisk:
+                            AppKit.NSBeep()
+                            return
+
                         if self.kerning and right is not None:
                             #hit.selectedPair = (hit.name, right.name)
                             hit.pairPart = right
@@ -3636,6 +3628,8 @@ class Spaceport(Subscriber, ezui.WindowController):
                             
                         except IndexError:
                             pass
+                    else:
+                        AppKit.NSBeep()
 
 
         else:
@@ -3850,7 +3844,7 @@ class Spaceport(Subscriber, ezui.WindowController):
                 self.setTypingItem()
 
 
-    def deleteSelectedIndexes(self, indexes:list[int,...], textList:list[str,...]) -> None:
+    def deleteSelectedIndexes(self, indexes:list[int], textList:list[str]) -> list[str]:
         if not indexes:
             try:
                 textList.pop(self.typingIndex - 1)
@@ -3866,7 +3860,7 @@ class Spaceport(Subscriber, ezui.WindowController):
 
 
     @property
-    def selectedIndexesToDelete(self) -> list[int,...]:
+    def selectedIndexesToDelete(self) -> list[int]:
         selected = [i.index for i in self.collectionView.get() if i.selected]
         parsed   = [selected[0]] * len(selected) if selected else []
         return parsed
@@ -3887,7 +3881,7 @@ class Spaceport(Subscriber, ezui.WindowController):
         return mergedIndex + offset
 
 
-    def determineMode(self, mode:str|None=None) -> None:
+    def determineMode(self, mode:str|None=None) -> str:
         self.kerning = False
         self.split = False
         if not mode:
@@ -4043,7 +4037,7 @@ class Spaceport(Subscriber, ezui.WindowController):
             )
 
 
-    def subscribeToObjects(self, coalescer:Coalescer, objects:list[str,...]=[]) -> None:
+    def subscribeToObjects(self, coalescer:Coalescer, objects:list[str]=[]) -> None:
         objects = []
         for item in list(self.fonts.values()):
             if item.use:
@@ -4120,7 +4114,9 @@ class Spaceport(Subscriber, ezui.WindowController):
         for item in items:
             if adjunct is not None:
                 adjunctType = type(adjunct.naked()).__name__.split("Doodle")[-1].lower()
-                if getattr(item, adjunctType).naked() == adjunct.naked():
+                typeCheck = getattr(item, adjunctType)
+                ad = typeCheck.naked() if isinstance(typeCheck, RFont) else typeCheck
+                if ad == adjunct.naked():
                     self.updateItem(item)
                 # update previous glyph item's metrics too
                 if updatePrevious:
