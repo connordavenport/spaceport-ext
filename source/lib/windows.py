@@ -96,7 +96,7 @@ class GlyphFinderPalette(ezui.WindowController):
         self.w.open()
 
 
-class HistoryPalette(ezui.WindowController):
+class AutocompletePalette(ezui.WindowController):
     def build(self, parent: ezui.EZWindow, relative: Any) -> None:
         self.relative = relative
         self.parent = parent

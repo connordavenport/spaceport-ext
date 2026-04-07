@@ -1,21 +1,16 @@
 # menuTitle : Spaceport
 # shortCut  : command+control+s
 
-import enum
-from inspect import currentframe
 import math
 import os
-import time
 
 import AppKit
 import ezui
-from ezui.tools.color import extractColor as NS2RGBA
+from ezui.tools.color import extractColor as NS2RGBA  # noqa: F401
 from ezui.tools.color import makeColor as RGBA2NS
 import merz
 import yaml
-from collections import UserList
 from defcon import Font
-from designspaceEditor.locationPreview import PreviewLocationFinder
 from designspaceEditor.ui import DesignspaceEditorController
 from fontParts.world import (
     CurrentFont,
@@ -38,7 +33,6 @@ from lib.fontObjects.doodleGlyph import DoodleGlyph
 from lib.fontObjects.doodleLayer import DoodleLayer
 from lib.UI.spaceCenter import spaceInputScrollView as spaceInput
 from lib.UI.spaceCenter.glyphSequenceEditText import (
-    GlyphSequenceEditComboBox,
     currentGlyphKey,
     currentSelectionKey,
     groupsKey,
@@ -63,14 +57,10 @@ from mojo.subscriber import (
     registerSubscriberEvent,
     unregisterRoboFontSubscriber,
 )
-from mojo.UI import GetFile, OpenGlyphWindow, getDefault, splitText, inDarkMode
-from pprint import pprint
+from mojo.UI import GetFile, OpenGlyphWindow, getDefault, splitText, inDarkMode  # noqa: F811
 import subprocess
-from typing import Any, Optional
+from typing import Any, Optional  # noqa: F401
 from ufoProcessor.ufoOperator import UFOOperator
-from vanilla.vanillaBase import osVersion12_0, osVersionCurrent, _sizeStyleMap
-from vanilla.vanillaMenuBuilder import VanillaMenuBuilder
-from vanilla import VanillaBaseControl
 
 from importlib import reload
 
@@ -126,6 +116,7 @@ class Spaceport(Subscriber, ezui.WindowController):
         self.invert: bool = False
         self.cursorBlinking: bool = False
 
+        self.paddingMultiplier: float = 1.0
         self.horzAlignment: int = 0
         self.sortingSettings: list[int] = []
 
@@ -466,7 +457,7 @@ class Spaceport(Subscriber, ezui.WindowController):
 
         try:
             self.viewSettingsWindow.setItemValues(viewPrefs)
-        except:
+        except KeyError:
             pass
 
         windowSettings = self.w.getItemValues()
@@ -1004,7 +995,7 @@ class Spaceport(Subscriber, ezui.WindowController):
             fontTable=dict(
                 height=200,
                 items=[
-                    dict(use=fi.use, type=self.getFontItemDotAttrStr(fi), path=fi.path)
+                    dict(use=fi.use, type=tools.getFontItemDotAttrStr(fi), path=fi.path)
                     for fi in list(self.fonts.values())
                 ],
                 itemType="dict",
@@ -1092,18 +1083,6 @@ class Spaceport(Subscriber, ezui.WindowController):
             table.setSelectedIndexes([selectionIndex])
         return self.w.objw
 
-    def getFontItemDotAttrStr(self, fontItem=None):
-        t = "static" if fontItem is None else fontItem.type
-        attrTxt = AppKit.NSAttributedString.alloc().initWithString_attributes_(
-            "􀀁",
-            {
-                AppKit.NSForegroundColorAttributeName: RGBA2NS(
-                    constants.TYPE_COLOR_MAP.get(t, "static")
-                )
-            },
-        )
-        return attrTxt
-
     def openAllFontsButtonCallback(self) -> None:
         current = self.fonts.keys()
         for f in AllFonts():
@@ -1114,7 +1093,7 @@ class Spaceport(Subscriber, ezui.WindowController):
             for fi in list(self.fonts.values())
         }
         self.w.objw.getItem("fontTable").set(
-            dict(use=fi.use, type=self.getFontItemDotAttrStr(fi), path=fi.path)
+            dict(use=fi.use, type=tools.getFontItemDotAttrStr(fi), path=fi.path)
             for fi in list(self.fonts.values())
         )
         self.populate()
@@ -1125,7 +1104,7 @@ class Spaceport(Subscriber, ezui.WindowController):
         if files:
             for file in files:
                 item = table.makeItem(
-                    use=True, type=self.getFontItemDotAttrStr(), path=file
+                    use=True, type=tools.getFontItemDotAttrStr(), path=file
                 )
                 table.appendItems([item])
                 obj = OpenFont(file, True)
@@ -1325,7 +1304,7 @@ class Spaceport(Subscriber, ezui.WindowController):
             self.w.objw.getItem("fontTable").set(
                 dict(
                     use=fontItem.use,
-                    type=self.getFontItemDotAttrStr(fontItem),
+                    type=tools.getFontItemDotAttrStr(fontItem),
                     path=fontItem.path,
                 )
                 for fontItem in list(self.fonts.values())
@@ -1456,7 +1435,7 @@ class Spaceport(Subscriber, ezui.WindowController):
 
         self.fonts = orderedDict
         self.w.objw.getItem("fontTable").set(
-            dict(use=item.use, type=self.getFontItemDotAttrStr(item), path=item.path)
+            dict(use=item.use, type=tools.getFontItemDotAttrStr(item), path=item.path)
             for (path, item) in self.fonts.items()
         )
         self.populate()
@@ -1483,7 +1462,7 @@ class Spaceport(Subscriber, ezui.WindowController):
             self.fonts[path] = fontItem
             item = dict(
                 use=fontItem.use,
-                type=self.getFontItemDotAttrStr(fontItem),
+                type=tools.getFontItemDotAttrStr(fontItem),
                 path=path,
             )
             fonts.append(item)
@@ -1508,32 +1487,26 @@ class Spaceport(Subscriber, ezui.WindowController):
             sender.removeSelection()
 
     def addDesignspaceCallback(self, sender: Any) -> None:
+        # deprecated
         window = self.buildObjectsSheet()
         window.open()
 
     def spacingCallback(self, sender: Any) -> None:
+        # deprecated
         pass
 
     def kerningCallback(self, sender: Any) -> None:
+        # deprecated
         pass
 
     def opentypeButtonCallback(self, sender: Any) -> None:
-        # self.reloadFeatureButtonCallback(None)
         self.buildFeaturePopover()
 
     def interpolateButtonCallback(self, sender: Any) -> None:
-        # pass
-        # modified from DSE
-        # x,y,w,h = self.w.getPosSize()
-        # ww = w+(DESIGNSPACE_WIDTH/2) if self.viewDesignspace else w-(DESIGNSPACE_WIDTH/2)
-        # self.w.setPosSize((x,y,ww,h))
-        # self.w.getItem("designspaceNav").show(self.viewDesignspace)
-        # self.w.resizeToFitContent()
-
         try:
             if not self.detatched:
                 self.viewSettingsWindow.close()
-        except:
+        except AttributeError:
             pass
 
         self.viewDesignspace = not self.viewDesignspace
@@ -1782,16 +1755,16 @@ class Spaceport(Subscriber, ezui.WindowController):
                 skipFollowingSpace = False
                 # Check for special characters FIRST (before font.keys() check)
                 if slashed == "/question":
-                    output.append("/?")
+                    output.append("question")
                     skipFollowingSpace = True
                 elif slashed == "/exclam":
-                    output.append("/!")
+                    output.append("exclam")
                     skipFollowingSpace = True
-                elif slashed == "/?":
-                    output.append("/?")
+                elif slashed == currentGlyphKey:
+                    output.append(currentGlyphKey)
                     skipFollowingSpace = True
-                elif slashed == "/!":
-                    output.append("/!")
+                elif slashed == currentSelectionKey:
+                    output.append(currentSelectionKey)
                     skipFollowingSpace = True
                 elif slashed == "/":
                     output.append("slash")
@@ -1922,7 +1895,7 @@ class Spaceport(Subscriber, ezui.WindowController):
             scale=scale,
             lineHeight=lineHeight,
             alignment=alignment,
-            inset=(inset, inset * 1.2),
+            inset=(inset, inset * 1.2 * self.paddingMultiplier),
         )
 
     def invertColorsButtonCallback(self, sender: Any) -> None:
@@ -3289,9 +3262,9 @@ class Spaceport(Subscriber, ezui.WindowController):
                 cleanedInput = []
                 for glyph in field:
                     if glyph == constants.CURRENTGLYPH_CHAR:
-                        cleanedInput.append("/?")
+                        cleanedInput.append(currentGlyphKey)
                     elif glyph == constants.SELECTEDGLYPHS_CHAR:
-                        cleanedInput.append("/!")
+                        cleanedInput.append(currentSelectionKey)
                     else:
                         try:
                             cleanedInput.append(chr(n2u(glyph)))
@@ -3934,7 +3907,7 @@ class Spaceport(Subscriber, ezui.WindowController):
 
                     elif char == "\\":
                         # cmd + question to open history selection palette
-                        windows.HistoryPalette(self.w, self)
+                        windows.AutocompletePalette(self.w, self)
                         return
 
                 else:
@@ -4232,7 +4205,7 @@ class Spaceport(Subscriber, ezui.WindowController):
                 }
         try:
             self.w.objw.getItem("fontTable").set(
-                dict(use=fi.use, type=self.getFontItemDotAttrStr(fi), path=fi.path)
+                dict(use=fi.use, type=tools.getFontItemDotAttrStr(fi), path=fi.path)
                 for fi in list(self.fonts.values())
             )
         except AttributeError:
@@ -4318,10 +4291,13 @@ class Spaceport(Subscriber, ezui.WindowController):
             name = data["name"]
             value = data["value"]
             setattr(self, name, value)
-            for item in self.collectionView.get():
-                setattr(item, name, value)
+            if hasattr(objects.MerzCollectionViewRGlyphItem, name):
+                for item in self.collectionView.get():
+                    setattr(item, name, value)
+            else:
+                # we know that this will be a settings callback
+                self.controlsStackCallback(None)
         self.displaySettingsButtonCallback(None, previewState=self.typing)
-
 
 
 if __name__ == "__main__":

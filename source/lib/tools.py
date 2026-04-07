@@ -4,9 +4,12 @@ from AppKit import (
     NSCommandKeyMask,
     NSAlternateKeyMask,
     NSFunctionKeyMask,
+    NSAttributedString,
+    NSForegroundColorAttributeName
 )
 from mojo.roboFont import AllFonts
-
+import constants
+from ezui.tools.color import makeColor as RGBA2NS
 
 # ----------------------------------------------------------
 # Taken from DrawBot builtins, dont require import for these
@@ -56,6 +59,18 @@ def fontIsOpen(path: str) -> bool:
     if path in openPaths:
         isOpen = True
     return isOpen
+
+def getFontItemDotAttrStr(fontItem=None):
+    t = "static" if fontItem is None else fontItem.type
+    attrTxt = NSAttributedString.alloc().initWithString_attributes_(
+        "􀀁",
+        {
+            NSForegroundColorAttributeName: RGBA2NS(
+                constants.TYPE_COLOR_MAP.get(t, "static")
+            )
+        },
+    )
+    return attrTxt
 
 
 # @property

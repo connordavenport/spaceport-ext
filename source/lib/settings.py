@@ -2,6 +2,7 @@ import ezui  # ty:ignore[unresolved-import]
 from typing import Any
 import constants
 from mojo.events import postEvent  # ty:ignore[unresolved-import]
+from AppKit import NSColor
 
 class SpacePortSettingsController(ezui.WindowController):
     
@@ -9,14 +10,20 @@ class SpacePortSettingsController(ezui.WindowController):
 
         self.detached = False
         content = """
-         [ ] Blinking Cursor                                           @blinkingCursorButton                        ? Use Blinking Cursor
-         * HorizontalStack                                             @cursorStack                                 
+        [ ] Blinking Cursor                @blinkingCursorButton     ? Use Blinking Cursor
+        * HorizontalStack                   @cursorStack                                 
         > Cursor Color: 
-        > * ColorWell                                                  @cursorColorWell                             ? Cursor Color
-         [ ] Tinted Typing Background                                  @tintedBackgroundButton                      ? Use Tinted Background in Typing View
-         * HorizontalStack                                             @selectionStack
+        > * ColorWell                       @cursorColorWell          ? Cursor Color
+        -------
+         [ ] Tinted Typing Background       @tintedBackgroundButton   ? Use Tinted Background in Typing View
+        -------
+        * HorizontalStack                   @selectionStack
         > Selection Color: 
-        > * ColorWell                                                  @selectionColorWell                          ? Glyph Selection Color
+        > * ColorWell                       @selectionColorWell       ? Glyph Selection Color
+        -------
+        * HorizontalStack
+        > Top Padding:                         
+        > ---X--- [__](±)                   @paddingInputField        ? Top Padding Offset (Relative Scaler)
         """
 
         descriptionData = dict(
@@ -44,15 +51,28 @@ class SpacePortSettingsController(ezui.WindowController):
                 height=20,
                 width=80,
             ),
+            paddingInputField=dict(
+                sizeStyle="small",
+                valueType="integer",
+                minValue=1,
+                value=1,
+                maxValue=10,
+                # width=90,
+            ),
         )
 
         self.w = ezui.EZWindow(
-            # size=(100, 100),
+            size=(400, 100),
             title="Spaceport Settings",
             content=content,
             descriptionData=descriptionData,
             controller=self,
         )
+        ns = self.w.getItem("paddingInputField")._textField.getNSTextField()
+        ns.setBordered_(False)
+        ns.setBackgroundColor_(NSColor.clearColor())
+        ns.setFocusRingType_(1)
+        self.w.getNSWindow().setInitialFirstResponder_(self.w.getItem("cursorStack").getNSStackView())
 
 
     def started(self) -> None:
@@ -71,6 +91,8 @@ class SpacePortSettingsController(ezui.WindowController):
     def selectionColorWellCallback(self, sender: Any) -> None:
         postEvent(constants.EVENT_KEY, name="selectionColor", value=sender.get())
 
+    def paddingInputFieldCallback(self, sender: Any) -> None:
+        postEvent(constants.EVENT_KEY, name="paddingMultiplier", value=sender.get())
 
 
 if __name__ == "__main__":
