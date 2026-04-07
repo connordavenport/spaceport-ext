@@ -1,14 +1,14 @@
 import constants
 import ezui
-from typing import Any, Optional
+from typing import Any
 from mojo.UI import getDefault
 from lib.UI.spaceCenter.glyphSequenceEditText import splitText
 
-class GlyphFinderPalette(ezui.WindowController):
 
-    def build(self, parent:ezui.EZWindow, relative:Any) -> None:
+class GlyphFinderPalette(ezui.WindowController):
+    def build(self, parent: ezui.EZWindow, relative: Any) -> None:
         self.relative = relative
-        self.parent   = parent
+        self.parent = parent
         content = """
         [__]                               @glyphFinderTextField
         ( X Starts With X | Contains )     @matchingSegmentedButton
@@ -19,7 +19,10 @@ class GlyphFinderPalette(ezui.WindowController):
         footer = """
         (Insert)                           @insertGlyphButton         ? Insert Glyph into View
         """
-        self.glyphMap = {"CurrentGlyph":"/?", "CurrentSelection":"/!",}
+        self.glyphMap = {
+            "CurrentGlyph": "/?",
+            "CurrentSelection": "/!",
+        }
         glyphNames = list(self.glyphMap.keys())
         glyphNames.extend(self.relative.font.glyphOrder)
         data = dict(
@@ -35,8 +38,8 @@ class GlyphFinderPalette(ezui.WindowController):
                 alternatingRowColors=True,
                 width=200,
                 height=100,
-                items=glyphNames
-            )
+                items=glyphNames,
+            ),
         )
         self.w = ezui.EZPopUp(
             content=content,
@@ -44,7 +47,7 @@ class GlyphFinderPalette(ezui.WindowController):
             footer=footer,
             controller=self,
             descriptionData=data,
-            parentOffset=(-100, 0)
+            parentOffset=(-100, 0),
         )
 
         self.w.setDefaultButton(self.w.getItem("insertGlyphButton"))
@@ -52,8 +55,7 @@ class GlyphFinderPalette(ezui.WindowController):
         ns = self.w.getItem("glyphFinderTextField").getNSTextField()
         ns.setFocusRingType_(1)
 
-
-    def insertGlyphCallback(self, input:str) -> None:
+    def insertGlyphCallback(self, input: str) -> None:
         if input:
             returnedItem = input[0]
             if returnedItem in self.glyphMap.keys():
@@ -67,39 +69,37 @@ class GlyphFinderPalette(ezui.WindowController):
             self.relative.updateCharacterString()
             self.w.close()
 
-
-    def insertGlyphButtonCallback(self, sender:Any) -> None:
+    def insertGlyphButtonCallback(self, sender: Any) -> None:
         selected = self.w.getItem("glyphFinderTable").getSelectedItems()
         self.insertGlyphCallback(selected)
 
-
-    def glyphFinderTableDoubleClickCallback(self, sender:Any) -> None:
+    def glyphFinderTableDoubleClickCallback(self, sender: Any) -> None:
         selected = sender.getSelectedItems()
         self.insertGlyphCallback(selected)
 
-
-    def glyphFinderTextFieldCallback(self, sender:Any) -> None:
+    def glyphFinderTextFieldCallback(self, sender: Any) -> None:
         hit = sender.get()
         if self.w.getItemValue("matchingSegmentedButton") == 0:
-            accepts = sorted([g for g in self.relative.font.glyphOrder if g.startswith(hit)])
+            accepts = sorted(
+                [g for g in self.relative.font.glyphOrder if g.startswith(hit)]
+            )
         else:
             accepts = sorted([g for g in self.relative.font.glyphOrder if hit in g])
 
         accepts.extend(list(self.glyphMap.keys()))
         # accepts.extend(sorted([g for g in self.relative.font.glyphOrder if hit in g and g not in accepts]))
         self.w.getItem("glyphFinderTable").set(accepts)
-        if accepts: self.w.getItem("glyphFinderTable").setSelectedIndexes([0])
-
+        if accepts:
+            self.w.getItem("glyphFinderTable").setSelectedIndexes([0])
 
     def started(self) -> None:
         self.w.open()
 
 
 class HistoryPalette(ezui.WindowController):
-
-    def build(self, parent:ezui.EZWindow, relative:Any) -> None:
+    def build(self, parent: ezui.EZWindow, relative: Any) -> None:
         self.relative = relative
-        self.parent   = parent
+        self.parent = parent
         content = """
         |-----------------|                @historyTable   ? User SpaceCenter Input
         |                 |
@@ -115,7 +115,7 @@ class HistoryPalette(ezui.WindowController):
                 alternatingRowColors=True,
                 width=300,
                 height=100,
-                items=self.inputText
+                items=self.inputText,
             )
         )
         self.w = ezui.EZPopUp(
@@ -124,7 +124,7 @@ class HistoryPalette(ezui.WindowController):
             footer=footer,
             controller=self,
             descriptionData=data,
-            parentOffset=(-100, 0)
+            parentOffset=(-100, 0),
         )
 
         self.w.setDefaultButton(self.w.getItem("setInputButton"))
@@ -132,34 +132,31 @@ class HistoryPalette(ezui.WindowController):
             self.w.getNSWindow().makeKeyAndOrderFront_(None)
             self.w.getItem("historyTable").setSelectedIndexes([0])
 
-
-    def applyInputCallback(self, input:str) -> None:
+    def applyInputCallback(self, input: str) -> None:
         if input:
             returnedItem = input[0]
-            self.relative.holdingGlyphs = splitText(returnedItem, self.relative.font.getCharacterMapping())
+            self.relative.holdingGlyphs = splitText(
+                returnedItem, self.relative.font.getCharacterMapping()
+            )
             self.relative.typingIndex = len(returnedItem)
             self.relative.setTypingItem()
             self.relative.updateCharacterString()
             self.w.close()
 
-
-    def setInputButtonCallback(self, sender:Any) -> None:
+    def setInputButtonCallback(self, sender: Any) -> None:
         selected = self.w.getItem("historyTable").getSelectedItems()
         self.applyInputCallback(selected)
 
-
-    def historyTableDoubleClickCallback(self, sender:Any) -> None:
+    def historyTableDoubleClickCallback(self, sender: Any) -> None:
         selected = sender.getSelectedItems()
         self.applyInputCallback(selected)
-
 
     def started(self) -> None:
         self.w.open()
 
 
 class InterpolationWarningWindow(ezui.WindowController):
-
-    def build(self, parent:ezui.EZWindow, relative:Any) -> None:
+    def build(self, parent: ezui.EZWindow, relative: Any) -> None:
 
         self.relative = relative
 
@@ -172,9 +169,7 @@ class InterpolationWarningWindow(ezui.WindowController):
         """
 
         descriptionData = dict(
-            stack=dict(
-                distribution="fillEqually"
-            ),
+            stack=dict(distribution="fillEqually"),
             label=dict(
                 alignment="center",
             ),
@@ -186,19 +181,17 @@ class InterpolationWarningWindow(ezui.WindowController):
                     scale="large",
                 ),
             ),
-            openDesignspaceButton=dict(
-                width="fill"
-            ),
+            openDesignspaceButton=dict(width="fill"),
         )
         self.w = ezui.EZPopUp(
             size=(200, 150),
             descriptionData=descriptionData,
             content=content,
             parent=parent,
-            controller=self
+            controller=self,
         )
 
-    def openDesignspaceButtonCallback(self, sender:Any) -> None:
+    def openDesignspaceButtonCallback(self, sender: Any) -> None:
         window = self.relative.buildObjectsSheet()
         window.open()
 
