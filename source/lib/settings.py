@@ -9,16 +9,14 @@ class SpacePortSettingsController(ezui.WindowController):
 
         self.detached = False
         content = """
-        !!!! Spaceport Misc. Settings
-        * Box                                                           @cursorBox = VerticalStack
-        > [ ] Blinking Cursor                                           @blinkingCursorButton                        ? Use Blinking Cursor
-        > * HorizontalStack                                             @cursorStack                                 
-        >> Cursor Color: 
-        >> * ColorWell                                                  @cursorColorWell                             ? Cursor Color
-        > [ ] Tinted Typing Background                                  @tintedBackgroundButton                      ? Use Tinted Background in Typing View
-        > * HorizontalStack                                             @selectionStack
-        >> Selection Color: 
-        >> * ColorWell                                                  @selectionColorWell                          ? Glyph Selection Color
+         [ ] Blinking Cursor                                           @blinkingCursorButton                        ? Use Blinking Cursor
+         * HorizontalStack                                             @cursorStack                                 
+        > Cursor Color: 
+        > * ColorWell                                                  @cursorColorWell                             ? Cursor Color
+         [ ] Tinted Typing Background                                  @tintedBackgroundButton                      ? Use Tinted Background in Typing View
+         * HorizontalStack                                             @selectionStack
+        > Selection Color: 
+        > * ColorWell                                                  @selectionColorWell                          ? Glyph Selection Color
         """
 
         descriptionData = dict(
@@ -26,7 +24,7 @@ class SpacePortSettingsController(ezui.WindowController):
                 value=False
             ),
             tintedBackgroundButton=dict(
-                value=False,
+                value=True,
             ),
             cursorStack=dict(
                 distribution="fillEqually",
@@ -50,6 +48,7 @@ class SpacePortSettingsController(ezui.WindowController):
 
         self.w = ezui.EZWindow(
             # size=(100, 100),
+            title="Spaceport Settings",
             content=content,
             descriptionData=descriptionData,
             controller=self,
