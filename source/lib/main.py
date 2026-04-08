@@ -5,7 +5,7 @@
 import constants as defaults
 import windows
 import objects
-import tools
+import tools as utils
 
 from importlib import reload
 
@@ -73,7 +73,7 @@ from ufoProcessor.ufoOperator import UFOOperator
 reload(defaults)
 reload(windows)
 reload(objects)
-reload(tools)
+reload(utils)
 
 class Spaceport(Subscriber, ezui.WindowController):
     debug = True
@@ -1005,7 +1005,7 @@ class Spaceport(Subscriber, ezui.WindowController):
             fontTable=dict(
                 height=200,
                 items=[
-                    dict(use=fi.use, type=tools.getFontItemDotAttrStr(fi), path=fi.path)
+                    dict(use=fi.use, type=utils.getFontItemDotAttrStr(fi), path=fi.path)
                     for fi in list(self.fonts.values())
                 ],
                 itemType="dict",
@@ -1103,7 +1103,7 @@ class Spaceport(Subscriber, ezui.WindowController):
             for fi in list(self.fonts.values())
         }
         self.w.objw.getItem("fontTable").set(
-            dict(use=fi.use, type=tools.getFontItemDotAttrStr(fi), path=fi.path)
+            dict(use=fi.use, type=utils.getFontItemDotAttrStr(fi), path=fi.path)
             for fi in list(self.fonts.values())
         )
         self.populate()
@@ -1114,7 +1114,7 @@ class Spaceport(Subscriber, ezui.WindowController):
         if files:
             for file in files:
                 item = table.makeItem(
-                    use=True, type=tools.getFontItemDotAttrStr(), path=file
+                    use=True, type=utils.getFontItemDotAttrStr(), path=file
                 )
                 table.appendItems([item])
                 obj = OpenFont(file, True)
@@ -1314,7 +1314,7 @@ class Spaceport(Subscriber, ezui.WindowController):
             self.w.objw.getItem("fontTable").set(
                 dict(
                     use=fontItem.use,
-                    type=tools.getFontItemDotAttrStr(fontItem),
+                    type=utils.getFontItemDotAttrStr(fontItem),
                     path=fontItem.path,
                 )
                 for fontItem in list(self.fonts.values())
@@ -1422,7 +1422,7 @@ class Spaceport(Subscriber, ezui.WindowController):
         if recentSender:
             newIndex = recentSender[0]
             newItem = sortKeys[newIndex]
-            if tools.shift():
+            if utils.shift():
                 holding = getattr(self, f"{newItem}Sort")
                 setattr(self, f"{newItem}Sort", -holding)
 
@@ -1447,7 +1447,7 @@ class Spaceport(Subscriber, ezui.WindowController):
 
         self.fonts = orderedDict
         self.w.objw.getItem("fontTable").set(
-            dict(use=item.use, type=tools.getFontItemDotAttrStr(item), path=item.path)
+            dict(use=item.use, type=utils.getFontItemDotAttrStr(item), path=item.path)
             for (path, item) in self.fonts.items()
         )
         self.populate()
@@ -1474,7 +1474,7 @@ class Spaceport(Subscriber, ezui.WindowController):
             self.fonts[path] = fontItem
             item = dict(
                 use=fontItem.use,
-                type=tools.getFontItemDotAttrStr(fontItem),
+                type=utils.getFontItemDotAttrStr(fontItem),
                 path=path,
             )
             fonts.append(item)
@@ -2777,7 +2777,7 @@ class Spaceport(Subscriber, ezui.WindowController):
 
                         else:
                             # if the UI is open, we can allow editing
-                            if not tools.fontIsOpen(font.path):
+                            if not utils.fontIsOpen(font.path):
                                 onDisk = False
 
                             if glyph in font.keys():
@@ -2901,7 +2901,7 @@ class Spaceport(Subscriber, ezui.WindowController):
 
                         else:
                             # if the UI is open, we can allow editing
-                            if not tools.fontIsOpen(font.path):
+                            if not utils.fontIsOpen(font.path):
                                 onDisk = False
 
                             if glyph in font.keys():
@@ -3077,6 +3077,10 @@ class Spaceport(Subscriber, ezui.WindowController):
                         if font.info.familyName == defaults.PREVIEW:
                             nextItemLeft -= item.offset
 
+                        _kern = 0
+                        if self.useKerning:
+                            _kern = font.kerning.find((glyph.name, nextItem.name), 0)
+                                
                         if not isEmpty:
                             beamIndicatorLayer.appendLineSublayer(
                                 startPoint=(
@@ -3084,7 +3088,7 @@ class Spaceport(Subscriber, ezui.WindowController):
                                     self.beamPosition,
                                 ),
                                 endPoint=(
-                                    (glyph.width + nextItemLeft) + transformed,
+                                    ((glyph.width + nextItemLeft) + _kern) + transformed,
                                     self.beamPosition,
                                 ),
                                 strokeColor=(1, 0.2, 0, 1),
@@ -3096,7 +3100,7 @@ class Spaceport(Subscriber, ezui.WindowController):
                                     .getSublayer("beamIndicator")
                                     .appendTextLineSublayer(
                                         name="beamIndicatorLayerText",
-                                        text=str(round(right + nextItemLeft)),
+                                        text=str(round(right + nextItemLeft + _kern)),
                                         font="system",  # -monospaced
                                         position=(glyph.width, self.beamPosition),
                                         fillColor=(1, 0.2, 0, 1),
@@ -3394,7 +3398,7 @@ class Spaceport(Subscriber, ezui.WindowController):
                         elif event["modifiers"] == ["option"]:
                             multiFontSelect = True
 
-                        if tools.shift():
+                        if utils.shift():
                             # print("shift down, append")
                             self.selectedItems.append(hit)
                         else:
@@ -3583,11 +3587,11 @@ class Spaceport(Subscriber, ezui.WindowController):
         ny = y = location.get(self.yAxis, 150)
         desc = [a for a in self.operator.axes if a.name == self.xAxis][0]
         minimum, default, maximum = self.operator.getAxisExtremes(desc)
-        nx = tools.remap(x, minimum, maximum, buffer, 300 - buffer, True)
+        nx = utils.remap(x, minimum, maximum, buffer, 300 - buffer, True)
         if self.yAxis:
             desc = [a for a in self.operator.axes if a.name == self.yAxis][0]
             minimum, default, maximum = self.operator.getAxisExtremes(desc)
-            ny = tools.remap(y, minimum, maximum, buffer, 300 - buffer, True)
+            ny = utils.remap(y, minimum, maximum, buffer, 300 - buffer, True)
         return (nx, ny)
 
     def _convertViewPositionToDesignspaceLocation(self, position: tuple[float, float]):
@@ -3596,12 +3600,12 @@ class Spaceport(Subscriber, ezui.WindowController):
         location = self.currentLocation
         desc = [a for a in self.operator.axes if a.name == self.xAxis][0]
         minimum, default, maximum = self.operator.getAxisExtremes(desc)
-        nx = tools.remap(x, buffer, 300 - buffer, minimum, maximum, True)
+        nx = utils.remap(x, buffer, 300 - buffer, minimum, maximum, True)
         location[self.xAxis] = nx
         if self.yAxis:
             desc = [a for a in self.operator.axes if a.name == self.yAxis][0]
             minimum, default, maximum = self.operator.getAxisExtremes(desc)
-            ny = tools.remap(y, buffer, 300 - buffer, minimum, maximum, True)
+            ny = utils.remap(y, buffer, 300 - buffer, minimum, maximum, True)
             location[self.yAxis] = ny
 
         self.previewLocation = location
@@ -3636,7 +3640,7 @@ class Spaceport(Subscriber, ezui.WindowController):
                 text = []
 
         # if "command" in mods:
-        if tools.command():
+        if utils.command():
             if char.lower() == "t":
                 self.toggleTypingState()
                 return
@@ -3655,7 +3659,7 @@ class Spaceport(Subscriber, ezui.WindowController):
                 else False
             )
 
-            if tools.command():
+            if utils.command():
                 if char == "left":
                     for idx, i in enumerate(selected):
                         pr = self.getPreviousItemInView(i)
@@ -3801,7 +3805,7 @@ class Spaceport(Subscriber, ezui.WindowController):
 
                 else:
                     # allow for undoing
-                    if tools.command():
+                    if utils.command():
                         if char.lower() == "z":
                             for toUndo in self.selectedItems:
                                 glyph = toUndo.glyph
@@ -3814,11 +3818,11 @@ class Spaceport(Subscriber, ezui.WindowController):
                         elif char == "=":
                             # zoom in
                             self.zoomCoalescerManager()
-                            self.zoom(direction="in", option=tools.option())
+                            self.zoom(direction="in", option=utils.option())
                         elif char == "-":
                             # zoom out
                             self.zoomCoalescerManager()
-                            self.zoom(direction="out", option=tools.option())
+                            self.zoom(direction="out", option=utils.option())
 
                     if mods == []:
                         if char.lower() == "b":
@@ -3868,7 +3872,7 @@ class Spaceport(Subscriber, ezui.WindowController):
 
                 if rawEvent.keyCode() == 51:
                     deleting = True
-                    if tools.command():
+                    if utils.command():
                         self.typingIndex = 0
                         text = []
                     else:
@@ -3886,7 +3890,7 @@ class Spaceport(Subscriber, ezui.WindowController):
                             """
                             text = self.deleteSelectedIndexes(selectedIdxs, text)
 
-                if tools.command():
+                if utils.command():
                     if char.lower() == "a":
                         for ii in self.collectionView.get():
                             ii.selected = False
@@ -3932,14 +3936,14 @@ class Spaceport(Subscriber, ezui.WindowController):
 
                 if char in directions:
                     if char == "left":
-                        if tools.command():
+                        if utils.command():
                             self.typingIndex = 0
                         else:
                             if self.typingIndex > 0:
                                 self.typingIndex -= 1
 
                     elif char == "right":
-                        if tools.command():
+                        if utils.command():
                             self.typingIndex = len(text)
                         else:
                             if self.typingIndex < len(text):
@@ -4058,7 +4062,6 @@ class Spaceport(Subscriber, ezui.WindowController):
                     self.typingIndex = len(self.holdingGlyphs) - 1
                 self.setTypingItem()
 
-            # self.viewSettingsWindow.getItem("useKerningButton").set(self.kerning)
             self.w.getItem("useKerningButton").enable(not self.kerning)
 
             self.w.getItem("modeButton").set(defaults.ALL_MODES.index(mode))
@@ -4070,6 +4073,9 @@ class Spaceport(Subscriber, ezui.WindowController):
 
             for side in "leading trailing".split(" "):
                 self.w.getItem(f"{side}TextField").enable(not self.kerning)
+
+            for __ in self.collectionView.get():
+                __.selected = False
 
             self.w.getItem("sortingButton").enable(enableSorting)
 
@@ -4216,7 +4222,7 @@ class Spaceport(Subscriber, ezui.WindowController):
                 }
         try:
             self.w.objw.getItem("fontTable").set(
-                dict(use=fi.use, type=tools.getFontItemDotAttrStr(fi), path=fi.path)
+                dict(use=fi.use, type=utils.getFontItemDotAttrStr(fi), path=fi.path)
                 for fi in list(self.fonts.values())
             )
         except AttributeError:

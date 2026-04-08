@@ -3,11 +3,15 @@ developer: Connor Davenport & Vincent Chan
 developerURL: https://programme.tools https://matterofsorts.com
 launchAtStartUp: false
 mainScript: ''
-version: '0.532'
+version: '0.533'
 addToMenu:
 - path: main.py
   preferredName: Spaceport
   shortKey: ''
+- path: settings.py
+  preferredName: Settings
+  shortKey: ''
+# - path: 
 html: false
 requiresVersionMajor: '4'
 requiresVersionMinor: '2'
