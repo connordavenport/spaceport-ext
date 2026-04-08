@@ -2030,6 +2030,13 @@ class Spaceport(Subscriber, ezui.WindowController):
             self.useKerning = True
         else:
             self.useKerning = not self.useKerning
+
+        _color = (0,0,0,0) if not self.useKerning else (*defaults.SYSTEM_BLUE[:3], .3)
+
+        _obj = self.w.getItem("useKerningButton")._button.getNSButton()
+        _obj.setBackgroundColor_(RGBA2NS(_color))
+        _obj.setCornerRadius_(3)
+        
         # self.displaySettingsButtonCallback(None)
         self.useKerningSender = True
         self.populate()
@@ -4262,11 +4269,12 @@ class Spaceport(Subscriber, ezui.WindowController):
         updateNext: bool = False,
     ) -> None:
         items = self.collectionView.get()
+
         for item in items:
             if adjunct is not None:
                 adjunctType = type(adjunct.naked()).__name__.split("Doodle")[-1].lower()
                 typeCheck = getattr(item, adjunctType)
-                ad = typeCheck.naked() if isinstance(typeCheck, RFont) else typeCheck
+                ad = typeCheck.naked() if isinstance(typeCheck, (RFont, RGlyph)) else typeCheck
                 if ad == adjunct.naked():
                     self.updateItem(item)
                 # update previous glyph item's metrics too

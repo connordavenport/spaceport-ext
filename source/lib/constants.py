@@ -110,6 +110,9 @@ TYPING_CURSOR: NSImage = CreateCursor(
 ARROW_CURSOR: NSImage = NSCursor.arrowCursor()
 KERNING_CURSOR: NSImage = NSCursor.resizeLeftRightCursor()
 
+# AppKit.NSColor.systemBlueColor() --> RGBA
+SYSTEM_BLUE: tuple[float, float, float, float] = (0.055963389575481415, 0.47744816541671753, 0.9984441995620728, 1.0)
+
 CURSOR_COLOR: tuple[float, float, float, float] = (1.0, 0.0, 0.0, 1.0)
 SELECTION_COLOR: tuple[float, float, float, float] = (0.0, 0.0, 0.0, 0.1)
 
