@@ -1,17 +1,27 @@
 import ezui  # ty:ignore[unresolved-import]
 from typing import Any
-import constants
+import constants as defaults
 from mojo.events import postEvent  # ty:ignore[unresolved-import]
 from mojo.extensions import getExtensionDefault, setExtensionDefault  # noqa: F401  # ty:ignore[unresolved-import]
 from AppKit import NSColor
 
 class SpacePortSettingsController(ezui.WindowController):
     
+    def loadDefaults(self) -> None:
+
+        self.tintedBackground: bool = getExtensionDefault( defaults.EXTENSION_KEY + ".tintedBackground", defaults.TINTED_BACKGROUND)
+        self.cursorBlinking: bool = getExtensionDefault( defaults.EXTENSION_KEY + ".cursorBlinking", defaults.CURSOR_BLINKING)
+        self.cursorColor: tuple[float, float, float, float] = getExtensionDefault( defaults.EXTENSION_KEY + ".cursorColor", defaults.CURSOR_COLOR)
+        self.selectionColor: tuple[float, float, float, float] = getExtensionDefault( defaults.EXTENSION_KEY + ".selectionColor", defaults.CURSOR_COLOR)
+        self.paddingMultiplier: float = getExtensionDefault( defaults.EXTENSION_KEY + ".paddingMultiplier", defaults.PADDING_MULTIPLIER)
+
+
     def build(self) -> None:
 
-        self.detached = False
+        self.loadDefaults()
+
         content = """
-        [ ] Blinking Cursor                @blinkingCursorButton     ? Use Blinking Cursor
+        [ ] Blinking Cursor                 @cursorBlinkingButton     ? Use Blinking Cursor
         * HorizontalStack                   @cursorStack                                 
         > Cursor Color: 
         > * ColorWell                       @cursorColorWell          ? Cursor Color
@@ -28,13 +38,7 @@ class SpacePortSettingsController(ezui.WindowController):
         """
 
         descriptionData = dict(
-            blinkingCursorButton=dict(
-                value=False
-            ),
-            tintedBackgroundButton=dict(
-                value=True,
-            ),
-            cursorStack=dict(
+           cursorStack=dict(
                 distribution="fillEqually",
                 alignment="leading",
             ),
@@ -42,13 +46,19 @@ class SpacePortSettingsController(ezui.WindowController):
                 distribution="fillEqually",
                 alignment="leading",
             ),
+            cursorBlinkingButton=dict(
+                value=self.cursorBlinking
+            ),
+            tintedBackgroundButton=dict(
+                value=self.tintedBackground,
+            ),
             cursorColorWell=dict(
-                color=constants.CURSOR_COLOR,
+                color=self.cursorColor,
                 height=20,
                 width=80,
             ),
             selectionColorWell=dict(
-                color=constants.SELECTION_COLOR,
+                color=self.selectionColor,
                 height=20,
                 width=80,
             ),
@@ -56,7 +66,7 @@ class SpacePortSettingsController(ezui.WindowController):
                 sizeStyle="small",
                 valueType="integer",
                 minValue=1,
-                value=1,
+                value=self.paddingMultiplier,
                 maxValue=10,
                 # width=90,
             ),
@@ -64,7 +74,7 @@ class SpacePortSettingsController(ezui.WindowController):
 
         self.w = ezui.EZWindow(
             size=(400, 100),
-            title=f"{constants.EXTENSION_NAME} Settings",
+            title=f"{defaults.EXTENSION_NAME} Settings",
             content=content,
             descriptionData=descriptionData,
             controller=self,
@@ -81,19 +91,19 @@ class SpacePortSettingsController(ezui.WindowController):
         
 
     def tintedBackgroundButtonCallback(self, sender: Any) -> None:
-        postEvent(constants.EVENT_KEY, name="tintedBackground", value=sender.get())
+        postEvent(defaults.EVENT_KEY, name="tintedBackground", value=sender.get())
 
-    def blinkingCursorButtonCallback(self, sender: Any) -> None:
-        postEvent(constants.EVENT_KEY, name="cursorBlinking", value=sender.get())
+    def cursorBlinkingButtonCallback(self, sender: Any) -> None:
+        postEvent(defaults.EVENT_KEY, name="cursorBlinking", value=sender.get())
 
     def cursorColorWellCallback(self, sender: Any) -> None:
-        postEvent(constants.EVENT_KEY, name="cursorColor", value=sender.get())
+        postEvent(defaults.EVENT_KEY, name="cursorColor", value=sender.get())
 
     def selectionColorWellCallback(self, sender: Any) -> None:
-        postEvent(constants.EVENT_KEY, name="selectionColor", value=sender.get())
+        postEvent(defaults.EVENT_KEY, name="selectionColor", value=sender.get())
 
     def paddingInputFieldCallback(self, sender: Any) -> None:
-        postEvent(constants.EVENT_KEY, name="paddingMultiplier", value=sender.get())
+        postEvent(defaults.EVENT_KEY, name="paddingMultiplier", value=sender.get())
 
 
 if __name__ == "__main__":

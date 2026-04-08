@@ -1,4 +1,4 @@
-import constants
+import constants as defaults
 import ezui
 from typing import Any
 from mojo.UI import getDefault

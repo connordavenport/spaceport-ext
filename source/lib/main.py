@@ -4279,13 +4279,13 @@ class Spaceport(Subscriber, ezui.WindowController):
         if data:
             name = data["name"]
             value = data["value"]
+            print(name, value)
             setattr(self, name, value)
             if hasattr(objects.MerzCollectionViewRGlyphItem, name):
                 for item in self.collectionView.get():
                     setattr(item, name, value)
-            else:
-                # we know that this will be a settings callback
-                self.controlsStackCallback(None)
+
+        self.controlsStackCallback(None)
         self.displaySettingsButtonCallback(None, previewState=self.typing)
 
 

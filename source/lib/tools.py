@@ -8,7 +8,7 @@ from AppKit import (
     NSForegroundColorAttributeName
 )
 from mojo.roboFont import AllFonts
-import constants
+import constants as defaults
 from ezui.tools.color import makeColor as RGBA2NS
 
 # ----------------------------------------------------------
@@ -66,7 +66,7 @@ def getFontItemDotAttrStr(fontItem=None):
         "􀀁",
         {
             NSForegroundColorAttributeName: RGBA2NS(
-                constants.TYPE_COLOR_MAP.get(t, "static")
+                defaults.TYPE_COLOR_MAP.get(t, "static")
             )
         },
     )

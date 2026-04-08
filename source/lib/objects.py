@@ -1,5 +1,5 @@
 from inspect import Attribute
-import constants
+import constants as defaults
 import ezui
 from ezui.errors import EZUIError
 import merz
@@ -45,7 +45,7 @@ class FeatureButtonClass(ezui.items.pushButton.PushButton):
         )
 
         self._state = state
-        if tag not in constants.FEATURE_TAGS:
+        if tag not in defaults.FEATURE_TAGS:
             if len(tag) <= 4:
                 tag = f"{tag:+<4}".upper()
             elif len(tag) > 4:
@@ -135,10 +135,10 @@ class MerzCollectionViewRGlyphItem(merz.collectionView.MerzCollectionViewItem):
         self._isInterpolated: bool = False
 
         self._selectionColor: tuple[float] = kwargs.get(
-            "selectionColor", constants.SELECTION_COLOR
+            "selectionColor", defaults.SELECTION_COLOR
         )
         self._cursorColor: tuple[float] = kwargs.get(
-            "cursorColor", constants.CURSOR_COLOR
+            "cursorColor", defaults.CURSOR_COLOR
         )
         self._cursorBlinking: bool = kwargs.get("cursorBlinking", False)
 
@@ -246,14 +246,14 @@ class MerzCollectionViewRGlyphItem(merz.collectionView.MerzCollectionViewItem):
 
     cursorColor = property(getCursorColor, setCursorColor)
 
-    def getBlinkingCursor(self) -> bool:
+    def getCursorBlinking(self) -> bool:
         return self._cursorBlinking
 
-    def setBlinkingCursor(self, value: bool = False) -> None:
+    def setCursorBlinking(self, value: bool = False) -> None:
         self._cursorBlinking = value
         self.typing = self._isTyping  # we need to reset typing to change color in view
 
-    cursorBlinking = property(getBlinkingCursor, setBlinkingCursor)
+    cursorBlinking = property(getCursorBlinking, setCursorBlinking)
 
     def getTypingItem(self) -> bool:
         return self._isTyping
@@ -308,7 +308,7 @@ class MerzCollectionViewRGlyphItem(merz.collectionView.MerzCollectionViewItem):
     onDisk = property(getOnDisk, setOnDisk)
 
     def getIsInterpolated(self) -> bool:
-        if self._font.lib.get(constants.EXTENSION_KEY + ".descriptor") == "instance":
+        if self._font.lib.get(defaults.EXTENSION_KEY + ".descriptor") == "instance":
             return True
         else:
             return False
@@ -370,7 +370,7 @@ class FontItem(object):
         self.reloadFeatures()
 
     def reloadFeatures(self):
-        if self._path != constants.PREVIEW:
+        if self._path != defaults.PREVIEW:
             try:
                 self._featureFont = featurePreview.FeatureFont(self._font)
                 self._gsub = self._featureFont.gsub.getFeatureList()
