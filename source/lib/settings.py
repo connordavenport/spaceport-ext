@@ -94,7 +94,7 @@ class SpacePortSettingsController(ezui.WindowController):
         postEvent(defaults.EVENT_KEY, name="tintedBackground", value=sender.get())
 
     def cursorBlinkingButtonCallback(self, sender: Any) -> None:
-        postEvent(defaults.EVENT_KEY, name="cursorBlinking", value=sender.get())
+        postEvent(defaults.EVENT_KEY, name="cursorBlinking", value=bool(sender.get()))
 
     def cursorColorWellCallback(self, sender: Any) -> None:
         postEvent(defaults.EVENT_KEY, name="cursorColor", value=sender.get())

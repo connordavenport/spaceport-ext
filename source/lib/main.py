@@ -1329,6 +1329,8 @@ class Spaceport(Subscriber, ezui.WindowController):
         obj = self.designspaces[path][-1]
         self.operator = obj
         self.sources = obj.getFonts()
+        self.x = self.y = 0.0
+        self.xAxis = self.yAxis = None
         self.instances = obj.instances
         view = [item["use"] for item in sender.get() if item["path"] == path][0]
 
@@ -1496,19 +1498,6 @@ class Spaceport(Subscriber, ezui.WindowController):
                 del self.fonts[ir]
             sender.removeSelection()
 
-    def addDesignspaceCallback(self, sender: Any) -> None:
-        # deprecated
-        window = self.buildObjectsSheet()
-        window.open()
-
-    def spacingCallback(self, sender: Any) -> None:
-        # deprecated
-        pass
-
-    def kerningCallback(self, sender: Any) -> None:
-        # deprecated
-        pass
-
     def opentypeButtonCallback(self, sender: Any) -> None:
         self.buildFeaturePopover()
 
@@ -1539,8 +1528,16 @@ class Spaceport(Subscriber, ezui.WindowController):
                     > {axisDescriptor.name}:
                     > ( ...)    @{axisDescriptor.name}
                     """
+                    discreteValues = [str(value) for value in axisDescriptor.values]
+                    try:
+                        current = str(float(self.currentLocation.get(axisDescriptor.name, 0)))
+                        value = discreteValues.index(current)
+                    except AttributeError:
+                        value = 0
+                    # print(discreteValues, value)
                     descriptionData[axisDescriptor.name] = dict(
-                        items=[str(value) for value in axisDescriptor.values],
+                        items=discreteValues,
+                        selected=value
                     )
                 else:
                     interpolatable.append(axisDescriptor.name)
@@ -1573,12 +1570,22 @@ class Spaceport(Subscriber, ezui.WindowController):
                 symbolConfiguration=dict(scale="large", weight="thin"),
             )
             for i, a in enumerate(axes):
+
+                if a == "x":
+                    if self.xAxis is not None:
+                        i = interpolatable.index(self.xAxis)
+                    else:
+                        self.xAxis = interpolatable[i]
+                elif a == "y":
+                    if self.yAxis is not None:
+                        i = interpolatable.index(self.yAxis)
+                    else:
+                        self.yAxis = interpolatable[i]
+
                 idd = f"{a}AxisSelection"
                 descriptionData[idd] = dict(items=interpolatable, selected=i)
-                if a == "x":
-                    self.xAxis = interpolatable[i]
-                elif a == "y":
-                    self.yAxis = interpolatable[i]
+
+
 
             descriptionData["axisSelectors"] = dict(distribution="fillEqually")
 
@@ -1598,8 +1605,17 @@ class Spaceport(Subscriber, ezui.WindowController):
                     nsButton.setBezelStyle_(AppKit.NSInlineBezelStyle)
 
             self.interpolationWindow.open()
-            view = self.interpolationWindow.getItem("designspaceNav")
-            self._placeSourcesInstancesInView(view.getMerzContainer(), self.operator)
+            container = self.interpolationWindow.getItem("designspaceNav").getMerzContainer()
+            self._placeSourcesInstancesInView(container, self.operator)
+            if self.x != 0 and self.y != 0:
+                container.appendOvalSublayer(
+                    position=(self.x, self.y),
+                    size=(10, 10),
+                    anchor=(0.5, 0.5),
+                    fillColor=(*defaults.INTERPO_COLOR[:3], .6),
+                    strokeColor=defaults.INTERPO_COLOR,
+                    strokeWidth=1,
+                )
 
         else:
             windows.InterpolationWarningWindow(self.w, self)
@@ -4101,7 +4117,6 @@ class Spaceport(Subscriber, ezui.WindowController):
                 self.populate()
 
     designspaceEditorPreviewLocationDidChangeDelay = 0.01
-
     def designspaceEditorPreviewLocationDidChange(self, notification) -> None:
         if self.designspaceController or self.internalPreview:
             selectedFonts = list(
@@ -4279,7 +4294,6 @@ class Spaceport(Subscriber, ezui.WindowController):
         if data:
             name = data["name"]
             value = data["value"]
-            print(name, value)
             setattr(self, name, value)
             if hasattr(objects.MerzCollectionViewRGlyphItem, name):
                 for item in self.collectionView.get():
