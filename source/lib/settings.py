@@ -2,6 +2,7 @@ import ezui  # ty:ignore[unresolved-import]
 from typing import Any
 import constants
 from mojo.events import postEvent  # ty:ignore[unresolved-import]
+from mojo.extensions import getExtensionDefault, setExtensionDefault  # noqa: F401  # ty:ignore[unresolved-import]
 from AppKit import NSColor
 
 class SpacePortSettingsController(ezui.WindowController):
@@ -63,7 +64,7 @@ class SpacePortSettingsController(ezui.WindowController):
 
         self.w = ezui.EZWindow(
             size=(400, 100),
-            title="Spaceport Settings",
+            title=f"{constants.EXTENSION_NAME} Settings",
             content=content,
             descriptionData=descriptionData,
             controller=self,

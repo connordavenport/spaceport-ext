@@ -11,6 +11,9 @@ versioning
 adds alpha to anything less than 0.1.0
 adds beta to anything less than 1.0.0
 """
+EXTENSION_NAME = "Spaceport"
+
+WORKSPACE_WINDOW_IDENTIFIER = f"{EXTENSION_NAME} Window"
 
 MACOS_VERSION: str = platform.mac_ver()[0]
 if MACOS_VERSION.count(".") > 1:
@@ -46,8 +49,15 @@ if int(major) < 1:
 BASE_DIR: str = os.path.dirname(__file__)
 RESOURCES_PATH: str = os.path.abspath(os.path.join(BASE_DIR, "../", "resources"))
 
-EXTENSION_KEY: str = "com.connordavenport.spaceport"
-EVENT_KEY: str = "com.connordavenport.spaceport.event.settingsChanged"
+
+KEY_PREFIX: str = "tools.programme"
+EXTENSION_KEY: str = f"{KEY_PREFIX}.{EXTENSION_NAME.lower()}"
+EVENT_KEY: str = f"{KEY_PREFIX}.{EXTENSION_NAME.lower()}.event.settingsChanged"
+
+PLACEHOLDER_TEXT: list[str] = [i for i in EXTENSION_NAME]
+
+TINTED_BACKGROUND: bool = True
+CURSOR_BLINKING: bool = False
 
 CURRENTGLYPH_CHAR: str = "/?"
 SELECTEDGLYPHS_CHAR: str = "/!"
@@ -64,6 +74,7 @@ BEAM: str = "ruler"
 KERN_HEIGHT: int = 100
 BUFFER: int = 75
 DESIGNSPACE_WIDTH: int = 300
+PADDING_MULTIPLIER: float = 1.0
 
 POS_KERN_COLOR: tuple[float, float, float] = (0.0, 0.0, 1.0)
 NEG_KERN_COLOR: tuple[float, float, float] = (1.0, 0.0, 0.0)
