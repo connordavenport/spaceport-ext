@@ -4262,8 +4262,10 @@ class Spaceport(Subscriber, ezui.WindowController):
         selectedMatrixItem = self.w.matrix._inputView.getSelected() or RGlyph()
         if info["glyph"].name != selectedMatrixItem.name:
             self.w.matrix._glyphChanged(info)
-        self.reloadAdjunctItems(adjunct=info["glyph"])
-
+        self.reloadAdjunctItems(
+            adjunct=info["glyph"], updatePrevious=True, updateNext=True
+        )
+        
     def reloadOperatorSources(self) -> None:
         if self.operator:
             self.operator.updateFonts([f.font for f in self.fonts.values()])
