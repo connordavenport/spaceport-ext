@@ -646,15 +646,19 @@ class Spaceport(Subscriber, ezui.WindowController):
         > * HorizontalStack
         >> ({arrow.trianglehead.swap})                                  @moveSpaceMatrixButton                       ? Move Space Matrix Position
         >> Matrix Position
-        > Beam:
-        > * HorizontalStack
-        >> [X]                                                          @showBeamButton                              ? Show Beam
-        >> --X------                                                    @beamPositionSlider                          ? Beam Vertical Position
+
+        > [X] Beam                                                      @showBeamButton                              ? Show Beam
+        # >> --X------                                                  @beamPositionSlider                          ? Beam Vertical Position
         * Box                                                           @colorsBox = VerticalStack
         > ( 􀅈 Invert Colors )                                          @invertColorsButton                          ? Invert Display Colors
         > Glyph Drawing Options:
         > (( Fill | Stroke ))                                           @displaySettingsButton                       ? Glyph Display Options
         
+        * Box                                                           @paddingBox = VerticalStack
+        > * HorizontalStack
+        >> Top Padding:                         
+        >> ---X--- [__](±)                                              @paddingInputField                           ? Top Padding Offset (Relative Scaler)
+
         * Box                                                           @textLayoutBox = VerticalStack
         > Text Formatting:
         > ( {characters.lowercase} | {textformat.characters} | {characters.uppercase} | None ) @textFormattingButton ? Text Case Formatting
@@ -686,6 +690,14 @@ class Spaceport(Subscriber, ezui.WindowController):
                 height=20,
                 width=13,
             ),
+            paddingInputField=dict(
+                sizeStyle="small",
+                valueType="integer",
+                minValue=1,
+                value=self.paddingMultiplier,
+                maxValue=10,
+                # width=90,
+            ),
         )
 
         self.glyphMap = {}
@@ -699,6 +711,12 @@ class Spaceport(Subscriber, ezui.WindowController):
             # parentAlignment="right",
             controller=self,
         )
+        ns_text = self.viewSettingsWindow.getItem("paddingInputField")._textField.getNSTextField()
+        ns_text.setBordered_(False)
+        ns_text.setBackgroundColor_(AppKit.NSColor.clearColor())
+        ns_text.setFocusRingType_(1)
+        #self.viewSettingsWindow.getNSWindow().setInitialFirstResponder_(self.w.getItem("matrixBox").getNSStackView())
+        
         # disable while we work on the functions
         self.viewSettingsWindow.getItem("showControlGlyphsButton").enable(False)
         self.viewSettingsWindow.getItem("showSpaceMatrixButton").enable(not self.typing)
@@ -853,6 +871,11 @@ class Spaceport(Subscriber, ezui.WindowController):
         self.viewInstances = 1 in sender.get()
         self.designspaceController = 2 in sender.get()
         self.designspaceSettingsChanged()
+
+    def paddingInputFieldCallback(self, sender: Any) -> None:
+        self.paddingMultiplier = sender.get()
+        self.controlsStackCallback(None)
+        self.displaySettingsButtonCallback(None, previewState=self.typing)
 
     def vertAlignmentSegmentButtonCallback(self, sender: Any) -> None:
         m = "top center bottom".split(" ")
@@ -1265,45 +1288,52 @@ class Spaceport(Subscriber, ezui.WindowController):
 
                 if self.viewInstances:
                     for instance in instances:
-                        inst = internalFontClasses.createFontObject()
-                        inst.lib[defaults.EXTENSION_KEY + ".descriptor"] = "instance"
-                        inst.lib[defaults.EXTENSION_KEY + ".location"] = dict(
-                            instance.designLocation
-                        )
-                        obj.makeOneInfo(instance.designLocation).extractInfo(inst.info)
-                        inst.info.familyName = instance.familyName
-                        inst.info.styleName = instance.styleName
+                        if not instance.userLocation:
 
-                        libMutator = obj.getLibEntryMutator(
-                            obj.getLocationType(instance.designLocation)[2]
-                        )
-                        if libMutator:
-                            lib = libMutator.makeInstance(instance.designLocation)
-                            inst.lib["com.typemytype.robofont.italicSlantOffset"] = (
-                                lib.get("com.typemytype.robofont.italicSlantOffset", 0)
+                            locHorizontal = locVertical = instance.designLocation
+
+                            if self.operator.isAnisotropic(instance.designLocation):
+                                locHorizontal, locVertical = self.operator.splitAnisotropic(instance.designLocation)
+
+                            inst = internalFontClasses.createFontObject()
+                            inst.lib[defaults.EXTENSION_KEY + ".descriptor"] = "instance"
+                            inst.lib[defaults.EXTENSION_KEY + ".location"] = dict(
+                                instance.designLocation
+                            )
+                            obj.makeOneInfo(instance.designLocation).extractInfo(inst.info)
+                            inst.info.familyName = instance.familyName
+                            inst.info.styleName = instance.styleName
+
+                            libMutator = obj.getLibEntryMutator(
+                                obj.getLocationType(instance.designLocation)[2]
+                            )
+                            if libMutator:
+                                lib = libMutator.makeInstance(locHorizontal)
+                                inst.lib["com.typemytype.robofont.italicSlantOffset"] = (
+                                    lib.get("com.typemytype.robofont.italicSlantOffset", 0)
+                                )
+
+                            # interpolate instance kerning
+                            mathKerning = obj.makeOneKerning(dict(instance.designLocation))
+                            mathKerning.round()
+                            mathKerning.extractKerning(inst)
+
+                            # inst.kerning = mathKerning
+
+                            fi = objects.FontItem(path=instance.path, use=True, font=inst)
+                            fi.type = "instance"
+                            fi.reloadFeatures()
+
+                            self.gsubLookups.update(fi._gsub)
+                            self.gposLookups.update(fi._gpos)
+                            self.lookups.update(
+                                {pos: "default" for pos in self.gposLookups}
+                            )
+                            self.lookups.update(
+                                {sub: "default" for sub in self.gsubLookups}
                             )
 
-                        # interpolate instance kerning
-                        mathKerning = obj.makeOneKerning(dict(instance.designLocation))
-                        mathKerning.round()
-                        mathKerning.extractKerning(inst)
-
-                        # inst.kerning = mathKerning
-
-                        fi = objects.FontItem(path=instance.path, use=True, font=inst)
-                        fi.type = "instance"
-                        fi.reloadFeatures()
-
-                        self.gsubLookups.update(fi._gsub)
-                        self.gposLookups.update(fi._gpos)
-                        self.lookups.update(
-                            {pos: "default" for pos in self.gposLookups}
-                        )
-                        self.lookups.update(
-                            {sub: "default" for sub in self.gsubLookups}
-                        )
-
-                        self.fonts[instance.path] = fi
+                            self.fonts[instance.path] = fi
 
                 if previewItem:
                     self.fonts[defaults.PREVIEW] = previewItem
@@ -2031,11 +2061,11 @@ class Spaceport(Subscriber, ezui.WindowController):
         else:
             self.useKerning = not self.useKerning
 
-        _color = (0,0,0,0) if not self.useKerning else (*defaults.SYSTEM_BLUE[:3], .3)
+        _color = (0,0,0,0) if not self.useKerning else (*defaults.SYSTEM_BLUE[:3], .85)
 
         _obj = self.w.getItem("useKerningButton")._button.getNSButton()
         _obj.setBackgroundColor_(RGBA2NS(_color))
-        _obj.setCornerRadius_(3)
+        _obj.setCornerRadius_(4)
         
         # self.displaySettingsButtonCallback(None)
         self.useKerningSender = True
@@ -2050,7 +2080,7 @@ class Spaceport(Subscriber, ezui.WindowController):
         self.showStroke = 1 in values
         self.showPoints = 2 in values
 
-        self.beamPosition = self.viewSettingsWindow.getItemValue("beamPositionSlider")
+        #self.beamPosition = self.viewSettingsWindow.getItemValue("beamPositionSlider")
 
         showBeam = self.viewSettingsWindow.getItemValue("showBeamButton")
         showMetrics = self.showMetrics
@@ -3501,9 +3531,9 @@ class Spaceport(Subscriber, ezui.WindowController):
                         1 / self.scale
                     )  # calculate accurate new dragged delta with scale
                     x, y = self._convertLocation(event, view)
-                    self.viewSettingsWindow.setItemValue(
-                        "beamPositionSlider", (self.beamPosition + delta)
-                    )
+                    # self.viewSettingsWindow.setItemValue(
+                    #     "beamPositionSlider", (self.beamPosition + delta)
+                    # )
                     self.displaySettingsButtonCallback(None, onlyBeam=True)
 
         elif isinstance(view, ezui.views.merzView.MerzView):
@@ -3549,22 +3579,52 @@ class Spaceport(Subscriber, ezui.WindowController):
     def _placeSourcesInstancesInView(self, container, operator):
         container.clearSublayers()
         for source in operator.sources:
-            sP = self._convertDesignspaceLocationToViewPosition(source.location)
+            sourcePos = self._convertDesignspaceLocationToViewPosition(source.location)
             container.appendOvalSublayer(
-                position=sP,
+                position=sourcePos,
                 size=(10, 10),
                 anchor=(0.5, 0.5),
                 fillColor=defaults.SOURCE_COLOR,
             )
         for instance in operator.instances:
-            if instance.location not in [s.location for s in operator.sources]:
-                iP = self._convertDesignspaceLocationToViewPosition(instance.location)
-                container.appendOvalSublayer(
-                    position=iP,
-                    size=(10, 10),
-                    anchor=(0.5, 0.5),
-                    fillColor=defaults.INSTANCE_COLOR,
-                )
+            if instance.location:
+                if instance.location not in [s.location for s in operator.sources]:
+
+
+                    locHorizontal = locVertical = instance.location
+                    if operator.isAnisotropic(instance.location):
+                        locHorizontal, locVertical = operator.splitAnisotropic(instance.location)
+                        xx = self._convertDesignspaceLocationToViewPosition(locHorizontal)
+                        yy = self._convertDesignspaceLocationToViewPosition(locVertical)
+                        container.appendOvalSublayer(
+                            position=xx,
+                            size=(10, 10),
+                            anchor=(0.5, 0.5),
+                            fillColor=defaults.INSTANCE_COLOR,
+                        )
+                        container.appendOvalSublayer(
+                            position=yy,
+                            size=(10, 10),
+                            anchor=(0.5, 0.5),
+                            fillColor=defaults.INSTANCE_COLOR,
+                        )
+                        connection = container.appendLineSublayer(
+                            startPoint=xx,
+                            endPoint=yy,
+                            strokeColor=defaults.INSTANCE_COLOR,
+                            strokeWidth=2,
+                        )
+                        connection.setStrokeCap("round")
+                        connection.setStrokeDash((0, 5))
+
+                    else:
+                        instPos = self._convertDesignspaceLocationToViewPosition(instance.location)
+                        container.appendOvalSublayer(
+                            position=instPos,
+                            size=(10, 10),
+                            anchor=(0.5, 0.5),
+                            fillColor=defaults.INSTANCE_COLOR,
+                        )
 
     @property
     def currentLocation(self) -> dict[str, float]:
@@ -3587,11 +3647,23 @@ class Spaceport(Subscriber, ezui.WindowController):
         ny = y = location.get(self.yAxis, 150)
         desc = [a for a in self.operator.axes if a.name == self.xAxis][0]
         minimum, default, maximum = self.operator.getAxisExtremes(desc)
-        nx = utils.remap(x, minimum, maximum, buffer, 300 - buffer, True)
+        if isinstance(x, tuple):
+            x1,x2 = x
+            x1 = utils.remap(x1, minimum, maximum, buffer, 300 - buffer, True)    
+            x2 = utils.remap(x2, minimum, maximum, buffer, 300 - buffer, True)    
+            nx = (x1,x2)
+        else:
+            nx = utils.remap(x, minimum, maximum, buffer, 300 - buffer, True)
         if self.yAxis:
             desc = [a for a in self.operator.axes if a.name == self.yAxis][0]
             minimum, default, maximum = self.operator.getAxisExtremes(desc)
-            ny = utils.remap(y, minimum, maximum, buffer, 300 - buffer, True)
+            if isinstance(y, tuple):
+                y1,y2 = y
+                y1 = utils.remap(y1, minimum, maximum, buffer, 300 - buffer, True)    
+                y2 = utils.remap(y2, minimum, maximum, buffer, 300 - buffer, True)    
+                ny = (y1,y2)
+            else:
+                ny = utils.remap(y, minimum, maximum, buffer, 300 - buffer, True)
         return (nx, ny)
 
     def _convertViewPositionToDesignspaceLocation(self, position: tuple[float, float]):

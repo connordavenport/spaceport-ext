@@ -31,10 +31,6 @@ class SpacePortSettingsController(ezui.WindowController):
         * HorizontalStack                   @selectionStack
         > Selection Color: 
         > * ColorWell                       @selectionColorWell       ? Glyph Selection Color
-        -------
-        * HorizontalStack
-        > Top Padding:                         
-        > ---X--- [__](±)                   @paddingInputField        ? Top Padding Offset (Relative Scaler)
         # -------
 
         # * Box                               @warningBox = VerticalStack
@@ -109,17 +105,16 @@ class SpacePortSettingsController(ezui.WindowController):
             descriptionData=descriptionData,
             controller=self,
         )
-        ns = self.w.getItem("paddingInputField")._textField.getNSTextField()
-        ns.setBordered_(False)
-        ns.setBackgroundColor_(NSColor.clearColor())
-        ns.setFocusRingType_(1)
+        # ns = self.w.getItem("paddingInputField")._textField.getNSTextField()
+        # ns.setBordered_(False)
+        # ns.setBackgroundColor_(NSColor.clearColor())
+        # ns.setFocusRingType_(1)
         self.w.getNSWindow().setInitialFirstResponder_(self.w.getItem("cursorStack").getNSStackView())
 
 
     def started(self) -> None:
         self.w.open()
         
-
     def tintedBackgroundButtonCallback(self, sender: Any) -> None:
         postEvent(defaults.EVENT_KEY, name="tintedBackground", value=sender.get())
 
@@ -132,8 +127,8 @@ class SpacePortSettingsController(ezui.WindowController):
     def selectionColorWellCallback(self, sender: Any) -> None:
         postEvent(defaults.EVENT_KEY, name="selectionColor", value=sender.get())
 
-    def paddingInputFieldCallback(self, sender: Any) -> None:
-        postEvent(defaults.EVENT_KEY, name="paddingMultiplier", value=sender.get())
+    # def paddingInputFieldCallback(self, sender: Any) -> None:
+    #     postEvent(defaults.EVENT_KEY, name="paddingMultiplier", value=sender.get())
 
     def revertButtonCallback(self, sender) -> None:
         extDefs = NSApp().extensionDefaults()
@@ -145,7 +140,7 @@ class SpacePortSettingsController(ezui.WindowController):
         self.w.setItemValue("cursorColorWell", defaults.CURSOR_COLOR)        
         self.w.setItemValue("tintedBackgroundButton", defaults.TINTED_BACKGROUND) 
         self.w.setItemValue("selectionColorWell", defaults.SELECTION_COLOR)     
-        self.w.setItemValue("paddingInputField", defaults.PADDING_MULTIPLIER)      
+        # self.w.setItemValue("paddingInputField", defaults.PADDING_MULTIPLIER)      
 
 
 

@@ -1,19 +1,12 @@
-![Static Badge](https://img.shields.io/badge/unpublished-blue?logo=data%3Aimage%2Fsvg%2Bxml%3Bbase64%2CPHN2ZyBlbmFibGUtYmFja2dyb3VuZD0ibmV3IDAgMCA2NCA2NCIgaWQ9InVuaTJCMjQiIHdpZHRoPSI3NSIgaGVpZ2h0PSI2OSIgdmVyc2lvbj0iMS4xIiB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHhtbG5zOnhsaW5rPSJodHRwOi8vd3d3LnczLm9yZy8xOTk5L3hsaW5rIj48cGF0aCB0cmFuc2Zvcm09InNjYWxlKDEgLTEpIHRyYW5zbGF0ZSgwLCAtNjkpIiBkPSJNNDAgNjlDNTkgNjkgNzUgNTUgNzUgMzdDNzUgMTYgNTYgMCAzNSAwQzE2IDAgMCAxNSAwIDMyQzAgNTMgMTggNjkgNDAgNjlaTTUxIDE2TDQ3IDI3QzQ1IDMyIDQ3IDM2IDUyIDM5TDMyIDU4QzMxIDU5IDMwIDU5IDI5IDU4TDIzIDMwQzMwIDMwIDMzIDI4IDM0IDI0TDM3IDEyWk00NCAzMEwzNSAyOEMzMyAzMSAyOCAzMiAyNiAzMkwzMSA1Nkw0OCAzOUM0NiAzNyA0MyAzNCA0NCAzMFpNMzYgNDNDMzQgNDMgMzMgNDIgMzMgNDBDMzMgMzcgMzUgMzUgMzcgMzVDMzggMzUgMzkgMzYgMzkgMzhDMzkgNDAgMzggNDMgMzYgNDNaIi8%2BPC9zdmc%2B&logoColor=white&label=Mechanic&labelColor=FFFFFF&color=purple&link=https%3A%2F%2Frobofontmechanic.com%2F%23connor-davenport)
+<!-- ![Static Badge](https://img.shields.io/badge/unpublished-blue?logo=data%3Aimage%2Fsvg%2Bxml%3Bbase64%2CPHN2ZyBlbmFibGUtYmFja2dyb3VuZD0ibmV3IDAgMCA2NCA2NCIgaWQ9InVuaTJCMjQiIHdpZHRoPSI3NSIgaGVpZ2h0PSI2OSIgdmVyc2lvbj0iMS4xIiB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHhtbG5zOnhsaW5rPSJodHRwOi8vd3d3LnczLm9yZy8xOTk5L3hsaW5rIj48cGF0aCB0cmFuc2Zvcm09InNjYWxlKDEgLTEpIHRyYW5zbGF0ZSgwLCAtNjkpIiBkPSJNNDAgNjlDNTkgNjkgNzUgNTUgNzUgMzdDNzUgMTYgNTYgMCAzNSAwQzE2IDAgMCAxNSAwIDMyQzAgNTMgMTggNjkgNDAgNjlaTTUxIDE2TDQ3IDI3QzQ1IDMyIDQ3IDM2IDUyIDM5TDMyIDU4QzMxIDU5IDMwIDU5IDI5IDU4TDIzIDMwQzMwIDMwIDMzIDI4IDM0IDI0TDM3IDEyWk00NCAzMEwzNSAyOEMzMyAzMSAyOCAzMiAyNiAzMkwzMSA1Nkw0OCAzOUM0NiAzNyA0MyAzNCA0NCAzMFpNMzYgNDNDMzQgNDMgMzMgNDIgMzMgNDBDMzMgMzcgMzUgMzUgMzcgMzVDMzggMzUgMzkgMzYgMzkgMzhDMzkgNDAgMzggNDMgMzYgNDNaIi8%2BPC9zdmc%2B&logoColor=white&label=Mechanic&labelColor=FFFFFF&color=purple&link=https%3A%2F%2Frobofontmechanic.com%2F%23connor-davenport)
 ![Dynamic YAML Badge](https://img.shields.io/badge/dynamic/yaml?url=https%3A%2F%2Fraw.githubusercontent.com%2Fconnordavenport%2FBezierSurgeon%2Frefs%2Fheads%2Fmaster%2Finfo.yaml&query=%24.version&logo=data%3Aimage%2Fsvg%2Bxml%3Bbase64%2CPHN2ZyBlbmFibGUtYmFja2dyb3VuZD0ibmV3IDAgMCA2NCA2NCIgaWQ9InVuaTJCMjQiIHdpZHRoPSI3NSIgaGVpZ2h0PSI2OSIgdmVyc2lvbj0iMS4xIiB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHhtbG5zOnhsaW5rPSJodHRwOi8vd3d3LnczLm9yZy8xOTk5L3hsaW5rIj48cGF0aCB0cmFuc2Zvcm09InNjYWxlKDEgLTEpIHRyYW5zbGF0ZSgwLCAtNjkpIiBkPSJNNDAgNjlDNTkgNjkgNzUgNTUgNzUgMzdDNzUgMTYgNTYgMCAzNSAwQzE2IDAgMCAxNSAwIDMyQzAgNTMgMTggNjkgNDAgNjlaTTUxIDE2TDQ3IDI3QzQ1IDMyIDQ3IDM2IDUyIDM5TDMyIDU4QzMxIDU5IDMwIDU5IDI5IDU4TDIzIDMwQzMwIDMwIDMzIDI4IDM0IDI0TDM3IDEyWk00NCAzMEwzNSAyOEMzMyAzMSAyOCAzMiAyNiAzMkwzMSA1Nkw0OCAzOUM0NiAzNyA0MyAzNCA0NCAzMFpNMzYgNDNDMzQgNDMgMzMgNDIgMzMgNDBDMzMgMzcgMzUgMzUgMzcgMzVDMzggMzUgMzkgMzYgMzkgMzhDMzkgNDAgMzggNDMgMzYgNDNaIi8%2BPC9zdmc%2B&label=Ext.%20Version&labelColor=white)
-![GitHub commit activity](https://img.shields.io/github/commit-activity/w/connordavenport/BezierSurgeon?logo=GitHub&logoColor=black&labelColor=white)
-
+![GitHub commit activity](https://img.shields.io/github/commit-activity/w/connordavenport/BezierSurgeon?logo=GitHub&logoColor=black&labelColor=white) -->
 # Spaceport
 
-## DOCUMENTATION IS NOT UP TO DATE
+>"A spaceport is a site where spacecraft are tested, launched, sheltered and maintained.
+The Spaceport extension is a place where multiple, unrelated UFOs can be spaced, kerned and interpolated concurrently."
 
-Spaceport is currently in beta development.
-
-
-Developed by Connor Davenport
-
-Designed by Vincent Chan and Connor Davenport
-
-Sponsored by Vincent Chan
+##### Spaceport is currently in beta development.
 
 ![UI Image](./images/ui_screenshot_labels.png)
 
@@ -139,4 +132,11 @@ If there is an activated designspace, the interpolation controller will generate
 Continuous axes can be switched using the x and/or y axes popovers and dragging your mouse within the view. The mouse location is remapped into the axes' minimum and maximum.
 
 
+### Credits
+
+Developed by Connor Davenport
+
+Designed by Vincent Chan and Connor Davenport
+
+Sponsored by Vincent Chan
 
