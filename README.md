@@ -86,6 +86,13 @@ With at least one selected item, you can edit the spacing. If more than one item
 
 `glyphViewZoomInKey` Zoom out `e.g. x`
 
+## Typing
+
+![Typing](https://github.com/user-attachments/assets/66227df7-7202-4aa8-94a6-ab05d944d43b)
+
+## Kerning
+
+![Kerning](https://github.com/user-attachments/assets/9e6d560f-d957-4531-9237-bb39627f43bb)
 
 ## Mouse Controls
 
@@ -99,11 +106,9 @@ _Note: `shift` and `option` are not able to be combined!_
 
 Double clicking a single item will open a `DoodleGlyphWindow` for that glyph.
 
----
+### Objects Manager
 
 ![Objects Sheets](./images/ui_objects.png)
-
-### Objects Manager
 
 Tabs:  `Fonts`  `Designspaces`
 
@@ -127,10 +132,10 @@ Tabs:  `Fonts`  `Designspaces`
 
 `DSE Controller` Allow DesignspaceEditor to control the interpolation values, display selected instances, or selected sources
 
-<!-- ![Interpolation](./images/ui_interpolation.mp4) -->
-<video src='https://github.com/connordavenport/spaceport-ext/raw/refs/heads/main/images/ui_interpolation.mp4?raw=true' width="200"/>
 
 ### Interpolation Controller
+
+![Interpolation](https://github.com/user-attachments/assets/418416cd-2cc0-43c0-9046-90fb97ef0cfc)
 
 If there is an activated designspace, the interpolation controller will generate a UI to control all available axes in the operator. Discrete axes can be accessed through popup buttons while continuous axes can be controlled 2 at a time through an interactive 2-dimensional view.
 
