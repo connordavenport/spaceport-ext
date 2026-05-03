@@ -82,9 +82,9 @@ With at least one selected item, you can edit the spacing. If more than one item
 
 ##### The following keys are extracted from the users' preferences
 
-`glyphViewZoomInKey` Zoom in `e.g. z`
+`glyphViewZoomInKey` Zoom in e.g. `z`
 
-`glyphViewZoomInKey` Zoom out `e.g. x`
+`glyphViewZoomInKey` Zoom out e.g. `x`
 
 
 ## Mouse Controls
@@ -97,7 +97,7 @@ When selecting a glyph inside the Spaceport view there are several modifiers ava
 
 _Note: `shift` and `option` are not able to be combined!_
 
-Double clicking a single item will open a `DoodleGlyphWindow` for that glyph.
+Double clicking a single item will open a `DoodleGlyphWindow` for that glyph if the font has a UI.
 
 ## Typing
 
@@ -115,11 +115,13 @@ Spaceport has basic kerning support, similar to the spacing mode, kerning can be
 
 The kerning shortcuts follow the same key controls as the spacing mode, with the addition of `delete` to remove a pair's value. 
 
+Kerning can only be edited for fonts that have UI and/or are sources in a designspace. All previewed instances will automatically generate their new kerning object.
+
 _There is no undo for kerning, yet._
 
 ![Kerning](https://github.com/user-attachments/assets/9e6d560f-d957-4531-9237-bb39627f43bb)
 
-### Objects Manager
+## Objects Manager
 
 ![Objects Sheets](./images/ui_objects.png)
 
@@ -146,7 +148,7 @@ Tabs:  `Fonts`  `Designspaces`
 `DSE Controller` Allow DesignspaceEditor to control the interpolation values, display selected instances, or selected sources
 
 
-### Interpolation Controller
+## Interpolation Controller
 
 ![Interpolation](https://github.com/user-attachments/assets/418416cd-2cc0-43c0-9046-90fb97ef0cfc)
 
