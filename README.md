@@ -150,6 +150,8 @@ If there is an activated designspace, the interpolation controller will generate
 
 Continuous axes can be switched using the x and/or y axes popovers and dragging your mouse within the view. The mouse location is remapped into the axes' minimum and maximum.
 
+Spaceport currently only supports `designLocation` instances, all `userLocation` instances will be ignored. Spaceport also supports anisotropic interpolation display but you can not edit these values directly, please use `DesignspaceEditor` to edit these.
+
 ### Credits
 
 Developed by Connor Davenport
