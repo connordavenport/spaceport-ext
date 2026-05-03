@@ -128,7 +128,7 @@ Tabs:  `Fonts`  `Designspaces`
 `DSE Controller` Allow DesignspaceEditor to control the interpolation values, display selected instances, or selected sources
 
 <!-- ![Interpolation](./images/ui_interpolation.mp4) -->
-<video src='https://github.com/connordavenport/spaceport-ext/raw/refs/heads/main/images/ui_interpolation.mp4' width="200"/>
+<video src='https://github.com/connordavenport/spaceport-ext/raw/refs/heads/main/images/ui_interpolation.mp4?raw=true' width="200"/>
 
 ### Interpolation Controller
 
