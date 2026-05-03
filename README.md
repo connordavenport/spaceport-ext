@@ -8,7 +8,7 @@ The Spaceport extension is a place where multiple, unrelated UFOs can be spaced,
 
 ##### Spaceport is currently in beta development.
 
-![UI Image](./images/ui_screenshot_labels.png)
+![UI Image](./images/ui_default.png)
 
 ## User Interface - Main Window
 
@@ -99,6 +99,9 @@ _Note: `shift` and `option` are not able to be combined!_
 
 Double clicking a single item will open a `DoodleGlyphWindow` for that glyph.
 
+---
+
+![Objects Sheets](./images/ui_objects.png)
 
 ### Objects Manager
 
@@ -124,6 +127,8 @@ Tabs:  `Fonts`  `Designspaces`
 
 `DSE Controller` Allow DesignspaceEditor to control the interpolation values, display selected instances, or selected sources
 
+<!-- ![Interpolation](./images/ui_interpolation.mp4) -->
+<video src='./images/ui_interpolation.mp4' width="200"/>
 
 ### Interpolation Controller
 

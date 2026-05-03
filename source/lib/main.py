@@ -2015,15 +2015,17 @@ class Spaceport(Subscriber, ezui.WindowController):
                     "descriptorIndicator"
                 )
                 if descriptorIndicatorLayer:
-                    text = descriptorIndicatorLayer.getSublayer(
+                    textLayer = descriptorIndicatorLayer.getSublayer(
                         "descriptorIndicatorTextLayer"
-                    ).getText()
-                    if len(text) == 2:
-                        dot, data = text
-                        data["fillColor"] = (*foregroundColor[0:3], 0.5)
-                        descriptorIndicatorLayer.getSublayer(
-                            "descriptorIndicatorTextLayer"
-                        ).setText([dot, data])
+                    )
+                    if textLayer:
+                        text = textLayer.getText()
+                        if len(text) == 2:
+                            dot, data = text
+                            data["fillColor"] = (*foregroundColor[0:3], 0.5)
+                            descriptorIndicatorLayer.getSublayer(
+                                "descriptorIndicatorTextLayer"
+                            ).setText([dot, data])
             ####
 
             glyphStrokeLayer.setStrokeColor(foregroundColor)
