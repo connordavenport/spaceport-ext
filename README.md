@@ -101,11 +101,15 @@ Double clicking a single item will open a `DoodleGlyphWindow` for that glyph.
 
 ## Typing
 
+`command t`
+
 Spacport allows for typing directly into the view, without a need for a text field. The cursor can be moved directly with clicking on a given character or using the arrow keys. By default, all text will be synced across the fonts in the view but there is an option for un-syncing the text to change the input text per-line.
 
 ![Typing](https://github.com/user-attachments/assets/66227df7-7202-4aa8-94a6-ab05d944d43b)
 
 ## Kerning
+
+`command k`
 
 Spaceport has basic kerning support, similar to the spacing mode, kerning can be applied to one selected pair, multiple selections, or using the `option` key on a pair to kern the current pair across all active fonts.
 
