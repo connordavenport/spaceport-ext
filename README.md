@@ -52,6 +52,8 @@ Arrow Keys: `← → ↓ ↑`
 Spaceport allows you to modify glyph(s) spacing via the arrow keys, optionally with modifiers to change the increments.
 With at least one selected item, you can edit the spacing. If more than one item is selected, it will apply the delta globally to those glyphs.
 
+Spacing can only be edited for fonts that have UI and/or are sources in a designspace. All previewed instances will automatically generate their new metrics.
+
 `shift + command = 100` 
 `shift = 10`
 `default = 1`
