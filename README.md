@@ -128,14 +128,13 @@ Tabs:  `Fonts`  `Designspaces`
 `DSE Controller` Allow DesignspaceEditor to control the interpolation values, display selected instances, or selected sources
 
 <!-- ![Interpolation](./images/ui_interpolation.mp4) -->
-<video src='./images/ui_interpolation.mp4' width="200"/>
+<video src='https://github.com/connordavenport/spaceport-ext/raw/refs/heads/main/images/ui_interpolation.mp4' width="200"/>
 
 ### Interpolation Controller
 
 If there is an activated designspace, the interpolation controller will generate a UI to control all available axes in the operator. Discrete axes can be accessed through popup buttons while continuous axes can be controlled 2 at a time through an interactive 2-dimensional view.
 
 Continuous axes can be switched using the x and/or y axes popovers and dragging your mouse within the view. The mouse location is remapped into the axes' minimum and maximum.
-
 
 ### Credits
 
