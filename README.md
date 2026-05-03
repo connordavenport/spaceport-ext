@@ -86,13 +86,6 @@ With at least one selected item, you can edit the spacing. If more than one item
 
 `glyphViewZoomInKey` Zoom out `e.g. x`
 
-## Typing
-
-![Typing](https://github.com/user-attachments/assets/66227df7-7202-4aa8-94a6-ab05d944d43b)
-
-## Kerning
-
-![Kerning](https://github.com/user-attachments/assets/9e6d560f-d957-4531-9237-bb39627f43bb)
 
 ## Mouse Controls
 
@@ -105,6 +98,22 @@ When selecting a glyph inside the Spaceport view there are several modifiers ava
 _Note: `shift` and `option` are not able to be combined!_
 
 Double clicking a single item will open a `DoodleGlyphWindow` for that glyph.
+
+## Typing
+
+Spacport allows for typing directly into the view, without a need for a text field. The cursor can be moved directly with clicking on a given character or using the arrow keys. By default, all text will be synced across the fonts in the view but there is an option for un-syncing the text to change the input text per-line.
+
+![Typing](https://github.com/user-attachments/assets/66227df7-7202-4aa8-94a6-ab05d944d43b)
+
+## Kerning
+
+Spaceport has basic kerning support, similar to the spacing mode, kerning can be applied to one selected pair, multiple selections, or using the `option` key on a pair to kern the current pair across all active fonts.
+
+The kerning shortcuts follow the same key controls as the spacing mode, with the addition of `delete` to remove a pair's value. 
+
+_There is no undo for kerning, yet._
+
+![Kerning](https://github.com/user-attachments/assets/9e6d560f-d957-4531-9237-bb39627f43bb)
 
 ### Objects Manager
 
