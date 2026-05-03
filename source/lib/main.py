@@ -670,9 +670,9 @@ class Spaceport(Subscriber, ezui.WindowController):
             showBeamButton=dict(
                 value=self.showBeam,
             ),
-            beamPositionSlider=dict(
-                width=120, minValue=0, maxValue=self.upm, value=self.beamPosition
-            ),
+            # beamPositionSlider=dict(
+            #     width=120, minValue=0, maxValue=self.upm, value=self.beamPosition
+            # ),
             showMetricsButton=dict(value=self.showMetrics),
             # useKerningButton=dict(
             #     value=self.useKerning
@@ -3534,6 +3534,7 @@ class Spaceport(Subscriber, ezui.WindowController):
                     # self.viewSettingsWindow.setItemValue(
                     #     "beamPositionSlider", (self.beamPosition + delta)
                     # )
+                    self.beamPosition += delta
                     self.displaySettingsButtonCallback(None, onlyBeam=True)
 
         elif isinstance(view, ezui.views.merzView.MerzView):
