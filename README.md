@@ -3,8 +3,8 @@
 ![GitHub commit activity](https://img.shields.io/github/commit-activity/w/connordavenport/BezierSurgeon?logo=GitHub&logoColor=black&labelColor=white) -->
 # Spaceport
 
->"A spaceport is a site where spacecraft are tested, launched, sheltered and maintained.
-The Spaceport extension is a place where multiple, unrelated UFOs can be spaced, kerned and interpolated concurrently."
+>"A spaceport is a site where spacecraft are tested, launched and maintained.
+Spaceport is an extension where multiple, un/related UFOs can be spaced, kerned and interpolated concurrently."
 
 ##### Spaceport is currently in beta development.
 
@@ -80,7 +80,7 @@ Spacing can only be edited for fonts that have UI and/or are sources in a design
 
 `l` Toggle label visibility
 
-`l` Toggle apply kerning
+`k` Toggle apply kerning
 
 ##### The following keys are extracted from the users' preferences
 
