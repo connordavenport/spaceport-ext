@@ -3978,9 +3978,12 @@ class Spaceport(Subscriber, ezui.WindowController):
                         """
                         we can paste slashed glyph names
                         """
-                        clipboardContents = subprocess.check_output(
-                            ["pbpaste"], text=True
-                        )
+
+                        pasteboard = AppKit.NSPasteboard.generalPasteboard()
+                        data = pasteboard.dataForType_(AppKit.NSPasteboardTypeString)
+                        clipboardContents = data.decode()
+
+                        # print(clipboardContents)
                         processed = splitText(
                             clipboardContents, self.font.getCharacterMapping()
                         )
