@@ -1,6 +1,3 @@
-# menuTitle : Spaceport
-# shortCut  : command+control+s
-
 # load internal modules
 import constants as defaults
 import windows
