@@ -3,6 +3,10 @@
 ![GitHub commit activity](https://img.shields.io/github/commit-activity/w/connordavenport/BezierSurgeon?logo=GitHub&logoColor=black&labelColor=white) -->
 # Spaceport
 
+<p align="center">
+  <img src="images/spaceport-logo.png">
+</p>
+
 >"A spaceport is a site where spacecraft are tested, launched and maintained.
 Spaceport is an extension where multiple, un/related UFOs can be spaced, kerned and interpolated concurrently."
 
