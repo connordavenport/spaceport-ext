@@ -116,6 +116,8 @@ SYSTEM_BLUE: tuple[float, float, float, float] = (0.055963389575481415, 0.477448
 CURSOR_COLOR: tuple[float, float, float, float] = (1.0, 0.0, 0.0, 1.0)
 SELECTION_COLOR: tuple[float, float, float, float] = (0.0, 0.0, 0.0, 0.1)
 
+GLYPH_TEXT_SHORTCUT = "/"
+TEXT_TEXT_SHORTCUT = "\\"
 
 POINT_SIZES: list[str] = [
     "9",

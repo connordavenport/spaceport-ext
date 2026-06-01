@@ -96,7 +96,8 @@ class Spaceport(Subscriber, ezui.WindowController):
         self.lineHeight : float | int = getExtensionDefault( defaults.EXTENSION_KEY + ".lineHeight", round(self.pointSize * 1.2))
         self.beamPosition : float  = getExtensionDefault( defaults.EXTENSION_KEY + ".beamPosition", int(getattr(getattr(self.font, "info", None), "xHeight", 500) / 2))
         self.matrixPosition : int = getExtensionDefault( defaults.EXTENSION_KEY + ".matrixPosition", 0)
-
+        self.glyphTextShortcut : str = getExtensionDefault( defaults.EXTENSION_KEY + ".glyphTextShortcut", defaults.GLYPH_TEXT_SHORTCUT)
+        self.textTextShortcut : str = getExtensionDefault( defaults.EXTENSION_KEY + ".textTextShortcut", defaults.TEXT_TEXT_SHORTCUT)
 
     def saveDefaults(self) -> None:
         setExtensionDefault( defaults.EXTENSION_KEY + ".tintedBackground", self.tintedBackground)
@@ -120,7 +121,8 @@ class Spaceport(Subscriber, ezui.WindowController):
         setExtensionDefault( defaults.EXTENSION_KEY + ".lineHeight", self.lineHeight)
         setExtensionDefault( defaults.EXTENSION_KEY + ".beamPosition", self.beamPosition)
         setExtensionDefault( defaults.EXTENSION_KEY + ".matrixPosition", self.matrixPosition)
-
+        setExtensionDefault( defaults.EXTENSION_KEY + ".glyphTextShortcut", self.glyphTextShortcut)
+        setExtensionDefault( defaults.EXTENSION_KEY + ".textTextShortcut", self.textTextShortcut)
 
     def loadWindowSettings(self) -> None:
         viewPrefs = getExtensionDefault(
@@ -3991,12 +3993,12 @@ class Spaceport(Subscriber, ezui.WindowController):
                         self.updateCharacterString()
                         return
 
-                    elif char == "/":
+                    elif char == self.glyphTextShortcut:
                         # cmd + slash to open glyph selection palette
                         windows.GlyphFinderPalette(self.w, self)
                         return
 
-                    elif char == "\\":
+                    elif char == self.textTextShortcut:
                         # cmd + question to open history selection palette
                         windows.AutocompletePalette(self.w, self)
                         return
@@ -4386,6 +4388,7 @@ class Spaceport(Subscriber, ezui.WindowController):
             name = data["name"]
             value = data["value"]
             setattr(self, name, value)
+            # print(self, name, value)
             if hasattr(objects.MerzCollectionViewRGlyphItem, name):
                 for item in self.collectionView.get():
                     setattr(item, name, value)

@@ -14,24 +14,27 @@ class SpacePortSettingsController(ezui.WindowController):
         self.cursorColor: tuple[float, float, float, float] = getExtensionDefault( defaults.EXTENSION_KEY + ".cursorColor", defaults.CURSOR_COLOR)
         self.selectionColor: tuple[float, float, float, float] = getExtensionDefault( defaults.EXTENSION_KEY + ".selectionColor", defaults.SELECTION_COLOR)
         self.paddingMultiplier: float = getExtensionDefault( defaults.EXTENSION_KEY + ".paddingMultiplier", defaults.PADDING_MULTIPLIER)
-
+        self.glyphTextShortcut: str = getExtensionDefault( defaults.EXTENSION_KEY + ".glyphTextShortcut", defaults.GLYPH_TEXT_SHORTCUT)
+        self.textTextShortcut: str = getExtensionDefault( defaults.EXTENSION_KEY + ".textTextShortcut", defaults.TEXT_TEXT_SHORTCUT)
 
     def build(self) -> None:
 
         self.loadDefaults()
 
-        content = """
+        content = f"""
         [ ] Blinking Cursor                 @cursorBlinkingButton     ? Use Blinking Cursor
         * HorizontalStack                   @cursorStack                                 
         > Cursor Color: 
         > * ColorWell                       @cursorColorWell          ? Cursor Color
         -------
-         [ ] Tinted Typing Background       @tintedBackgroundButton   ? Use Tinted Background in Typing View
+        [ ] Tinted Typing Background        @tintedBackgroundButton   ? Use Tinted Background in Typing View
         -------
         * HorizontalStack                   @selectionStack
         > Selection Color: 
         > * ColorWell                       @selectionColorWell       ? Glyph Selection Color
-        # -------
+        -------
+        Add Glyph Keys: ⌘ + [_ {self.glyphTextShortcut} _]         @glyphTextField           ? Add Glyph Shortcut
+        Sample Text Keys: ⌘ + [_ {self.textTextShortcut} _]        @textTextField            ? Sample Text Shortcut    
 
         # * Box                               @warningBox = VerticalStack
         # > * HorizontalStack                 @warningStack
@@ -41,6 +44,10 @@ class SpacePortSettingsController(ezui.WindowController):
 
         descriptionData = dict(
            cursorStack=dict(
+                distribution="fillEqually",
+                alignment="leading",
+            ),
+            shortcutsStack=dict(
                 distribution="fillEqually",
                 alignment="leading",
             ),
@@ -127,6 +134,13 @@ class SpacePortSettingsController(ezui.WindowController):
     def selectionColorWellCallback(self, sender: Any) -> None:
         postEvent(defaults.EVENT_KEY, name="selectionColor", value=sender.get())
 
+    def glyphTextFieldCallback(self, sender: Any) -> None:
+        postEvent(defaults.EVENT_KEY, name="glyphTextShortcut", value=sender.get())
+
+    def textTextFieldCallback(self, sender: Any) -> None:
+        postEvent(defaults.EVENT_KEY, name="textTextShortcut", value=sender.get())
+
+
     # def paddingInputFieldCallback(self, sender: Any) -> None:
     #     postEvent(defaults.EVENT_KEY, name="paddingMultiplier", value=sender.get())
 
@@ -140,6 +154,8 @@ class SpacePortSettingsController(ezui.WindowController):
         self.w.setItemValue("cursorColorWell", defaults.CURSOR_COLOR)        
         self.w.setItemValue("tintedBackgroundButton", defaults.TINTED_BACKGROUND) 
         self.w.setItemValue("selectionColorWell", defaults.SELECTION_COLOR)     
+        self.w.setItemValue("glyphTextField", defaults.GLYPH_TEXT_SHORTCUT)
+        self.w.setItemValue("textTextField", defaults.TEXT_TEXT_SHORTCUT)
         # self.w.setItemValue("paddingInputField", defaults.PADDING_MULTIPLIER)      
 
 
