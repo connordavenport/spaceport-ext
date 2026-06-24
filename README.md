@@ -171,7 +171,14 @@ Continuous axes can be switched using the x and/or y axes popovers and dragging 
 
 Spaceport currently only supports `designLocation` instances, all `userLocation` instances will be ignored. Spaceport also supports anisotropic interpolation display but you can not edit these values directly, please use `DesignspaceEditor` to edit these.
 
-### Credits
+## OpenType Layout
+
+Spaceport currently supports reading and previewing of a UFO's GSUB features. The layout parsing is handled with [Harfbuzz](https://github.com/harfbuzz/uharfbuzz)'s Python binding and Tal and Frederik's [FeaturePreview](https://github.com/typemytype/featurePreviewRoboFontExtension) as a submodule to handle the loading.
+
+> [!WARNING]
+> Spaceport does not currently support viewing any GPOS aside from the kerning data inside the UFOs `kerning.plist`. 
+
+## Credits
 
 Developed by Connor Davenport
 
