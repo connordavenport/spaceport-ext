@@ -191,6 +191,13 @@ Development was sponsored by Vincent Chan
 [Matter of Sorts](https://matterofsorts.com) (Vincent Chan)
 [Programme](https://programme.tools)  (Connor Davenport)
 
+This project would not be possible without the incredible framework and libraries that it is built on top of. 
+
+- [Tal Leming](https://typesupply.com/)'s merz, ezui, and MetricsMachine
+- [Frederik Berlaen](https://typemytype.com/)'s [RoboFont](https://robofont.com/) and related packages.
+- [Erik van Blokland](https://letterror.com/)'s incredible work on the [designspace](https://superpolator.com/designspace.html) format and [related tooling](https://github.com/LettError/designSpaceRoboFontExtension/).
+- [Just van Rossum](https://github.com/justvanrossum)'s [FontGoggles](https://fontgoggles.org/)
+
 ## Support
 
 Please [open an issue](https://github.com/connordavenport/spaceport-ext/issues/new) for support. We will do our best to make any bug fixes in a timely manner.
