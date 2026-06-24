@@ -7,11 +7,14 @@
 <p align="center">
   <img src="images/spaceport-logo.png">
 </p>
+> [!TIP]
+>
+> "A spaceport is a site where spacecraft are tested, launched and maintained.
+> Spaceport is an extension where multiple, un/related UFOs can be spaced, kerned and interpolated concurrently."
 
->"A spaceport is a site where spacecraft are tested, launched and maintained.
-Spaceport is an extension where multiple, un/related UFOs can be spaced, kerned and interpolated concurrently."
-
-##### Spaceport is currently in beta development.
+> [!WARNING]
+>
+> Spaceport is currently in beta development. 
 
 ![UI Image](./images/ui_default.png)
 
@@ -171,9 +174,10 @@ Developed by Connor Davenport
 
 Designed by Vincent Chan and Connor Davenport
 
-Sponsored by Vincent Chan
+Development was sponsored by Vincent Chan
 
-
+[Matter of Sorts](https://matterofsorts.com) (Vincent Chan)
+[Programme](https://programme.tools)  (Connor Davenport)
 
 ## Support
 
