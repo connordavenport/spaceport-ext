@@ -130,6 +130,8 @@ The kerning shortcuts follow the same key controls as the spacing mode, with the
 
 Kerning can only be edited for fonts that have UI and/or are sources in a designspace. All previewed instances will automatically generate their new kerning object.
 
+Spaceport's kerning functions are *not* designed to replace the more robust workflows capable with MetricsMachine.
+
 _There is no undo for kerning, yet._
 
 ![Kerning](https://github.com/user-attachments/assets/9e6d560f-d957-4531-9237-bb39627f43bb)
