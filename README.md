@@ -193,7 +193,7 @@ Development was sponsored by Vincent Chan
 
 This project would not be possible without the incredible framework and libraries that it is built on top of. 
 
-- [Tal Leming](https://typesupply.com/)'s merz, ezui, and MetricsMachine
+- [Tal Leming](https://typesupply.com/)'s [Merz](https://typesupply.github.io/merz/), [Subscriber](https://robofont.com/documentation/topics/subscriber/?highlight=subscriber), [ezui](https://typesupply.github.io/ezui/), and [MetricsMachine](https://extensionstore.robofont.com/extensions/metricsMachine/)
 - [Frederik Berlaen](https://typemytype.com/)'s [RoboFont](https://robofont.com/) and related packages.
 - [Erik van Blokland](https://letterror.com/)'s incredible work on the [designspace](https://superpolator.com/designspace.html) format and [related tooling](https://github.com/LettError/designSpaceRoboFontExtension/).
 - [Just van Rossum](https://github.com/justvanrossum)'s [FontGoggles](https://fontgoggles.org/)
