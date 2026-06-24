@@ -1,6 +1,7 @@
 <!-- ![Static Badge](https://img.shields.io/badge/unpublished-blue?logo=data%3Aimage%2Fsvg%2Bxml%3Bbase64%2CPHN2ZyBlbmFibGUtYmFja2dyb3VuZD0ibmV3IDAgMCA2NCA2NCIgaWQ9InVuaTJCMjQiIHdpZHRoPSI3NSIgaGVpZ2h0PSI2OSIgdmVyc2lvbj0iMS4xIiB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHhtbG5zOnhsaW5rPSJodHRwOi8vd3d3LnczLm9yZy8xOTk5L3hsaW5rIj48cGF0aCB0cmFuc2Zvcm09InNjYWxlKDEgLTEpIHRyYW5zbGF0ZSgwLCAtNjkpIiBkPSJNNDAgNjlDNTkgNjkgNzUgNTUgNzUgMzdDNzUgMTYgNTYgMCAzNSAwQzE2IDAgMCAxNSAwIDMyQzAgNTMgMTggNjkgNDAgNjlaTTUxIDE2TDQ3IDI3QzQ1IDMyIDQ3IDM2IDUyIDM5TDMyIDU4QzMxIDU5IDMwIDU5IDI5IDU4TDIzIDMwQzMwIDMwIDMzIDI4IDM0IDI0TDM3IDEyWk00NCAzMEwzNSAyOEMzMyAzMSAyOCAzMiAyNiAzMkwzMSA1Nkw0OCAzOUM0NiAzNyA0MyAzNCA0NCAzMFpNMzYgNDNDMzQgNDMgMzMgNDIgMzMgNDBDMzMgMzcgMzUgMzUgMzcgMzVDMzggMzUgMzkgMzYgMzkgMzhDMzkgNDAgMzggNDMgMzYgNDNaIi8%2BPC9zdmc%2B&logoColor=white&label=Mechanic&labelColor=FFFFFF&color=purple&link=https%3A%2F%2Frobofontmechanic.com%2F%23connor-davenport)
 ![Dynamic YAML Badge](https://img.shields.io/badge/dynamic/yaml?url=https%3A%2F%2Fraw.githubusercontent.com%2Fconnordavenport%2FBezierSurgeon%2Frefs%2Fheads%2Fmaster%2Finfo.yaml&query=%24.version&logo=data%3Aimage%2Fsvg%2Bxml%3Bbase64%2CPHN2ZyBlbmFibGUtYmFja2dyb3VuZD0ibmV3IDAgMCA2NCA2NCIgaWQ9InVuaTJCMjQiIHdpZHRoPSI3NSIgaGVpZ2h0PSI2OSIgdmVyc2lvbj0iMS4xIiB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHhtbG5zOnhsaW5rPSJodHRwOi8vd3d3LnczLm9yZy8xOTk5L3hsaW5rIj48cGF0aCB0cmFuc2Zvcm09InNjYWxlKDEgLTEpIHRyYW5zbGF0ZSgwLCAtNjkpIiBkPSJNNDAgNjlDNTkgNjkgNzUgNTUgNzUgMzdDNzUgMTYgNTYgMCAzNSAwQzE2IDAgMCAxNSAwIDMyQzAgNTMgMTggNjkgNDAgNjlaTTUxIDE2TDQ3IDI3QzQ1IDMyIDQ3IDM2IDUyIDM5TDMyIDU4QzMxIDU5IDMwIDU5IDI5IDU4TDIzIDMwQzMwIDMwIDMzIDI4IDM0IDI0TDM3IDEyWk00NCAzMEwzNSAyOEMzMyAzMSAyOCAzMiAyNiAzMkwzMSA1Nkw0OCAzOUM0NiAzNyA0MyAzNCA0NCAzMFpNMzYgNDNDMzQgNDMgMzMgNDIgMzMgNDBDMzMgMzcgMzUgMzUgMzcgMzVDMzggMzUgMzkgMzYgMzkgMzhDMzkgNDAgMzggNDMgMzYgNDNaIi8%2BPC9zdmc%2B&label=Ext.%20Version&labelColor=white)
 ![GitHub commit activity](https://img.shields.io/github/commit-activity/w/connordavenport/BezierSurgeon?logo=GitHub&logoColor=black&labelColor=white) -->
+
 # Spaceport
 
 <p align="center">
@@ -22,21 +23,21 @@ Spaceport is an extension where multiple, un/related UFOs can be spaced, kerned 
 	- Kern: Edit Kerning
 
 - 2 : Point Size
- 
+
 - 3 : Line Height
- 
+
 - 4 : Fit Text
 	- To Width
 	- To Height
- 
+
 - 5 : Text Alignment
- 
+
 - 6 : Character Ordering
- 
+
 - 7 : (Un)sync Text Strings
- 
+
 - 8 : Leading and Trailing Text Field
- 
+
 - 9 : Controllers
 	- Objects Controller:
 		- Add and manage UFOs and Designspaces
@@ -44,7 +45,7 @@ Spaceport is an extension where multiple, un/related UFOs can be spaced, kerned 
  	- Interpolation Controller
 
 - 10 : Settings Window
- 
+
 - 11 : Space Matrix
 
 
@@ -172,3 +173,15 @@ Designed by Vincent Chan and Connor Davenport
 
 Sponsored by Vincent Chan
 
+
+
+## Support
+
+Please [open an issue](https://github.com/connordavenport/spaceport-ext/issues/new) for support. We will do our best to make any bug fixes in a timely manner.
+
+## Contributing
+
+We can not promise that feature requests will be accepted but please, do feel free to make a PR or start a discussion!
+Please contribute using [Github Flow](https://guides.github.com/introduction/flow/). Create a branch, add commits, and [open a pull request](https://github.com/fraction/readme-boilerplate/compare/).  
+
+*If you have a feature request that is out of scope, feel free to fork this repo and build upon our current framework.* 
