@@ -7,9 +7,12 @@
 <p align="center">
   <img src="images/spaceport-logo.png">
 </p>
-> [!TIP]
+> [!NOTE]
+>
 > "A spaceport is a site where spacecraft are tested, launched and maintained.
 > Spaceport is an extension where multiple, un/related UFOs can be spaced, kerned and interpolated concurrently."
+
+
 
 > [!WARNING] 
 > Spaceport is currently in beta development. 
