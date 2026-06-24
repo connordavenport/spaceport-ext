@@ -3,7 +3,11 @@
 ![GitHub commit activity](https://img.shields.io/github/commit-activity/w/connordavenport/BezierSurgeon?logo=GitHub&logoColor=black&labelColor=white) -->
 
 # Spaceport
-> [!NOTE]
+> [!WARNING] 
+> Spaceport is currently in beta development. 
+
+
+> [!INFO]
 > "A spaceport is a site where spacecraft are tested, launched and maintained.
 > Spaceport is an extension where multiple, un/related UFOs can be spaced, kerned and interpolated concurrently."
 
@@ -11,8 +15,6 @@
   <img src="images/spaceport-logo.png">
 </p>
 
-> [!WARNING] 
-> Spaceport is currently in beta development. 
 
 ![UI Image](./images/ui_default.png)
 
