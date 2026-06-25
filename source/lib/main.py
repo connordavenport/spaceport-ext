@@ -1141,7 +1141,7 @@ class Spaceport(Subscriber, ezui.WindowController):
                 table.appendItems([item])
                 obj = OpenFont(file, True)
 
-                fontItem = objects.FontItem(path=path, use=True, font=obj)
+                fontItem = objects.FontItem(path=file, use=True, font=obj)
                 self.fonts[file] = fontItem
 
     def fontTableAddRemoveButtonRemoveCallback(self, sender: Any) -> None:

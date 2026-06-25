@@ -84,7 +84,12 @@ Spacing can only be edited for fonts that have UI and/or are sources in a design
 `command +` Zoom in
 
 `command -` Zoom out
-                    
+
+`command \` Input strings dialog
+
+`command /` Insert glyph dialog
+
+
 `b` Toggle beam visibility
 
 `m` Toggle metrics visibility
