@@ -3943,7 +3943,6 @@ class Spaceport(Subscriber, ezui.WindowController):
                             self.zoom(direction="out")
             else:
                 selectedIdxs = self.selectedIndexesToDelete
-
                 if rawEvent.keyCode() == 51:
                     deleting = True
                     if utils.command():
@@ -3963,6 +3962,10 @@ class Spaceport(Subscriber, ezui.WindowController):
                             lowest will be the next one
                             """
                             text = self.deleteSelectedIndexes(selectedIdxs, text)
+
+                elif rawEvent.keyCode() == 117:
+                    deleting = True
+                    text = self.deleteSelectedIndexes(selectedIdxs, text, 1)
 
                 if utils.command():
                     if char.lower() == "a":
@@ -4067,12 +4070,15 @@ class Spaceport(Subscriber, ezui.WindowController):
                 self.setTypingItem()
 
     def deleteSelectedIndexes(
-        self, indexes: list[int], textList: list[str]
+        self, indexes: list[int], textList: list[str], direction: int=-1
     ) -> list[str]:
         if not indexes:
             try:
-                textList.pop(self.typingIndex - 1)
-                self.typingIndex -= 1
+                if direction == -1:
+                    textList.pop(self.typingIndex - 1)
+                    self.typingIndex -= 1
+                elif direction == 1:
+                    textList.pop(self.typingIndex)
             except IndexError:  # if we have no text dont delete anything
                 pass
         else:
